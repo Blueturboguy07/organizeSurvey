@@ -71,7 +71,6 @@ interface SurveyData {
   activities: string[]
   interestedInReligiousOrgs: string
   religion: string
-  primaryGoal: string
 }
 
 export default function SurveyForm() {
@@ -91,20 +90,26 @@ export default function SurveyForm() {
     additionalHobbies: [],
     activities: [],
     interestedInReligiousOrgs: '',
-    religion: '',
-    primaryGoal: ''
+    religion: ''
   })
   const [showResults, setShowResults] = useState(false)
   const [resultsString, setResultsString] = useState('')
   const [cleansedString, setCleansedString] = useState('')
   const [additionalHobbyInput, setAdditionalHobbyInput] = useState('')
+  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [allSearchResults, setAllSearchResults] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(false)
+  const [searchError, setSearchError] = useState('')
+  const [selectedFilter, setSelectedFilter] = useState<string>('')
+  const [showInsights, setShowInsights] = useState(false)
+  const [queryKeywords, setQueryKeywords] = useState<string[]>([])
 
   const steps = [
     'Career Fields',
     'Housing',
     'Classification',
     'Demographics',
-    'Activities & Goals',
+    'Activities',
     'Results'
   ]
 
@@ -141,20 +146,42 @@ export default function SurveyForm() {
     if (formData.interestedInReligiousOrgs === 'Yes') {
       results.push(`Religion: ${formData.religion || 'Not specified'}`)
     }
-    results.push(`Primary Goal: ${formData.primaryGoal || 'Not specified'}`)
     
     const finalString = results.join(' | ')
     setResultsString(finalString)
     
-    // Cleansed version - no descriptors, only responses
+    // Cleansed version - weighted to emphasize career and goals
     const cleansed: string[] = []
     
-    // Career fields
+    // Career fields - repeat 3 times for strong emphasis (most important)
     if (formData.careerFields.length > 0) {
-      cleansed.push(formData.careerFields.join(', '))
+      const careerFieldsStr = formData.careerFields.join(', ')
+      cleansed.push(careerFieldsStr)
+      cleansed.push(careerFieldsStr) // Repeat 1
+      cleansed.push(careerFieldsStr) // Repeat 2
     }
     
-    // Lives on campus - convert to on-campus/off-campus
+    
+    // Activities - repeat 2 times for emphasis (important)
+    if (formData.activities.length > 0) {
+      const activitiesStr = formData.activities.join(', ')
+      cleansed.push(activitiesStr)
+      cleansed.push(activitiesStr) // Repeat once for emphasis
+    }
+    
+    // Hobbies - include but don't repeat (moderately important)
+    if (formData.hobbies) {
+      cleansed.push(formData.hobbies)
+    }
+    if (formData.additionalHobbies.length > 0) {
+      cleansed.push(formData.additionalHobbies.join(', '))
+    }
+    
+    // Classification - REMOVED from query to reduce bias
+    // Note: Classification is still used for filtering eligibility in check_eligibility(),
+    // but we don't include it in the search query to avoid over-weighting classification-focused orgs
+    
+    // Lives on campus - less important
     const campusStatus = formData.livesOnCampus === 'Yes' ? 'on-campus' : formData.livesOnCampus === 'No' ? 'off-campus' : ''
     if (campusStatus) {
       cleansed.push(campusStatus)
@@ -163,18 +190,12 @@ export default function SurveyForm() {
       cleansed.push(formData.hall)
     }
     
-    // Classification
-    if (formData.classification) {
-      cleansed.push(formData.classification)
-    }
-    
-    // Race
+    // Demographics - include but don't emphasize (filtering only, not for matching)
     const raceValue = formData.race + (formData.raceOther ? ` (${formData.raceOther})` : '')
     if (formData.race) {
       cleansed.push(raceValue)
     }
     
-    // Sexuality - only include if not straight
     if (formData.sexuality && formData.sexuality !== 'Straight') {
       if (formData.sexuality === 'Other' && formData.sexualityOther) {
         cleansed.push(formData.sexualityOther)
@@ -183,7 +204,6 @@ export default function SurveyForm() {
       }
     }
     
-    // Gender
     if (formData.gender) {
       if (formData.gender === 'Other' && formData.genderOther) {
         cleansed.push(formData.genderOther)
@@ -192,34 +212,69 @@ export default function SurveyForm() {
       }
     }
     
-    // Hobbies
-    if (formData.hobbies) {
-      cleansed.push(formData.hobbies)
-    }
-    if (formData.additionalHobbies.length > 0) {
-      cleansed.push(formData.additionalHobbies.join(', '))
-    }
-    
-    // Activities
-    if (formData.activities.length > 0) {
-      cleansed.push(formData.activities.join(', '))
-    }
-    
     // Religion (if interested)
     if (formData.interestedInReligiousOrgs === 'Yes' && formData.religion) {
       cleansed.push(formData.religion)
     }
     
-    // Primary goal
-    if (formData.primaryGoal) {
-      cleansed.push(formData.primaryGoal)
-    }
-    
     const finalCleansedString = cleansed.join(' | ')
     setCleansedString(finalCleansedString)
     
+    // Extract keywords for insights
+    const keywords = finalCleansedString
+      .split(/[|,]/)
+      .map(k => k.trim())
+      .filter(k => k.length > 0)
+    setQueryKeywords(keywords)
+    
     setShowResults(true)
     setCurrentStep(steps.length - 1)
+    
+    setIsLoading(true)
+    setSearchError('')
+    
+    const userDataForSearch = {
+      gender: formData.gender || formData.genderOther || '',
+      race: formData.race || formData.raceOther || '',
+      classification: formData.classification || '',
+      sexuality: formData.sexuality || formData.sexualityOther || '',
+      careerFields: formData.careerFields || []
+    }
+    
+    fetch('/api/search', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        query: finalCleansedString,
+        userData: userDataForSearch
+      })
+    })
+      .then(res => {
+        if (!res.ok) {
+          return res.json().then(data => {
+            throw new Error(data.error || `HTTP error! status: ${res.status}`)
+          })
+        }
+        return res.json()
+      })
+      .then(data => {
+        setIsLoading(false)
+        if (data.error) {
+          setSearchError(data.error)
+        } else {
+          const results = data.results || []
+          setAllSearchResults(results)
+          setSearchResults(results)
+          setSelectedFilter('')
+        }
+      })
+      .catch(err => {
+        setIsLoading(false)
+        console.error('Search error:', err)
+        setSearchError(err.message || 'Failed to search organizations. Please try again.')
+      })
   }
 
   const toggleCareerField = (field: string) => {
@@ -238,6 +293,70 @@ export default function SurveyForm() {
         ? prev.activities.filter(a => a !== activity)
         : [...prev.activities, activity]
     }))
+  }
+
+  const filterResults = (filter: string) => {
+    const filtered = allSearchResults.filter(org => {
+      const bio = (org.bio_snippet || org.bio || '').toLowerCase()
+      const activities = (org.typical_activities || '').toLowerCase()
+      const clubType = (org.club_culture_style || '').toLowerCase()
+      const name = (org.name || '').toLowerCase()
+      const combined = `${bio} ${activities} ${clubType} ${name}`.toLowerCase()
+      
+      switch (filter) {
+        case 'Building my resume / Career help':
+          const careerKeywords = ['career', 'professional', 'resume', 'networking', 'mentorship', 'leadership', 'skill', 'development', 'industry']
+          const hasCareerFocus = careerKeywords.some(keyword => combined.includes(keyword))
+          
+          const careerFieldsLower = formData.careerFields.map(f => f.toLowerCase())
+          const matchesCareerField = careerFieldsLower.some(field => {
+            const fieldKeywords: { [key: string]: string[] } = {
+              'engineering': ['engineering', 'engineer', 'tech'],
+              'technology/computer science': ['computer', 'technology', 'tech', 'cs', 'programming', 'software', 'coding'],
+              'business/finance': ['business', 'finance', 'mays', 'accounting', 'economics'],
+              'medicine/healthcare': ['medicine', 'medical', 'health', 'pre-med', 'bims', 'biology'],
+              'law': ['law', 'legal', 'pre-law'],
+              'education': ['education', 'teaching'],
+              'arts/design': ['art', 'arts', 'design', 'graphic'],
+              'science/research': ['science', 'research', 'chemistry', 'physics'],
+              'agriculture': ['agriculture', 'ag'],
+              'communication/media': ['communication', 'media', 'journalism'],
+              'social work': ['social work', 'social'],
+              'government/public service': ['government', 'public', 'political'],
+              'sports/fitness': ['sports', 'fitness', 'athletic'],
+              'hospitality/tourism': ['hospitality', 'tourism']
+            }
+            const keywords = fieldKeywords[field] || [field]
+            return keywords.some(keyword => combined.includes(keyword))
+          })
+          return hasCareerFocus || matchesCareerField || clubType === 'professional'
+          
+        case 'Making friends / Having fun':
+          return combined.includes('social') || 
+                 combined.includes('fun') || 
+                 combined.includes('friendship') ||
+                 clubType === 'social' ||
+                 activities.includes('social events')
+                 
+        case 'Volunteering / Giving back':
+          return combined.includes('volunteer') ||
+                 combined.includes('service') ||
+                 combined.includes('community') ||
+                 activities.includes('volunteering')
+                 
+        case 'Playing sports / Being active':
+          return combined.includes('sport') ||
+                 combined.includes('athletic') ||
+                 combined.includes('fitness') ||
+                 combined.includes('active') ||
+                 activities.includes('competitions')
+                 
+        default:
+          return true
+      }
+    })
+    
+    setSearchResults(filtered)
   }
 
   return (
@@ -641,29 +760,6 @@ export default function SurveyForm() {
                     )}
                   </div>
 
-                  {/* Primary Goal */}
-                  <div>
-                    <h3 className="text-xl font-semibold text-tamu-maroon mb-4">
-                      What is your primary goal for joining?
-                    </h3>
-                    <div className="space-y-3">
-                      {PRIMARY_GOALS.map((goal) => (
-                        <motion.button
-                          key={goal}
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                          onClick={() => setFormData(prev => ({ ...prev, primaryGoal: goal }))}
-                          className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
-                            formData.primaryGoal === goal
-                              ? 'border-tamu-maroon bg-tamu-maroon text-white'
-                              : 'border-gray-300 hover:border-tamu-maroon-light'
-                          }`}
-                        >
-                          {goal}
-                        </motion.button>
-                      ))}
-                    </div>
-                  </div>
                 </div>
               )}
 
@@ -710,28 +806,348 @@ export default function SurveyForm() {
               animate={{ opacity: 1, scale: 1 }}
               className="bg-white rounded-lg shadow-lg p-8"
             >
-              <h2 className="text-2xl font-semibold text-tamu-maroon mb-6">
-                Survey Results
-              </h2>
-              
-              {/* Original detailed version */}
-              <div className="bg-gray-50 p-6 rounded-lg border-2 border-gray-200 mb-6">
-                <pre className="whitespace-pre-wrap break-words text-gray-800 font-mono text-sm">
-                  {resultsString}
-                </pre>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-semibold text-tamu-maroon">
+                  Recommended Organizations
+                </h2>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setShowInsights(!showInsights)}
+                  className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-300 transition-all"
+                >
+                  {showInsights ? 'Hide' : 'Show'} Search Insights
+                </motion.button>
               </div>
               
-              {/* Cleansed version */}
-              <div>
-                <h3 className="text-lg font-semibold text-tamu-maroon mb-3">
-                  Cleansed Version
-                </h3>
-                <div className="bg-gray-50 p-6 rounded-lg border-2 border-gray-200">
-                  <pre className="whitespace-pre-wrap break-words text-gray-800 font-mono text-sm">
-                    {cleansedString}
-                  </pre>
+              {/* Search Insights Panel */}
+              {showInsights && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="bg-blue-50 border-2 border-blue-200 rounded-lg p-6 mb-6"
+                >
+                  <h3 className="text-lg font-semibold text-blue-900 mb-4">
+                    Search Process Insights
+                  </h3>
+                  
+                  <div className="space-y-4">
+                    {/* Query String */}
+                    <div>
+                      <p className="text-sm font-semibold text-blue-800 mb-2">Query String:</p>
+                      <div className="bg-white p-3 rounded border border-blue-200">
+                        <code className="text-sm text-gray-700 break-all">{cleansedString}</code>
+                      </div>
+                    </div>
+                    
+                    {/* Keywords */}
+                    <div>
+                      <p className="text-sm font-semibold text-blue-800 mb-2">
+                        Extracted Keywords ({queryKeywords.length}):
+                      </p>
+                      <div className="flex flex-wrap gap-2">
+                        {queryKeywords.map((keyword, idx) => (
+                          <span
+                            key={idx}
+                            className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-medium"
+                          >
+                            {keyword}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    {/* Scoring Weights */}
+                    <div>
+                      <p className="text-sm font-semibold text-blue-800 mb-2">Scoring Weights:</p>
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-2 text-xs">
+                        <div className="bg-white p-2 rounded border border-blue-200">
+                          <span className="font-semibold">Name:</span> 10pts
+                        </div>
+                        <div className="bg-white p-2 rounded border border-blue-200">
+                          <span className="font-semibold">Majors:</span> 10pts
+                        </div>
+                        <div className="bg-white p-2 rounded border border-blue-200">
+                          <span className="font-semibold">Activities:</span> 5pts
+                        </div>
+                        <div className="bg-white p-2 rounded border border-blue-200">
+                          <span className="font-semibold">Culture:</span> 5pts
+                        </div>
+                        <div className="bg-white p-2 rounded border border-blue-200">
+                          <span className="font-semibold">Bio:</span> 1pt
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* User Data for Filtering */}
+                    <div>
+                      <p className="text-sm font-semibold text-blue-800 mb-2">Eligibility Filters Applied:</p>
+                      <div className="bg-white p-3 rounded border border-blue-200 text-sm">
+                        <div className="grid grid-cols-2 gap-2">
+                          {formData.gender && (
+                            <div><span className="font-semibold">Gender:</span> {formData.gender}{formData.genderOther ? ` (${formData.genderOther})` : ''}</div>
+                          )}
+                          {formData.race && (
+                            <div><span className="font-semibold">Race:</span> {formData.race}{formData.raceOther ? ` (${formData.raceOther})` : ''}</div>
+                          )}
+                          {formData.classification && (
+                            <div><span className="font-semibold">Classification:</span> {formData.classification}</div>
+                          )}
+                          {formData.sexuality && formData.sexuality !== 'Straight' && (
+                            <div><span className="font-semibold">Sexuality:</span> {formData.sexuality}{formData.sexualityOther ? ` (${formData.sexualityOther})` : ''}</div>
+                          )}
+                          {formData.careerFields.length > 0 && (
+                            <div className="col-span-2"><span className="font-semibold">Career Fields:</span> {formData.careerFields.join(', ')}</div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Results Summary */}
+                    {allSearchResults.length > 0 && (
+                      <div>
+                        <p className="text-sm font-semibold text-blue-800 mb-2">Results Summary:</p>
+                        <div className="bg-white p-3 rounded border border-blue-200 text-sm">
+                          <div className="grid grid-cols-3 gap-4">
+                            <div>
+                              <span className="font-semibold">Total Found:</span> {allSearchResults.length}
+                            </div>
+                            <div>
+                              <span className="font-semibold">Currently Showing:</span> {searchResults.length}
+                            </div>
+                            <div>
+                              <span className="font-semibold">Top Score:</span> {allSearchResults[0]?.relevance_score || 0}
+                            </div>
+                          </div>
+                          {allSearchResults.length > 0 && (
+                            <div className="mt-2 pt-2 border-t border-blue-200">
+                              <p className="text-xs text-gray-600 mb-1">Score Distribution:</p>
+                              <div className="flex items-center gap-2">
+                                <span className="text-xs">Min: {Math.min(...allSearchResults.map(r => r.relevance_score))}</span>
+                                <span className="text-xs">|</span>
+                                <span className="text-xs">Max: {Math.max(...allSearchResults.map(r => r.relevance_score))}</span>
+                                <span className="text-xs">|</span>
+                                <span className="text-xs">Avg: {Math.round(allSearchResults.reduce((sum, r) => sum + r.relevance_score, 0) / allSearchResults.length)}</span>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </motion.div>
+              )}
+              
+              {/* Filter Buttons */}
+              {allSearchResults.length > 0 && (
+                <div className="mb-6">
+                  <p className="text-sm text-gray-600 mb-3">Filter by goal:</p>
+                  <div className="flex flex-wrap gap-2">
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      onClick={() => {
+                        setSelectedFilter('')
+                        setSearchResults(allSearchResults)
+                      }}
+                      className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                        selectedFilter === ''
+                          ? 'bg-tamu-maroon text-white'
+                          : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                      }`}
+                    >
+                      All
+                    </motion.button>
+                    {PRIMARY_GOALS.map((goal) => {
+                      const displayText = goal === 'Building my resume / Career help'
+                        ? `Career building (${formData.careerFields.length > 0 ? formData.careerFields.join(', ') : 'all fields'})`
+                        : goal
+                      
+                      return (
+                        <motion.button
+                          key={goal}
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => {
+                            setSelectedFilter(goal)
+                            filterResults(goal)
+                          }}
+                          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                            selectedFilter === goal
+                              ? 'bg-tamu-maroon text-white'
+                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                          }`}
+                        >
+                          {displayText}
+                        </motion.button>
+                      )
+                    })}
+                  </div>
                 </div>
-              </div>
+              )}
+              
+              {/* Loading State */}
+              {isLoading && (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-tamu-maroon"></div>
+                  <span className="ml-4 text-gray-600">Searching organizations...</span>
+                </div>
+              )}
+              
+              {/* Error State */}
+              {searchError && (
+                <div className="bg-red-50 border-2 border-red-200 rounded-lg p-4 mb-6">
+                  <p className="text-red-800 font-semibold">Error</p>
+                  <p className="text-red-600 text-sm">{searchError}</p>
+                </div>
+              )}
+              
+              {/* Search Results */}
+              {!isLoading && !searchError && searchResults.length > 0 && (
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center">
+                    <p className="text-sm text-gray-600">
+                      Found {searchResults.length} organization{searchResults.length !== 1 ? 's' : ''} with matching results
+                      {allSearchResults.length > 0 && searchResults.length === allSearchResults.length && (
+                        <span className="text-xs text-gray-500 ml-2">
+                          (showing all organizations with nonzero scores)
+                        </span>
+                      )}
+                    </p>
+                    {searchResults.length > 50 && (
+                      <p className="text-xs text-gray-500">
+                        Scroll to see all results
+                      </p>
+                    )}
+                  </div>
+                  <div className="max-h-[800px] overflow-y-auto pr-2 space-y-4">
+                  {searchResults.map((org, index) => (
+                    <motion.div
+                      key={index}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.05 }}
+                      className="border-2 border-gray-200 rounded-lg p-6 hover:border-tamu-maroon-light transition-all"
+                    >
+                      <div className="flex justify-between items-start mb-3">
+                        <h3 className="text-xl font-semibold text-tamu-maroon">
+                          {org.name}
+                        </h3>
+                        <span className="px-3 py-1 bg-tamu-maroon text-white rounded-full text-sm font-medium">
+                          Score: {org.relevance_score}
+                        </span>
+                      </div>
+                      
+                      {org.typical_majors && org.typical_majors !== 'nan' && (
+                        <p className="text-sm text-gray-600 mb-2">
+                          <span className="font-semibold">Majors:</span> {org.typical_majors}
+                        </p>
+                      )}
+                      
+                      {org.typical_activities && org.typical_activities !== 'nan' && (
+                        <p className="text-sm text-gray-600 mb-2">
+                          <span className="font-semibold">Activities:</span> {org.typical_activities}
+                        </p>
+                      )}
+                      
+                      {org.club_culture_style && org.club_culture_style !== 'nan' && (
+                        <p className="text-sm text-gray-600 mb-3">
+                          <span className="font-semibold">Culture:</span> {org.club_culture_style}
+                        </p>
+                      )}
+                      
+                      {org.bio_snippet && (
+                        <p className="text-gray-700 text-sm leading-relaxed">
+                          {org.bio_snippet}
+                        </p>
+                      )}
+                      
+                      {/* Score Breakdown (shown in insights mode) */}
+                      {showInsights && (
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                          <p className="text-xs font-semibold text-gray-600 mb-2">Score Breakdown:</p>
+                          {org.score_breakdown ? (
+                            <div className="text-xs text-gray-500 space-y-1">
+                              <div>Total Score: <span className="font-semibold text-tamu-maroon">{org.relevance_score} points</span></div>
+                              <div className="grid grid-cols-2 gap-2 mt-2">
+                                <div>Name matches: <span className="font-semibold">{org.score_breakdown.name_matches}pts</span></div>
+                                <div>Majors matches: <span className="font-semibold">{org.score_breakdown.majors_matches}pts</span></div>
+                                <div>Activities matches: <span className="font-semibold">{org.score_breakdown.activities_matches}pts</span></div>
+                                <div>Culture matches: <span className="font-semibold">{org.score_breakdown.culture_matches}pts</span></div>
+                                <div>Bio matches: <span className="font-semibold">{org.score_breakdown.bio_matches}pts</span></div>
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-xs text-gray-500 space-y-1">
+                              <div>Total Score: <span className="font-semibold text-tamu-maroon">{org.relevance_score} points</span></div>
+                              {queryKeywords.length > 0 && (
+                                <div className="mt-2">
+                                  <p className="font-semibold mb-1">Keyword Matches:</p>
+                                  <div className="flex flex-wrap gap-1">
+                                    {queryKeywords.slice(0, 10).map((keyword, idx) => {
+                                      const keywordLower = keyword.toLowerCase()
+                                      const nameMatch = (org.name || '').toLowerCase().includes(keywordLower)
+                                      const majorsMatch = (org.typical_majors || '').toLowerCase().includes(keywordLower)
+                                      const activitiesMatch = (org.typical_activities || '').toLowerCase().includes(keywordLower)
+                                      const cultureMatch = (org.club_culture_style || '').toLowerCase().includes(keywordLower)
+                                      const bioMatch = (org.bio_snippet || '').toLowerCase().includes(keywordLower)
+                                      const hasMatch = nameMatch || majorsMatch || activitiesMatch || cultureMatch || bioMatch
+                                      
+                                      if (!hasMatch) return null
+                                      
+                                      return (
+                                        <span
+                                          key={idx}
+                                          className="px-2 py-0.5 bg-green-100 text-green-800 rounded text-xs"
+                                          title={`Matches: ${[
+                                            nameMatch && 'Name (+10)',
+                                            majorsMatch && 'Majors (+10)',
+                                            activitiesMatch && 'Activities (+5)',
+                                            cultureMatch && 'Culture (+5)',
+                                            bioMatch && 'Bio (+1)'
+                                          ].filter(Boolean).join(', ')}`}
+                                        >
+                                          {keyword}
+                                        </span>
+                                      )
+                                    })}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </motion.div>
+                  ))}
+                  </div>
+                </div>
+              )}
+              
+              {/* No Results */}
+              {!isLoading && !searchError && searchResults.length === 0 && allSearchResults.length === 0 && (
+                <div className="text-center py-12">
+                  <p className="text-gray-600">No organizations found matching your criteria.</p>
+                </div>
+              )}
+              
+              {/* No Results After Filtering */}
+              {!isLoading && !searchError && searchResults.length === 0 && allSearchResults.length > 0 && (
+                <div className="text-center py-12">
+                  <p className="text-gray-600">No organizations match the selected filter.</p>
+                  <button
+                    onClick={() => {
+                      setSelectedFilter('')
+                      setSearchResults(allSearchResults)
+                    }}
+                    className="mt-4 text-tamu-maroon hover:underline"
+                  >
+                    Clear filter
+                  </button>
+                </div>
+              )}
+              
               <motion.button
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -740,6 +1156,10 @@ export default function SurveyForm() {
                   setCurrentStep(0)
                   setResultsString('')
                   setCleansedString('')
+                  setSearchResults([])
+                  setAllSearchResults([])
+                  setSelectedFilter('')
+                  setSearchError('')
                   setFormData({
                     careerFields: [],
                     livesOnCampus: '',
@@ -755,8 +1175,7 @@ export default function SurveyForm() {
                     additionalHobbies: [],
                     activities: [],
                     interestedInReligiousOrgs: '',
-                    religion: '',
-                    primaryGoal: ''
+                    religion: ''
                   })
                   setAdditionalHobbyInput('')
                 }}

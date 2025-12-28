@@ -34,3 +34,17 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+organizations_embeddings.pkl
+
