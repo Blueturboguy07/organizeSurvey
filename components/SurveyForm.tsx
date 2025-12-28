@@ -46,7 +46,7 @@ const ACTIVITIES = [
   'Trips'
 ]
 
-const RELIGIONS = ['Hindu', 'Christian', 'Muslim', 'Jewish', 'Buddhist']
+const RELIGIONS = ['Hindu', 'Christian', 'Muslim', 'Jewish', 'Buddhist', 'Other']
 
 const PRIMARY_GOALS = [
   'Building my resume / Career help',
@@ -71,6 +71,7 @@ interface SurveyData {
   activities: string[]
   interestedInReligiousOrgs: string
   religion: string
+  religionOther: string
 }
 
 export default function SurveyForm() {
@@ -90,7 +91,8 @@ export default function SurveyForm() {
     additionalHobbies: [],
     activities: [],
     interestedInReligiousOrgs: '',
-    religion: ''
+    religion: '',
+    religionOther: ''
   })
   const [showResults, setShowResults] = useState(false)
   const [resultsString, setResultsString] = useState('')
@@ -238,7 +240,8 @@ export default function SurveyForm() {
       race: formData.race || formData.raceOther || '',
       classification: formData.classification || '',
       sexuality: formData.sexuality || formData.sexualityOther || '',
-      careerFields: formData.careerFields || []
+      careerFields: formData.careerFields || [],
+      religion: formData.religion === 'Other' ? formData.religionOther : formData.religion || ''
     }
     
     fetch('/api/search', {
@@ -745,7 +748,11 @@ export default function SurveyForm() {
                               key={religion}
                               whileHover={{ scale: 1.02 }}
                               whileTap={{ scale: 0.98 }}
-                              onClick={() => setFormData(prev => ({ ...prev, religion }))}
+                              onClick={() => setFormData(prev => ({ 
+                                ...prev, 
+                                religion,
+                                religionOther: religion === 'Other' ? prev.religionOther : ''
+                              }))}
                               className={`w-full p-4 rounded-lg border-2 text-left transition-all ${
                                 formData.religion === religion
                                   ? 'border-tamu-maroon bg-tamu-maroon text-white'
@@ -756,6 +763,24 @@ export default function SurveyForm() {
                             </motion.button>
                           ))}
                         </div>
+                        {formData.religion === 'Other' && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: 'auto' }}
+                            className="mt-4"
+                          >
+                            <label className="block text-sm font-medium text-gray-700 mb-2">
+                              Please specify your religion:
+                            </label>
+                            <input
+                              type="text"
+                              value={formData.religionOther}
+                              onChange={(e) => setFormData(prev => ({ ...prev, religionOther: e.target.value }))}
+                              placeholder="Enter your religion"
+                              className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none"
+                            />
+                          </motion.div>
+                        )}
                       </motion.div>
                     )}
                   </div>
@@ -1175,7 +1200,8 @@ export default function SurveyForm() {
                     additionalHobbies: [],
                     activities: [],
                     interestedInReligiousOrgs: '',
-                    religion: ''
+                    religion: '',
+                    religionOther: ''
                   })
                   setAdditionalHobbyInput('')
                 }}

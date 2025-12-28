@@ -19,6 +19,7 @@ def check_eligibility(org_row, user_data):
     user_race = user_data.get('race', '').strip().lower()
     user_classification = user_data.get('classification', '').strip().lower()
     user_sexuality = user_data.get('sexuality', '').strip().lower()
+    user_religion = user_data.get('religion', '').strip().lower()
     user_career_fields = user_data.get('careerFields', [])
     if isinstance(user_career_fields, str):
         user_career_fields = [f.strip().lower() for f in user_career_fields.split(',') if f.strip()]
@@ -113,6 +114,43 @@ def check_eligibility(org_row, user_data):
         if eligible_sexuality and eligible_sexuality not in ['nan', 'none', '']:
             if user_sexuality not in eligible_sexuality:
                 return False
+    
+    # Religion filtering
+    # If user has a religion, only show organizations of that religion or non-religious orgs
+    if user_religion:
+        org_name = str(org_row.get('name', '')).lower()
+        org_bio = str(org_row.get('bio', '')).lower()
+        org_text = f"{org_name} {org_bio}".lower()
+        
+        # Detect if organization is religious and what religion
+        religious_keywords = {
+            'christian': ['christian', 'christ', 'jesus', 'bible', 'gospel', 'church', 'ministry', 'campus crusade', 'cru', 'methodist', 'catholic', 'baptist', 'presbyterian', 'lutheran', 'episcopal', 'orthodox christian', 'wesley', 'intervarsity', 'navigators'],
+            'muslim': ['muslim', 'islam', 'islamic', 'mosque', 'masjid', 'ramadan', 'hijab'],
+            'jewish': ['jewish', 'judaism', 'hillel', 'synagogue', 'hebrew', 'shabbat', 'kosher'],
+            'hindu': ['hindu', 'hinduism', 'temple', 'puja', 'veda', 'yoga', 'bhakti'],
+            'buddhist': ['buddhist', 'buddhism', 'buddha', 'meditation', 'zen', 'dharma']
+        }
+        
+        # Check if org is religious
+        org_religion = None
+        for religion, keywords in religious_keywords.items():
+            if any(keyword in org_text for keyword in keywords):
+                org_religion = religion
+                break
+        
+        # If org is religious and doesn't match user's religion, filter it out
+        if org_religion and org_religion != user_religion:
+            return False
+        
+        # Also check for user's specific religion term (for "Other" religions)
+        # If user specified "Other" religion, check if org mentions that specific term
+        if user_religion not in religious_keywords.keys():
+            # User has a custom/other religion
+            # Filter out orgs that are clearly of a different major religion
+            for religion, keywords in religious_keywords.items():
+                if any(keyword in org_text for keyword in keywords):
+                    # Org is of a major religion, user has different religion -> filter out
+                    return False
     
     # Major/career field filtering
     if typical_majors and typical_majors not in ['nan', 'none', ''] and user_career_fields:
