@@ -259,6 +259,25 @@ export default function SurveyForm() {
     setIsLoading(true)
     setSearchError('')
     
+    // Save user query to database FIRST (independent of search success)
+    // This ensures data is saved even if search fails
+    fetch('/api/submit', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        name: formData.name,
+        email: formData.email,
+        query: finalCleansedString,
+        cleansedQuery: finalCleansedString,
+        queryKeywords: keywords
+      })
+    }).catch(err => {
+      console.error('Failed to save query:', err)
+      // Silently fail - don't interrupt user experience
+    })
+    
     const userDataForSearch = {
       gender: formData.gender || formData.genderOther || '',
       race: formData.race || formData.raceOther || '',
@@ -268,6 +287,7 @@ export default function SurveyForm() {
       religion: formData.religion === 'Other' ? formData.religionOther : formData.religion || ''
     }
     
+    // Try to search, but handle errors gracefully
     fetch('/api/search', {
       method: 'POST',
       headers: {
@@ -295,30 +315,16 @@ export default function SurveyForm() {
           setAllSearchResults(results)
           setSearchResults(results)
           setSelectedFilter('')
-          
-          // Save user query to database
-          fetch('/api/submit', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              name: formData.name,
-              email: formData.email,
-              query: finalCleansedString,
-              cleansedQuery: finalCleansedString,
-              queryKeywords: keywords
-            })
-          }).catch(err => {
-            console.error('Failed to save query:', err)
-            // Silently fail - don't interrupt user experience
-          })
         }
       })
       .catch(err => {
         setIsLoading(false)
         console.error('Search error:', err)
-        setSearchError(err.message || 'Failed to search organizations. Please try again.')
+        // Show user-friendly error message
+        setSearchError('Search functionality is currently unavailable. Your form has been submitted successfully.')
+        // Set empty results so UI doesn't break
+        setAllSearchResults([])
+        setSearchResults([])
       })
   }
 

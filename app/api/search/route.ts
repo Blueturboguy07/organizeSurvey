@@ -31,26 +31,48 @@ export async function POST(request: NextRequest) {
     await writeFile(tempFile, JSON.stringify({ query, userData }), 'utf-8')
     
     const pythonPath = existsSync(venvPython) ? venvPython : 'python3'
-    const { stdout, stderr } = await execFileAsync(pythonPath, [scriptPath, tempFile, csvPath])
-
-    if (tempFile) {
-      await unlink(tempFile).catch(() => {})
-    }
-
-    if (stderr && !stderr.includes('WARNING') && !stderr.includes('UserWarning')) {
-      console.error('Python script stderr:', stderr)
-    }
-
-    const results = JSON.parse(stdout.trim())
     
-    if (results.error) {
-      return NextResponse.json(
-        { error: results.error },
-        { status: 500 }
-      )
-    }
+    // Check if Python is available (Vercel doesn't have Python)
+    try {
+      const { stdout, stderr } = await execFileAsync(pythonPath, [scriptPath, tempFile, csvPath])
 
-    return NextResponse.json({ results })
+      if (tempFile) {
+        await unlink(tempFile).catch(() => {})
+      }
+
+      if (stderr && !stderr.includes('WARNING') && !stderr.includes('UserWarning')) {
+        console.error('Python script stderr:', stderr)
+      }
+
+      const results = JSON.parse(stdout.trim())
+      
+      if (results.error) {
+        return NextResponse.json(
+          { error: results.error },
+          { status: 500 }
+        )
+      }
+
+      return NextResponse.json({ results })
+    } catch (execError: any) {
+      if (tempFile) {
+        await unlink(tempFile).catch(() => {})
+      }
+      
+      // Handle Python not found error (common on Vercel)
+      if (execError.code === 'ENOENT' || execError.message?.includes('ENOENT')) {
+        console.error('Python not available:', execError.message)
+        return NextResponse.json(
+          { 
+            error: 'Search functionality requires Python, which is not available in this environment. Please set up a separate Python service for search functionality.',
+            code: 'PYTHON_NOT_AVAILABLE'
+          },
+          { status: 503 }
+        )
+      }
+      
+      throw execError
+    }
   } catch (error: any) {
     if (tempFile) {
       await unlink(tempFile).catch(() => {})
