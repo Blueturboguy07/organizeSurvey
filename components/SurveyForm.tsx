@@ -56,6 +56,8 @@ const PRIMARY_GOALS = [
 ]
 
 interface SurveyData {
+  name: string
+  email: string
   careerFields: string[]
   livesOnCampus: string
   hall: string
@@ -77,6 +79,8 @@ interface SurveyData {
 export default function SurveyForm() {
   const [currentStep, setCurrentStep] = useState(0)
   const [formData, setFormData] = useState<SurveyData>({
+    name: '',
+    email: '',
     careerFields: [],
     livesOnCampus: '',
     hall: '',
@@ -94,6 +98,10 @@ export default function SurveyForm() {
     religion: '',
     religionOther: ''
   })
+  const [submissionStats, setSubmissionStats] = useState<{
+    totalSubmissions: number
+    uniqueUsers: number
+  } | null>(null)
   const [showResults, setShowResults] = useState(false)
   const [resultsString, setResultsString] = useState('')
   const [cleansedString, setCleansedString] = useState('')
@@ -105,8 +113,10 @@ export default function SurveyForm() {
   const [selectedFilter, setSelectedFilter] = useState<string>('')
   const [showInsights, setShowInsights] = useState(false)
   const [queryKeywords, setQueryKeywords] = useState<string[]>([])
+  const [selectedOrg, setSelectedOrg] = useState<any | null>(null)
 
   const steps = [
+    'Contact Info',
     'Career Fields',
     'Housing',
     'Classification',
@@ -116,6 +126,20 @@ export default function SurveyForm() {
   ]
 
   const handleNext = () => {
+    // Validate required fields for step 0 (contact info)
+    if (currentStep === 0) {
+      if (!formData.name.trim() || !formData.email.trim()) {
+        alert('Please enter your name and email to continue.')
+        return
+      }
+      // Basic email validation
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(formData.email)) {
+        alert('Please enter a valid email address.')
+        return
+      }
+    }
+    
     if (currentStep < steps.length - 1) {
       setCurrentStep(currentStep + 1)
     }
@@ -271,6 +295,24 @@ export default function SurveyForm() {
           setAllSearchResults(results)
           setSearchResults(results)
           setSelectedFilter('')
+          
+          // Save user query to database
+          fetch('/api/submit', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              name: formData.name,
+              email: formData.email,
+              query: finalCleansedString,
+              cleansedQuery: finalCleansedString,
+              queryKeywords: keywords
+            })
+          }).catch(err => {
+            console.error('Failed to save query:', err)
+            // Silently fail - don't interrupt user experience
+          })
         }
       })
       .catch(err => {
@@ -300,59 +342,55 @@ export default function SurveyForm() {
 
   const filterResults = (filter: string) => {
     const filtered = allSearchResults.filter(org => {
-      const bio = (org.bio_snippet || org.bio || '').toLowerCase()
       const activities = (org.typical_activities || '').toLowerCase()
-      const clubType = (org.club_culture_style || '').toLowerCase()
-      const name = (org.name || '').toLowerCase()
-      const combined = `${bio} ${activities} ${clubType} ${name}`.toLowerCase()
+      const bio = (org.bio_snippet || org.bio || '').toLowerCase()
+      const combined = `${activities} ${bio}`.toLowerCase()
       
       switch (filter) {
-        case 'Building my resume / Career help':
-          const careerKeywords = ['career', 'professional', 'resume', 'networking', 'mentorship', 'leadership', 'skill', 'development', 'industry']
-          const hasCareerFocus = careerKeywords.some(keyword => combined.includes(keyword))
-          
-          const careerFieldsLower = formData.careerFields.map(f => f.toLowerCase())
-          const matchesCareerField = careerFieldsLower.some(field => {
-            const fieldKeywords: { [key: string]: string[] } = {
-              'engineering': ['engineering', 'engineer', 'tech'],
-              'technology/computer science': ['computer', 'technology', 'tech', 'cs', 'programming', 'software', 'coding'],
-              'business/finance': ['business', 'finance', 'mays', 'accounting', 'economics'],
-              'medicine/healthcare': ['medicine', 'medical', 'health', 'pre-med', 'bims', 'biology'],
-              'law': ['law', 'legal', 'pre-law'],
-              'education': ['education', 'teaching'],
-              'arts/design': ['art', 'arts', 'design', 'graphic'],
-              'science/research': ['science', 'research', 'chemistry', 'physics'],
-              'agriculture': ['agriculture', 'ag'],
-              'communication/media': ['communication', 'media', 'journalism'],
-              'social work': ['social work', 'social'],
-              'government/public service': ['government', 'public', 'political'],
-              'sports/fitness': ['sports', 'fitness', 'athletic'],
-              'hospitality/tourism': ['hospitality', 'tourism']
-            }
-            const keywords = fieldKeywords[field] || [field]
-            return keywords.some(keyword => combined.includes(keyword))
-          })
-          return hasCareerFocus || matchesCareerField || clubType === 'professional'
-          
-        case 'Making friends / Having fun':
-          return combined.includes('social') || 
-                 combined.includes('fun') || 
-                 combined.includes('friendship') ||
-                 clubType === 'social' ||
-                 activities.includes('social events')
-                 
-        case 'Volunteering / Giving back':
+        case 'Volunteering':
           return combined.includes('volunteer') ||
                  combined.includes('service') ||
-                 combined.includes('community') ||
+                 combined.includes('community service') ||
                  activities.includes('volunteering')
                  
-        case 'Playing sports / Being active':
-          return combined.includes('sport') ||
-                 combined.includes('athletic') ||
-                 combined.includes('fitness') ||
-                 combined.includes('active') ||
-                 activities.includes('competitions')
+        case 'Social Events':
+          return combined.includes('social event') ||
+                 combined.includes('social gathering') ||
+                 combined.includes('networking event') ||
+                 combined.includes('mixer') ||
+                 combined.includes('party') ||
+                 activities.includes('social events') ||
+                 activities.includes('social')
+                 
+        case 'Projects':
+          return combined.includes('project') ||
+                 combined.includes('collaborative work') ||
+                 activities.includes('projects') ||
+                 activities.includes('project')
+                 
+        case 'Competitions':
+          return combined.includes('competition') ||
+                 combined.includes('competitions') ||
+                 combined.includes('tournament') ||
+                 combined.includes('contest') ||
+                 combined.includes('hackathon') ||
+                 activities.includes('competitions') ||
+                 activities.includes('competitive')
+                 
+        case 'Workshops':
+          return combined.includes('workshop') ||
+                 combined.includes('training') ||
+                 combined.includes('seminar') ||
+                 activities.includes('workshops') ||
+                 activities.includes('workshop')
+                 
+        case 'Trips':
+          return combined.includes('trip') ||
+                 combined.includes('travel') ||
+                 combined.includes('excursion') ||
+                 combined.includes('field trip') ||
+                 activities.includes('trips') ||
+                 activities.includes('trip')
                  
         default:
           return true
@@ -414,8 +452,45 @@ export default function SurveyForm() {
               transition={{ duration: 0.3 }}
               className="bg-white rounded-lg shadow-lg p-8 mb-6"
             >
-              {/* Step 0: Career Fields */}
+              {/* Step 0: Contact Info */}
               {currentStep === 0 && (
+                <div>
+                  <h2 className="text-2xl font-semibold text-tamu-maroon mb-6">
+                    Let's get started!
+                  </h2>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-gray-700 font-medium mb-2">
+                        Name *
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.name}
+                        onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
+                        className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none"
+                        placeholder="Enter your name"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-gray-700 font-medium mb-2">
+                        Email *
+                      </label>
+                      <input
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+                        className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none"
+                        placeholder="Enter your email"
+                        required
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Step 1: Career Fields */}
+              {currentStep === 1 && (
                 <div>
                   <h2 className="text-2xl font-semibold text-tamu-maroon mb-6">
                     Which career fields are you interested in?
@@ -440,8 +515,8 @@ export default function SurveyForm() {
                 </div>
               )}
 
-              {/* Step 1: Housing */}
-              {currentStep === 1 && (
+              {/* Step 2: Housing */}
+              {currentStep === 2 && (
                 <div>
                   <h2 className="text-2xl font-semibold text-tamu-maroon mb-6">
                     Do you live on campus?
@@ -486,8 +561,8 @@ export default function SurveyForm() {
                 </div>
               )}
 
-              {/* Step 2: Classification */}
-              {currentStep === 2 && (
+              {/* Step 3: Classification */}
+              {currentStep === 3 && (
                 <div>
                   <h2 className="text-2xl font-semibold text-tamu-maroon mb-6">
                     What classification are you?
@@ -512,8 +587,8 @@ export default function SurveyForm() {
                 </div>
               )}
 
-              {/* Step 3: Demographics */}
-              {currentStep === 3 && (
+              {/* Step 4: Demographics */}
+              {currentStep === 4 && (
                 <div className="space-y-8">
                   {/* Race */}
                   <div>
@@ -685,8 +760,8 @@ export default function SurveyForm() {
                 </div>
               )}
 
-              {/* Step 4: Activities & Goals */}
-              {currentStep === 4 && (
+              {/* Step 5: Activities & Goals */}
+              {currentStep === 5 && (
                 <div className="space-y-8">
                   {/* Activities */}
                   <div>
@@ -967,7 +1042,7 @@ export default function SurveyForm() {
               {/* Filter Buttons */}
               {allSearchResults.length > 0 && (
                 <div className="mb-6">
-                  <p className="text-sm text-gray-600 mb-3">Filter by goal:</p>
+                  <p className="text-sm text-gray-600 mb-3">Filter by activity type:</p>
                   <div className="flex flex-wrap gap-2">
                     <motion.button
                       whileHover={{ scale: 1.05 }}
@@ -984,30 +1059,24 @@ export default function SurveyForm() {
                     >
                       All
                     </motion.button>
-                    {PRIMARY_GOALS.map((goal) => {
-                      const displayText = goal === 'Building my resume / Career help'
-                        ? `Career building (${formData.careerFields.length > 0 ? formData.careerFields.join(', ') : 'all fields'})`
-                        : goal
-                      
-                      return (
-                        <motion.button
-                          key={goal}
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                          onClick={() => {
-                            setSelectedFilter(goal)
-                            filterResults(goal)
-                          }}
-                          className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
-                            selectedFilter === goal
-                              ? 'bg-tamu-maroon text-white'
-                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                          }`}
-                        >
-                          {displayText}
-                        </motion.button>
-                      )
-                    })}
+                    {ACTIVITIES.map((activity) => (
+                      <motion.button
+                        key={activity}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        onClick={() => {
+                          setSelectedFilter(activity)
+                          filterResults(activity)
+                        }}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                          selectedFilter === activity
+                            ? 'bg-tamu-maroon text-white'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                        }`}
+                      >
+                        {activity}
+                      </motion.button>
+                    ))}
                   </div>
                 </div>
               )}
@@ -1053,7 +1122,8 @@ export default function SurveyForm() {
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.05 }}
-                      className="border-2 border-gray-200 rounded-lg p-6 hover:border-tamu-maroon-light transition-all"
+                      onClick={() => setSelectedOrg(org)}
+                      className="border-2 border-gray-200 rounded-lg p-6 hover:border-tamu-maroon-light transition-all cursor-pointer"
                     >
                       <div className="flex justify-between items-start mb-3">
                         <h3 className="text-xl font-semibold text-tamu-maroon">
@@ -1172,6 +1242,149 @@ export default function SurveyForm() {
                   </button>
                 </div>
               )}
+
+              {/* Organization Detail Modal */}
+              <AnimatePresence>
+                {selectedOrg && (
+                  <>
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      onClick={() => setSelectedOrg(null)}
+                      className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+                    >
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.9 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.9 }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto"
+                      >
+                        <div className="sticky top-0 bg-gradient-to-r from-tamu-maroon to-tamu-maroon-light p-6 text-white flex justify-between items-start">
+                          <div>
+                            <h2 className="text-3xl font-bold mb-2">{selectedOrg.name}</h2>
+                            <span className="px-3 py-1 bg-white/20 rounded-full text-sm font-medium">
+                              Score: {selectedOrg.relevance_score}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => setSelectedOrg(null)}
+                            className="text-white hover:text-gray-200 text-2xl font-bold"
+                          >
+                            ×
+                          </button>
+                        </div>
+
+                        <div className="p-6 space-y-6">
+                          {/* Full Bio */}
+                          {selectedOrg.full_bio && selectedOrg.full_bio !== 'nan' && (
+                            <div>
+                              <h3 className="text-lg font-semibold text-tamu-maroon mb-2">About</h3>
+                              <p className="text-gray-700 leading-relaxed">{selectedOrg.full_bio}</p>
+                            </div>
+                          )}
+
+                          {/* Contact Information */}
+                          {(selectedOrg.website || selectedOrg.administrative_contact_info) && (
+                            <div className="border-t pt-4">
+                              <h3 className="text-lg font-semibold text-tamu-maroon mb-3">Contact Information</h3>
+                              <div className="space-y-2">
+                                {selectedOrg.website && selectedOrg.website !== 'nan' && (
+                                  <div>
+                                    <span className="font-semibold text-gray-700">Website: </span>
+                                    <a
+                                      href={selectedOrg.website.startsWith('http') ? selectedOrg.website : `https://${selectedOrg.website}`}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-tamu-maroon hover:underline"
+                                    >
+                                      {selectedOrg.website}
+                                    </a>
+                                  </div>
+                                )}
+                                {selectedOrg.administrative_contact_info && selectedOrg.administrative_contact_info !== 'nan' && (
+                                  <div>
+                                    <span className="font-semibold text-gray-700">Contact: </span>
+                                    <span className="text-gray-700">{selectedOrg.administrative_contact_info}</span>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Additional Details */}
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t pt-4">
+                            {selectedOrg.typical_majors && selectedOrg.typical_majors !== 'nan' && (
+                              <div>
+                                <h4 className="font-semibold text-gray-700 mb-1">Typical Majors</h4>
+                                <p className="text-gray-600">{selectedOrg.typical_majors}</p>
+                              </div>
+                            )}
+                            {selectedOrg.typical_activities && selectedOrg.typical_activities !== 'nan' && (
+                              <div>
+                                <h4 className="font-semibold text-gray-700 mb-1">Typical Activities</h4>
+                                <p className="text-gray-600">{selectedOrg.typical_activities}</p>
+                              </div>
+                            )}
+                            {selectedOrg.club_culture_style && selectedOrg.club_culture_style !== 'nan' && (
+                              <div>
+                                <h4 className="font-semibold text-gray-700 mb-1">Club Culture</h4>
+                                <p className="text-gray-600">{selectedOrg.club_culture_style}</p>
+                              </div>
+                            )}
+                            {selectedOrg.meeting_frequency && selectedOrg.meeting_frequency !== 'nan' && (
+                              <div>
+                                <h4 className="font-semibold text-gray-700 mb-1">Meeting Frequency</h4>
+                                <p className="text-gray-600">{selectedOrg.meeting_frequency}</p>
+                              </div>
+                            )}
+                            {selectedOrg.meeting_times && selectedOrg.meeting_times !== 'nan' && (
+                              <div>
+                                <h4 className="font-semibold text-gray-700 mb-1">Meeting Times</h4>
+                                <p className="text-gray-600">{selectedOrg.meeting_times}</p>
+                              </div>
+                            )}
+                            {selectedOrg.meeting_locations && selectedOrg.meeting_locations !== 'nan' && (
+                              <div>
+                                <h4 className="font-semibold text-gray-700 mb-1">Meeting Locations</h4>
+                                <p className="text-gray-600">{selectedOrg.meeting_locations}</p>
+                              </div>
+                            )}
+                            {selectedOrg.dues_required && selectedOrg.dues_required !== 'nan' && (
+                              <div>
+                                <h4 className="font-semibold text-gray-700 mb-1">Dues Required</h4>
+                                <p className="text-gray-600">
+                                  {selectedOrg.dues_required}
+                                  {selectedOrg.dues_cost && selectedOrg.dues_cost !== 'nan' && ` - ${selectedOrg.dues_cost}`}
+                                </p>
+                              </div>
+                            )}
+                            {selectedOrg.application_required && selectedOrg.application_required !== 'nan' && (
+                              <div>
+                                <h4 className="font-semibold text-gray-700 mb-1">Application Required</h4>
+                                <p className="text-gray-600">{selectedOrg.application_required}</p>
+                              </div>
+                            )}
+                            {selectedOrg.time_commitment && selectedOrg.time_commitment !== 'nan' && (
+                              <div>
+                                <h4 className="font-semibold text-gray-700 mb-1">Time Commitment</h4>
+                                <p className="text-gray-600">{selectedOrg.time_commitment}</p>
+                              </div>
+                            )}
+                            {selectedOrg.member_count && selectedOrg.member_count !== 'nan' && (
+                              <div>
+                                <h4 className="font-semibold text-gray-700 mb-1">Member Count</h4>
+                                <p className="text-gray-600">{selectedOrg.member_count}</p>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </motion.div>
+                    </motion.div>
+                  </>
+                )}
+              </AnimatePresence>
               
               <motion.button
                 whileHover={{ scale: 1.05 }}
@@ -1185,7 +1398,10 @@ export default function SurveyForm() {
                   setAllSearchResults([])
                   setSelectedFilter('')
                   setSearchError('')
+                  setSelectedOrg(null)
                   setFormData({
+                    name: '',
+                    email: '',
                     careerFields: [],
                     livesOnCampus: '',
                     hall: '',

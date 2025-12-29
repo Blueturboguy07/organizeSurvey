@@ -48,3 +48,6 @@ dist/
 build/
 organizations_embeddings.pkl
 
+# data storage
+/data/
+

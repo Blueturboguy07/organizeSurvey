@@ -509,7 +509,17 @@ def search_clubs(query, user_data=None, csv_path='final.csv', top_n=10):
             'typical_activities': str(row.get('typical_activities', '')),
             'club_culture_style': str(row.get('club_culture_style', '')),
             'score_breakdown': score_breakdown,
-            'full_bio': bio  # Include full bio for better matching insights
+            'full_bio': bio,  # Include full bio for better matching insights
+            'website': str(row.get('website', '')),
+            'administrative_contact_info': str(row.get('administrative_contact_info', '')),
+            'meeting_frequency': str(row.get('meeting_frequency', '')),
+            'meeting_times': str(row.get('meeting_times', '')),
+            'meeting_locations': str(row.get('meeting_locations', '')),
+            'dues_required': str(row.get('dues_required', '')),
+            'dues_cost': str(row.get('dues_cost', '')),
+            'application_required': str(row.get('application_required', '')),
+            'time_commitment': str(row.get('time_commitment', '')),
+            'member_count': str(row.get('member_count', ''))
         })
     
     return results
