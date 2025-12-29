@@ -4,8 +4,8 @@
   "framework": "nextjs",
   "regions": ["iad1"],
   "functions": {
-    "api/search.py": {
-      "runtime": "python3.9"
+    "api/*.py": {
+      "runtime": "@vercel/python"
     }
   }
 }
