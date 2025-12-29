@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { supabaseAdmin } from '@/lib/supabase'
+import { supabaseAdmin, validateEnvVars } from '@/lib/supabase'
 
 export async function POST(request: NextRequest) {
   try {
+    // Validate environment variables at runtime
+    validateEnvVars()
     const body = await request.json()
     const { name, email, query, cleansedQuery, queryKeywords } = body
 
