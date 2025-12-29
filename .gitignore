@@ -46,7 +46,8 @@ __pycache__/
 *.egg-info/
 dist/
 build/
-organizations_embeddings.pkl
+# Keep organizations_embeddings.pkl for deployment
+# organizations_embeddings.pkl
 
 # data storage
 /data/
