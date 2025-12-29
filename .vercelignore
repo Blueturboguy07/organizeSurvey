@@ -1,0 +1,11 @@
+# Vercel ignore file
+venv/
+__pycache__/
+*.pyc
+scripts/test-*.js
+scripts/check-*.js
+scripts/fix-*.js
+scripts/fix-*.sql
+scripts/verify-*.js
+*.md
+!README.md

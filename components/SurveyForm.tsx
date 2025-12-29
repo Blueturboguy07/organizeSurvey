@@ -456,7 +456,7 @@ export default function SurveyForm() {
               {currentStep === 0 && (
                 <div>
                   <h2 className="text-2xl font-semibold text-tamu-maroon mb-6">
-                    Let's get started!
+                    Let&apos;s get started!
                   </h2>
                   <div className="space-y-4">
                     <div>
@@ -593,7 +593,7 @@ export default function SurveyForm() {
                   {/* Race */}
                   <div>
                     <h3 className="text-xl font-semibold text-tamu-maroon mb-4">
-                      What's your race?
+                      What&apos;s your race?
                     </h3>
                     <div className="space-y-3">
                       {RACES.map((race) => (
@@ -628,7 +628,7 @@ export default function SurveyForm() {
                   {/* Sexuality */}
                   <div>
                     <h3 className="text-xl font-semibold text-tamu-maroon mb-4">
-                      What's your sexuality?
+                      What&apos;s your sexuality?
                     </h3>
                     <div className="space-y-3">
                       {SEXUALITIES.map((sexuality) => (
@@ -663,7 +663,7 @@ export default function SurveyForm() {
                   {/* Gender */}
                   <div>
                     <h3 className="text-xl font-semibold text-tamu-maroon mb-4">
-                      What's your gender?
+                      What&apos;s your gender?
                     </h3>
                     <div className="space-y-3">
                       {GENDERS.map((gender) => (
