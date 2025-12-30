@@ -9,9 +9,10 @@ import { join } from 'path'
 
 const execFileAsync = promisify(execFile)
 
+// Get search API URL from environment (Render service)
+const SEARCH_API_URL = process.env.SEARCH_API_URL
+
 export async function POST(request: NextRequest) {
-  let tempFile: string | null = null
-  
   try {
     const body = await request.json()
     const { query, userData } = body
@@ -23,17 +24,49 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const scriptPath = path.join(process.cwd(), 'scripts', 'weighted_search.py')
-    const csvPath = path.join(process.cwd(), 'final.csv')
-    const venvPython = path.join(process.cwd(), 'venv', 'bin', 'python3')
-    
-    tempFile = join(tmpdir(), `search_${Date.now()}_${Math.random().toString(36).substring(7)}.json`)
-    await writeFile(tempFile, JSON.stringify({ query, userData }), 'utf-8')
-    
-    const pythonPath = existsSync(venvPython) ? venvPython : 'python3'
-    
-    // Check if Python is available (Vercel doesn't have Python)
+    // If SEARCH_API_URL is set, use Render API service
+    if (SEARCH_API_URL) {
+      try {
+        const response = await fetch(`${SEARCH_API_URL}/search`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ query, userData }),
+          // Add timeout for Render free tier cold starts
+          signal: AbortSignal.timeout(60000) // 60 second timeout
+        })
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          throw new Error(errorData.error || `Search API returned ${response.status}`)
+        }
+
+        const data = await response.json()
+        return NextResponse.json({ results: data.results || [] })
+      } catch (fetchError: any) {
+        console.error('Search API error:', fetchError.message)
+        return NextResponse.json(
+          { 
+            error: fetchError.message || 'Failed to connect to search service',
+            code: 'SEARCH_API_ERROR'
+          },
+          { status: 503 }
+        )
+      }
+    }
+
+    // Fallback: Try local Python execution (for local development)
+    let tempFile: string | null = null
     try {
+      const scriptPath = path.join(process.cwd(), 'scripts', 'weighted_search.py')
+      const csvPath = path.join(process.cwd(), 'final.csv')
+      const venvPython = path.join(process.cwd(), 'venv', 'bin', 'python3')
+      
+      tempFile = join(tmpdir(), `search_${Date.now()}_${Math.random().toString(36).substring(7)}.json`)
+      await writeFile(tempFile, JSON.stringify({ query, userData }), 'utf-8')
+      
+      const pythonPath = existsSync(venvPython) ? venvPython : 'python3'
       const { stdout, stderr } = await execFileAsync(pythonPath, [scriptPath, tempFile, csvPath])
 
       if (tempFile) {
@@ -59,12 +92,11 @@ export async function POST(request: NextRequest) {
         await unlink(tempFile).catch(() => {})
       }
       
-      // Handle Python not found error (common on Vercel)
+      // Handle Python not found error
       if (execError.code === 'ENOENT' || execError.message?.includes('ENOENT')) {
-        console.error('Python not available:', execError.message)
         return NextResponse.json(
           { 
-            error: 'Search functionality requires Python, which is not available in this environment. Please set up a separate Python service for search functionality.',
+            error: 'Search API not configured. Please set SEARCH_API_URL environment variable or set up local Python environment.',
             code: 'PYTHON_NOT_AVAILABLE'
           },
           { status: 503 }
@@ -74,9 +106,6 @@ export async function POST(request: NextRequest) {
       throw execError
     }
   } catch (error: any) {
-    if (tempFile) {
-      await unlink(tempFile).catch(() => {})
-    }
     console.error('API error:', error)
     return NextResponse.json(
       { error: error.message || 'Internal server error' },

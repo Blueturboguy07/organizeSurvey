@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: search-api
+    env: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python api_server.py
+    envVars:
+      - key: CSV_PATH
+        value: ./final.csv
+      - key: PORT
+        value: 5000
+
