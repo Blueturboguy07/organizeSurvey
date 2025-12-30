@@ -6,6 +6,7 @@ import { writeFile, unlink } from 'fs/promises'
 import { existsSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
+import { checkRateLimit } from '@/lib/rateLimit'
 
 const execFileAsync = promisify(execFile)
 
@@ -14,6 +15,23 @@ const SEARCH_API_URL = process.env.SEARCH_API_URL
 
 export async function POST(request: NextRequest) {
   try {
+    // Get IP for rate limiting
+    const ip = request.headers.get('x-forwarded-for')?.split(',')[0] || 
+               request.headers.get('x-real-ip') || 
+               'unknown'
+    
+    // Check rate limit (30 searches per minute per IP)
+    const rateLimit = await checkRateLimit(ip, 30, 60000)
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        { 
+          error: 'Too many search requests. Please try again later.',
+          retryAfter: rateLimit.retryAfter
+        },
+        { status: 429 }
+      )
+    }
+
     const body = await request.json()
     const { query, userData } = body
 

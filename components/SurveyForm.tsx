@@ -135,6 +135,9 @@ export default function SurveyForm() {
   const [additionalHobbyInput, setAdditionalHobbyInput] = useState('')
   const [engineeringTypeInput, setEngineeringTypeInput] = useState('')
   const [showEngineeringDropdown, setShowEngineeringDropdown] = useState(false)
+  const [honeypot, setHoneypot] = useState('')
+  const [lastSubmissionTime, setLastSubmissionTime] = useState(0)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [allSearchResults, setAllSearchResults] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -237,7 +240,26 @@ export default function SurveyForm() {
     }
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
+    // Honeypot check - if filled, it's a bot
+    if (honeypot) {
+      return // Silently fail
+    }
+    
+    // Prevent double submission
+    if (isSubmitting) return
+    
+    // Throttle: minimum 3 seconds between submissions
+    const now = Date.now()
+    if (now - lastSubmissionTime < 3000) {
+      alert('Please wait a moment before submitting again')
+      return
+    }
+    
+    setIsSubmitting(true)
+    setLastSubmissionTime(now)
+    
+    try {
     // Original detailed version
     const results: string[] = []
     
@@ -364,7 +386,8 @@ export default function SurveyForm() {
         email: formData.email,
         query: finalCleansedString,
         cleansedQuery: finalCleansedString,
-        queryKeywords: keywords
+        queryKeywords: keywords,
+        website: honeypot // Honeypot field
       })
     }).catch(err => {
       console.error('Failed to save query:', err)
@@ -420,6 +443,9 @@ export default function SurveyForm() {
         setAllSearchResults([])
         setSearchResults([])
       })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const toggleCareerField = (field: string) => {
@@ -616,6 +642,17 @@ export default function SurveyForm() {
                         required
                       />
                     </div>
+                    {/* Honeypot field - hidden from users */}
+                    <input
+                      type="text"
+                      name="website"
+                      value={honeypot}
+                      onChange={(e) => setHoneypot(e.target.value)}
+                      style={{ position: 'absolute', left: '-9999px', opacity: 0 }}
+                      tabIndex={-1}
+                      autoComplete="off"
+                      aria-hidden="true"
+                    />
                   </div>
                 </div>
               )}
@@ -1097,9 +1134,12 @@ export default function SurveyForm() {
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
                     onClick={handleSubmit}
-                    className="px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base bg-tamu-maroon text-white rounded-lg font-semibold hover:bg-tamu-maroon-light transition-all"
+                    disabled={isSubmitting}
+                    className={`px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base bg-tamu-maroon text-white rounded-lg font-semibold hover:bg-tamu-maroon-light transition-all ${
+                      isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
                   >
-                    Submit
+                    {isSubmitting ? 'Submitting...' : 'Submit'}
                   </motion.button>
                 )}
               </div>
