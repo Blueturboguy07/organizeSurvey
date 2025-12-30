@@ -193,7 +193,7 @@ def check_eligibility(org_row, user_data):
     return True
 
 def calculate_relevance_score(org_row, query_keywords):
-    """Calculate relevance score based on weighted matching"""
+    """Calculate relevance score with refined weightings"""
     score = 0
     
     # Normalize all text to lowercase
@@ -203,195 +203,159 @@ def calculate_relevance_score(org_row, query_keywords):
     club_culture_style = str(org_row.get('club_culture_style', '')).lower()
     bio = str(org_row.get('bio', '')).lower()
     
+    # Categorize keywords by importance
+    career_keywords = ['engineering', 'business', 'finance', 'medicine', 'healthcare', 
+                      'law', 'education', 'arts', 'design', 'technology', 'computer', 
+                      'science', 'research', 'agriculture', 'communication', 'media',
+                      'social', 'work', 'government', 'public', 'service', 'sports',
+                      'fitness', 'hospitality', 'tourism']
+    
+    activity_keywords = ['volunteering', 'social', 'events', 'projects', 'competitions', 
+                        'workshops', 'trips']
+    
+    demographic_keywords = ['male', 'female', 'asian', 'white', 'black', 'hispanic', 
+                           'freshman', 'sophomore', 'junior', 'senior', 'graduate',
+                           'christian', 'muslim', 'jewish', 'hindu', 'buddhist',
+                           'campus', 'off-campus', 'on-campus']
+    
+    # Weight multipliers based on keyword category
+    def get_keyword_weight(keyword):
+        kw_lower = keyword.lower()
+        if any(career in kw_lower for career in career_keywords):
+            return 1.5  # Career fields are most important
+        elif any(activity in kw_lower for activity in activity_keywords):
+            return 1.2  # Activities are important
+        elif any(demo in kw_lower for demo in demographic_keywords):
+            return 0.3  # Demographics are for filtering, not ranking
+        return 1.0  # Default weight
+    
+    # Refined field weights
+    FIELD_WEIGHTS = {
+        'name': 12,           # Increased from 10 - name matches are very strong signals
+        'typical_majors': 15,  # Increased from 10 - majors are critical
+        'typical_activities': 8, # Increased from 5 - activities matter a lot
+        'club_culture_style': 4, # Decreased from 5 - less important
+        'bio': 2,             # Increased from 1 - bio can be informative
+        'bio_phrase': 6,      # New: phrase matches in bio are valuable
+    }
+    
     # Extract organization name words for better matching
-    # e.g., "TAMUHack" -> ["tamuhack", "tamu", "hack"]
-    # "Aggie Data Science Club" -> ["aggie", "data", "science", "club", "adsc"]
-    name_words = []
-    # Split on common separators and get individual words
     import re
+    name_words = []
     name_parts = re.split(r'[,\s\-&]+', name)
     for part in name_parts:
         if part and len(part) > 2:
             name_words.append(part.lower())
-            # Also add acronyms (all caps sequences)
             if part.isupper() and len(part) > 1:
                 name_words.append(part.lower())
     
-    # Check each keyword against each field
+    # Check each keyword with category weighting
     matches_count = 0
+    career_matches = 0
+    activity_matches = 0
+    
     for keyword in query_keywords:
         keyword_lower = keyword.lower().strip()
         if not keyword_lower or len(keyword_lower) < 2:
             continue
         
+        weight = get_keyword_weight(keyword)
         keyword_matched = False
-            
-        # Match in 'name': 10 points (also check name words for partial matches)
+        
+        # Name match (weighted)
         if keyword_lower in name or any(keyword_lower in word for word in name_words):
-            score += 10
+            score += FIELD_WEIGHTS['name'] * weight
             keyword_matched = True
         
-        # Match in 'typical_majors': 10 points
+        # Majors match (weighted) - highest priority
         if typical_majors and typical_majors != 'nan' and keyword_lower in typical_majors:
-            score += 10
+            score += FIELD_WEIGHTS['typical_majors'] * weight
             keyword_matched = True
+            if weight >= 1.5:  # Career field match
+                career_matches += 1
         
-        # Match in 'typical_activities': 5 points
+        # Activities match (weighted)
         if typical_activities and typical_activities != 'nan' and keyword_lower in typical_activities:
-            score += 5
+            score += FIELD_WEIGHTS['typical_activities'] * weight
             keyword_matched = True
+            if weight >= 1.2:  # Activity match
+                activity_matches += 1
         
-        # Match in 'club_culture_style': 5 points
+        # Culture style match
         if club_culture_style and club_culture_style != 'nan' and keyword_lower in club_culture_style:
-            score += 5
+            score += FIELD_WEIGHTS['club_culture_style'] * weight
             keyword_matched = True
         
-        # Match in 'bio': 1 point (but give extra weight if majors is NaN)
+        # Bio match (weighted)
         if keyword_lower in bio:
+            bio_score = FIELD_WEIGHTS['bio']
             if typical_majors == 'nan' or not typical_majors or typical_majors == '':
-                # If majors is missing, bio matches are more important
-                score += 5  # Increased from 3 to 5
-            else:
-                score += 1
+                bio_score = 8  # Higher if majors missing
+            score += bio_score * weight
             keyword_matched = True
         
-        # Also check for phrase matches in bio (e.g., "data science" as a phrase)
-        # This helps organizations like "Aggie Data Science Club"
-        if len(keyword_lower) > 4:  # Only for longer keywords
-            # Check if keyword appears as part of a phrase in bio
+        # Phrase matching in bio (more sophisticated)
+        if len(keyword_lower) > 4:
             bio_words = bio.split()
             for i in range(len(bio_words) - 1):
                 phrase = f"{bio_words[i]} {bio_words[i+1]}"
                 if keyword_lower in phrase:
-                    if typical_majors == 'nan' or not typical_majors or typical_majors == '':
-                        score += 2  # Extra bonus for phrase match when majors missing
-                    keyword_matched = True
+                    score += FIELD_WEIGHTS['bio_phrase'] * weight
                     break
         
         if keyword_matched:
             matches_count += 1
     
-    # Bonus for multiple keyword matches (shows stronger relevance)
-    if matches_count >= 3:
+    # Refined bonuses
+    # Career field match bonus (very important)
+    if career_matches >= 2:
+        score += 15  # Strong career alignment
+    elif career_matches >= 1:
+        score += 8
+    
+    # Activity match bonus
+    if activity_matches >= 3:
+        score += 10
+    elif activity_matches >= 2:
+        score += 5
+    
+    # Multiple keyword match bonus (refined)
+    if matches_count >= 5:
+        score += 8
+    elif matches_count >= 3:
         score += 5
     elif matches_count >= 2:
         score += 2
     
-    # Special handling for well-known tech organizations
-    # Give bonus if organization name contains tech-related terms even if not in query
-    tech_org_keywords = ['hack', 'acm', 'programming', 'coding', 'data science', 'computing', 'software', 'developer']
-    if any(tech_term in name for tech_term in tech_org_keywords):
-        # Check if query is tech-related
-        tech_query_terms = ['computer', 'technology', 'tech', 'programming', 'coding', 'engineering', 'software', 'data']
-        if any(term in ' '.join(query_keywords).lower() for term in tech_query_terms):
-            score += 5  # Increased bonus for tech orgs when query is tech-related
-    
-    # Bonus for organizations with strong activity matches (especially competitions/hackathons)
-    if 'competitions' in typical_activities.lower() or 'hack' in name.lower():
-        comp_keywords = ['competitions', 'competition', 'hack', 'hackathon']
-        if any(kw in ' '.join(query_keywords).lower() for kw in comp_keywords):
-            score += 3  # Bonus for hackathon/competition orgs when query mentions competitions
-    
-    # Fix 2: Context-Aware Scoring - Detect query focus and match org relevance
-    # Identify if query has specific domain terms vs generic terms
+    # Exact phrase matching bonus
     query_text = ' '.join(query_keywords).lower()
-    org_text = f"{name} {typical_majors} {bio}".lower()
+    org_text = f"{name} {typical_majors} {typical_activities} {bio}".lower()
     
-    # Extract multi-word phrases from query (2-3 word combinations)
-    query_phrases = []
-    query_words_list = query_keywords
-    for i in range(len(query_words_list) - 1):
-        # Two-word phrases
-        phrase = f"{query_words_list[i].lower()} {query_words_list[i+1].lower()}"
-        query_phrases.append(phrase)
-        # Three-word phrases if available
-        if i < len(query_words_list) - 2:
-            phrase3 = f"{query_words_list[i].lower()} {query_words_list[i+1].lower()} {query_words_list[i+2].lower()}"
-            query_phrases.append(phrase3)
-    
-    # Detect if query has specific domain terms (multi-word phrases or domain-specific single words)
-    # A query is "domain-focused" if it has phrases (2+ words together) or very specific terms
-    has_specific_phrases = len([p for p in query_phrases if len(p.split()) >= 2]) > 0
-    has_specific_terms = any(len(kw) > 6 for kw in query_keywords)  # Longer words tend to be more specific
-    
-    if has_specific_phrases or has_specific_terms:
-        # Check if org matches the specific domain focus
-        org_matches_specific = False
-        
-        # Check if any query phrase appears in org
-        for phrase in query_phrases:
-            if phrase in org_text:
-                org_matches_specific = True
-                break
-        
-        # Check if org has similar specific terms (words that appear together in query)
-        if not org_matches_specific:
-            # Count how many query keywords appear in org
-            matching_keywords = sum(1 for kw in query_keywords if kw.lower() in org_text)
-            keyword_match_ratio = matching_keywords / len(query_keywords) if query_keywords else 0
-            
-            # If org matches most keywords, it's likely relevant
-            if keyword_match_ratio > 0.5:
-                org_matches_specific = True
-        
-        if org_matches_specific:
-            # Boost orgs that match the specific domain focus
-            score += int(score * 0.2)  # 20% boost relative to current score
-        else:
-            # Penalize orgs that only match generic terms when query is specific
-            # Check if org matched on very generic terms (common words)
-            generic_terms = ['science', 'technology', 'tech', 'engineering', 'research', 'study']
-            org_matched_generic = any(term in org_text for term in generic_terms)
-            query_has_generic = any(term in query_text for term in generic_terms)
-            
-            if org_matched_generic and query_has_generic:
-                # Check if the generic term appears in a non-matching context
-                # e.g., "food technology" when query is about "computer technology"
-                for generic_term in generic_terms:
-                    if generic_term in query_text and generic_term in org_text:
-                        # Check surrounding context - if different contexts, it's a mismatch
-                        query_context = query_text[max(0, query_text.find(generic_term)-10):query_text.find(generic_term)+20]
-                        org_context = org_text[max(0, org_text.find(generic_term)-10):org_text.find(generic_term)+20]
-                        
-                        # If contexts are very different (few shared words), penalize
-                        query_context_words = set(query_context.split())
-                        org_context_words = set(org_context.split())
-                        shared_context = query_context_words & org_context_words
-                        if len(shared_context) < 2:  # Very different contexts
-                            score -= int(score * 0.3)  # 30% penalty relative to current score
-                            break
-    
-    # Fix 3: Phrase Matching - Boost organizations that match complete phrases from query
-    # Extract all 2-3 word phrases from query
-    query_phrases_all = []
-    for i in range(len(query_keywords)):
-        # Single word (already handled above)
-        # Two-word phrases
-        if i < len(query_keywords) - 1:
-            phrase = f"{query_keywords[i].lower()} {query_keywords[i+1].lower()}"
-            query_phrases_all.append(phrase)
-        # Three-word phrases
-        if i < len(query_keywords) - 2:
-            phrase3 = f"{query_keywords[i].lower()} {query_keywords[i+1].lower()} {query_keywords[i+2].lower()}"
-            query_phrases_all.append(phrase3)
-    
-    org_text_full = f"{name} {typical_majors} {bio}".lower()
-    
-    # Check for phrase matches (prioritize longer phrases)
-    phrase_matches = []
-    for phrase in sorted(query_phrases_all, key=len, reverse=True):  # Longer phrases first
-        if phrase in org_text_full:
-            phrase_matches.append(phrase)
-            # Only count each phrase once, and prefer longer matches
+    # Check for exact multi-word phrases from query
+    for i in range(len(query_keywords) - 1):
+        phrase = f"{query_keywords[i].lower()} {query_keywords[i+1].lower()}"
+        if phrase in org_text:
+            score += 12  # Strong signal for exact phrase match
             break
     
-    if phrase_matches:
-        # Bonus proportional to phrase length and score
-        longest_phrase = max(phrase_matches, key=len)
-        phrase_bonus = min(int(score * 0.25), 20)  # 25% bonus, max 20 points
-        score += phrase_bonus
+    # Special handling for tech organizations
+    tech_org_keywords = ['hack', 'acm', 'programming', 'coding', 'data science', 'computing', 'software', 'developer']
+    if any(tech_term in name for tech_term in tech_org_keywords):
+        tech_query_terms = ['computer', 'technology', 'tech', 'programming', 'coding', 'engineering', 'software', 'data']
+        if any(term in query_text for term in tech_query_terms):
+            score += 5
     
-    return score
+    # Competition/hackathon bonus
+    if 'competitions' in typical_activities.lower() or 'hack' in name.lower():
+        comp_keywords = ['competitions', 'competition', 'hack', 'hackathon']
+        if any(kw in query_text for kw in comp_keywords):
+            score += 3
+    
+    # Penalty for organizations with no career/activity alignment
+    if career_matches == 0 and activity_matches == 0:
+        score *= 0.7  # 30% penalty if no core matches
+    
+    return int(score)
 
 def search_clubs(query, user_data=None, csv_path='final.csv', top_n=10):
     """Main search function"""
