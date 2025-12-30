@@ -48,6 +48,31 @@ const ACTIVITIES = [
 
 const RELIGIONS = ['Hindu', 'Christian', 'Muslim', 'Jewish', 'Buddhist', 'Other']
 
+const ENGINEERING_TYPES = [
+  'Aerospace engineering',
+  'Architectural engineering',
+  'Biological and agricultural engineering',
+  'Biomedical engineering',
+  'Chemical engineering',
+  'Civil engineering',
+  'Computer engineering',
+  'Electrical engineering',
+  'Environmental engineering',
+  'Industrial engineering',
+  'Interdisciplinary engineering',
+  'Materials science and engineering',
+  'Mechanical engineering',
+  'Nuclear engineering',
+  'Ocean engineering',
+  'Petroleum engineering',
+  'Engineering technology and related programs',
+  'Electronic systems engineering technology',
+  'Manufacturing and mechanical engineering technology',
+  'Multidisciplinary engineering technology',
+  'Industrial distribution',
+  'Computer science'
+]
+
 const PRIMARY_GOALS = [
   'Building my resume / Career help',
   'Making friends / Having fun',
@@ -59,6 +84,7 @@ interface SurveyData {
   name: string
   email: string
   careerFields: string[]
+  engineeringTypes: string[]
   livesOnCampus: string
   hall: string
   classification: string
@@ -82,6 +108,7 @@ export default function SurveyForm() {
     name: '',
     email: '',
     careerFields: [],
+    engineeringTypes: [],
     livesOnCampus: '',
     hall: '',
     classification: '',
@@ -106,6 +133,8 @@ export default function SurveyForm() {
   const [resultsString, setResultsString] = useState('')
   const [cleansedString, setCleansedString] = useState('')
   const [additionalHobbyInput, setAdditionalHobbyInput] = useState('')
+  const [engineeringTypeInput, setEngineeringTypeInput] = useState('')
+  const [showEngineeringDropdown, setShowEngineeringDropdown] = useState(false)
   const [searchResults, setSearchResults] = useState<any[]>([])
   const [allSearchResults, setAllSearchResults] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(false)
@@ -143,6 +172,10 @@ export default function SurveyForm() {
       // Step 1: Career Fields
       if (formData.careerFields.length === 0) {
         alert('Please select at least one career field to continue.')
+        return
+      }
+      if (formData.careerFields.includes('Engineering') && formData.engineeringTypes.length === 0) {
+        alert('Please select at least one type of engineering to continue.')
         return
       }
     } else if (currentStep === 2) {
@@ -251,6 +284,13 @@ export default function SurveyForm() {
       cleansed.push(careerFieldsStr) // Repeat 2
     }
     
+    // Engineering types - if selected, add them to the cleansed query
+    if (formData.engineeringTypes.length > 0) {
+      const engineeringTypesStr = formData.engineeringTypes.join(', ')
+      cleansed.push(engineeringTypesStr)
+      cleansed.push(engineeringTypesStr) // Repeat for emphasis
+    }
+    
     
     // Activities - repeat 2 times for emphasis (important)
     if (formData.activities.length > 0) {
@@ -348,6 +388,7 @@ export default function SurveyForm() {
       classification: formData.classification || '',
       sexuality: formData.sexuality || formData.sexualityOther || '',
       careerFields: formData.careerFields || [],
+      engineeringTypes: formData.engineeringTypes || [],
       religion: formData.religion === 'Other' ? formData.religionOther : formData.religion || ''
     }
     
@@ -393,13 +434,34 @@ export default function SurveyForm() {
   }
 
   const toggleCareerField = (field: string) => {
-    setFormData(prev => ({
-      ...prev,
-      careerFields: prev.careerFields.includes(field)
+    setFormData(prev => {
+      const newCareerFields = prev.careerFields.includes(field)
         ? prev.careerFields.filter(f => f !== field)
         : [...prev.careerFields, field]
-    }))
+      
+      // If Engineering is deselected, clear engineeringTypes
+      if (!newCareerFields.includes('Engineering')) {
+        return { ...prev, careerFields: newCareerFields, engineeringTypes: [] }
+      }
+      return { ...prev, careerFields: newCareerFields }
+    })
   }
+
+  const toggleEngineeringType = (type: string) => {
+    setFormData(prev => ({
+      ...prev,
+      engineeringTypes: prev.engineeringTypes.includes(type)
+        ? prev.engineeringTypes.filter(t => t !== type)
+        : [...prev.engineeringTypes, type]
+    }))
+    setEngineeringTypeInput('')
+    setShowEngineeringDropdown(false)
+  }
+
+  const filteredEngineeringTypes = ENGINEERING_TYPES.filter(type =>
+    type.toLowerCase().includes(engineeringTypeInput.toLowerCase()) &&
+    !formData.engineeringTypes.includes(type)
+  )
 
   const toggleActivity = (activity: string) => {
     setFormData(prev => ({
@@ -592,6 +654,79 @@ export default function SurveyForm() {
                       </motion.button>
                     ))}
                   </div>
+                  
+                  {/* Engineering Types Selection */}
+                  {formData.careerFields.includes('Engineering') && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: 'auto' }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-gray-200"
+                    >
+                      <h3 className="text-lg sm:text-xl font-semibold text-tamu-maroon mb-3 sm:mb-4">
+                        Which types of engineering are you interested in? *
+                      </h3>
+                      
+                      {/* Search Input */}
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={engineeringTypeInput}
+                          onChange={(e) => {
+                            setEngineeringTypeInput(e.target.value)
+                            setShowEngineeringDropdown(true)
+                          }}
+                          onFocus={() => setShowEngineeringDropdown(true)}
+                          onBlur={() => {
+                            // Delay to allow click events to fire
+                            setTimeout(() => setShowEngineeringDropdown(false), 200)
+                          }}
+                          placeholder="Search and select engineering types..."
+                          className="w-full p-2.5 sm:p-3 text-sm sm:text-base border-2 border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none"
+                        />
+                        
+                        {/* Dropdown List */}
+                        {showEngineeringDropdown && filteredEngineeringTypes.length > 0 && (
+                          <div className="absolute z-10 w-full mt-1 bg-white border-2 border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+                            {filteredEngineeringTypes.map((type) => (
+                              <button
+                                key={type}
+                                type="button"
+                                onClick={() => toggleEngineeringType(type)}
+                                className="w-full text-left px-4 py-2 text-sm sm:text-base hover:bg-tamu-maroon-light hover:text-white transition-colors first:rounded-t-lg last:rounded-b-lg"
+                              >
+                                {type}
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      
+                      {/* Selected Engineering Types as Tags */}
+                      {formData.engineeringTypes.length > 0 && (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {formData.engineeringTypes.map((type) => (
+                            <motion.div
+                              key={type}
+                              initial={{ opacity: 0, scale: 0.9 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              whileHover={{ scale: 1.05 }}
+                              className="flex items-center gap-2 px-3 py-1 rounded-full bg-tamu-maroon text-white text-sm"
+                            >
+                              <span>{type}</span>
+                              <button
+                                type="button"
+                                onClick={() => toggleEngineeringType(type)}
+                                className="ml-1 text-xs font-bold hover:text-gray-200"
+                              >
+                                ×
+                              </button>
+                            </motion.div>
+                          ))}
+                        </div>
+                      )}
+                    </motion.div>
+                  )}
                 </div>
               )}
 
@@ -1084,6 +1219,9 @@ export default function SurveyForm() {
                           {formData.careerFields.length > 0 && (
                             <div className="col-span-2"><span className="font-semibold">Career Fields:</span> {formData.careerFields.join(', ')}</div>
                           )}
+                          {formData.engineeringTypes.length > 0 && (
+                            <div className="col-span-2"><span className="font-semibold">Engineering Types:</span> {formData.engineeringTypes.join(', ')}</div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1488,6 +1626,7 @@ export default function SurveyForm() {
                     name: '',
                     email: '',
                     careerFields: [],
+                    engineeringTypes: [],
                     livesOnCampus: '',
                     hall: '',
                     classification: '',
@@ -1505,6 +1644,8 @@ export default function SurveyForm() {
                     religionOther: ''
                   })
                   setAdditionalHobbyInput('')
+                  setEngineeringTypeInput('')
+                  setShowEngineeringDropdown(false)
                 }}
                 className="mt-4 sm:mt-6 px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base bg-tamu-maroon text-white rounded-lg font-semibold hover:bg-tamu-maroon-light transition-all"
               >
