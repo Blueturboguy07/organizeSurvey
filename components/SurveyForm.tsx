@@ -192,24 +192,13 @@ export default function SurveyForm() {
       }
     } else if (currentStep === 4) {
       // Step 4: Demographics
-      if (!formData.race) {
-        alert('Please select your race to continue.')
-        return
-      }
+      // Race, sexuality, and gender are optional, but if "Other" is selected, specification is required
       if (formData.race === 'Other/Multiple' && !formData.raceOther.trim()) {
         alert('Please specify your race to continue.')
         return
       }
-      if (!formData.sexuality) {
-        alert('Please select your sexuality to continue.')
-        return
-      }
       if (formData.sexuality === 'Other' && !formData.sexualityOther.trim()) {
         alert('Please specify your sexuality to continue.')
-        return
-      }
-      if (!formData.gender) {
-        alert('Please select your gender to continue.')
         return
       }
       if (formData.gender === 'Other' && !formData.genderOther.trim()) {
@@ -532,7 +521,7 @@ export default function SurveyForm() {
     setSearchResults(filtered)
   }
 
-    return (
+  return (
     <div className="min-h-screen bg-gradient-to-b from-white to-gray-50 py-4 sm:py-8 md:py-12 px-3 sm:px-4 md:px-6">
       <div className="max-w-3xl mx-auto">
         {/* Header */}
@@ -549,7 +538,7 @@ export default function SurveyForm() {
             />
             <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-tamu-maroon">
               ORGanize TAMU
-            </h1>
+          </h1>
           </div>
           <p className="text-gray-600 text-sm sm:text-base md:text-lg mb-2 px-2">
             Find your perfect organization match
@@ -603,8 +592,8 @@ export default function SurveyForm() {
                   <div className="space-y-4">
                     <div>
                         <label className="block text-gray-700 font-medium mb-1 sm:mb-2 text-sm sm:text-base">
-                          Name *
-                        </label>
+                        Name *
+                      </label>
                       <input
                         type="text"
                         value={formData.name}
@@ -616,8 +605,8 @@ export default function SurveyForm() {
                     </div>
                     <div>
                         <label className="block text-gray-700 font-medium mb-1 sm:mb-2 text-sm sm:text-base">
-                          Email *
-                        </label>
+                        Email *
+                      </label>
                       <input
                         type="email"
                         value={formData.email}
@@ -761,8 +750,8 @@ export default function SurveyForm() {
                         className="mt-4"
                       >
                       <label className="block text-gray-700 font-medium mb-1 sm:mb-2 text-sm sm:text-base">
-                        What hall?
-                      </label>
+                          What hall?
+                        </label>
                         <input
                           type="text"
                           value={formData.hall}
@@ -808,7 +797,7 @@ export default function SurveyForm() {
                   {/* Race */}
                   <div>
                     <h3 className="text-lg sm:text-xl font-semibold text-tamu-maroon mb-3 sm:mb-4">
-                      What&apos;s your race? *
+                      What&apos;s your race?
                     </h3>
                     <div className="space-y-2 sm:space-y-3">
                       {RACES.map((race) => (
@@ -835,8 +824,7 @@ export default function SurveyForm() {
                         value={formData.raceOther}
                         onChange={(e) => setFormData(prev => ({ ...prev, raceOther: e.target.value }))}
                         className="mt-4 w-full p-3 border-2 border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none"
-                        placeholder="Please specify *"
-                        required
+                        placeholder="Please specify"
                       />
                     )}
                   </div>
@@ -844,7 +832,7 @@ export default function SurveyForm() {
                   {/* Sexuality */}
                   <div>
                     <h3 className="text-lg sm:text-xl font-semibold text-tamu-maroon mb-3 sm:mb-4">
-                      What&apos;s your sexuality? *
+                      What&apos;s your sexuality?
                     </h3>
                     <div className="space-y-2 sm:space-y-3">
                       {SEXUALITIES.map((sexuality) => (
@@ -871,8 +859,7 @@ export default function SurveyForm() {
                         value={formData.sexualityOther}
                         onChange={(e) => setFormData(prev => ({ ...prev, sexualityOther: e.target.value }))}
                         className="mt-4 w-full p-3 border-2 border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none"
-                        placeholder="Please specify *"
-                        required
+                        placeholder="Please specify"
                       />
                     )}
                   </div>
@@ -880,7 +867,7 @@ export default function SurveyForm() {
                   {/* Gender */}
                   <div>
                     <h3 className="text-lg sm:text-xl font-semibold text-tamu-maroon mb-3 sm:mb-4">
-                      What&apos;s your gender? *
+                      What&apos;s your gender?
                     </h3>
                     <div className="space-y-2 sm:space-y-3">
                       {GENDERS.map((gender) => (
@@ -907,8 +894,7 @@ export default function SurveyForm() {
                         value={formData.genderOther}
                         onChange={(e) => setFormData(prev => ({ ...prev, genderOther: e.target.value }))}
                         className="mt-4 w-full p-3 border-2 border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none"
-                        placeholder="Please specify *"
-                        required
+                        placeholder="Please specify"
                       />
                     )}
                   </div>

@@ -261,7 +261,7 @@ def calculate_relevance_score(org_row, query_keywords):
         
         weight = get_keyword_weight(keyword)
         keyword_matched = False
-        
+            
         # Name match (weighted)
         if keyword_lower in name or any(keyword_lower in word for word in name_words):
             score += FIELD_WEIGHTS['name'] * weight
