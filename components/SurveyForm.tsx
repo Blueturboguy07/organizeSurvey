@@ -320,8 +320,8 @@ export default function SurveyForm() {
       .catch(err => {
         setIsLoading(false)
         console.error('Search error:', err)
-        // Show user-friendly error message
-        setSearchError('Search functionality is currently unavailable. Your form has been submitted successfully.')
+        // Show actual error message for debugging
+        setSearchError(`Search error: ${err.message || 'Unknown error'}. Your form has been submitted successfully.`)
         // Set empty results so UI doesn't break
         setAllSearchResults([])
         setSearchResults([])
