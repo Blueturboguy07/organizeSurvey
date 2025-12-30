@@ -126,8 +126,9 @@ export default function SurveyForm() {
   ]
 
   const handleNext = () => {
-    // Validate required fields for step 0 (contact info)
+    // Validate required fields for each step
     if (currentStep === 0) {
+      // Step 0: Contact Info
       if (!formData.name.trim() || !formData.email.trim()) {
         alert('Please enter your name and email to continue.')
         return
@@ -136,6 +137,69 @@ export default function SurveyForm() {
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
       if (!emailRegex.test(formData.email)) {
         alert('Please enter a valid email address.')
+        return
+      }
+    } else if (currentStep === 1) {
+      // Step 1: Career Fields
+      if (formData.careerFields.length === 0) {
+        alert('Please select at least one career field to continue.')
+        return
+      }
+    } else if (currentStep === 2) {
+      // Step 2: Housing
+      if (!formData.livesOnCampus) {
+        alert('Please indicate whether you live on campus to continue.')
+        return
+      }
+    } else if (currentStep === 3) {
+      // Step 3: Classification
+      if (!formData.classification) {
+        alert('Please select your classification to continue.')
+        return
+      }
+    } else if (currentStep === 4) {
+      // Step 4: Demographics
+      if (!formData.race) {
+        alert('Please select your race to continue.')
+        return
+      }
+      if (formData.race === 'Other/Multiple' && !formData.raceOther.trim()) {
+        alert('Please specify your race to continue.')
+        return
+      }
+      if (!formData.sexuality) {
+        alert('Please select your sexuality to continue.')
+        return
+      }
+      if (formData.sexuality === 'Other' && !formData.sexualityOther.trim()) {
+        alert('Please specify your sexuality to continue.')
+        return
+      }
+      if (!formData.gender) {
+        alert('Please select your gender to continue.')
+        return
+      }
+      if (formData.gender === 'Other' && !formData.genderOther.trim()) {
+        alert('Please specify your gender to continue.')
+        return
+      }
+      // Hobbies are optional - skip validation
+    } else if (currentStep === 5) {
+      // Step 5: Activities & Religious Orgs
+      if (formData.activities.length === 0) {
+        alert('Please select at least one activity to continue.')
+        return
+      }
+      if (!formData.interestedInReligiousOrgs) {
+        alert('Please indicate whether you are interested in religious organizations to continue.')
+        return
+      }
+      if (formData.interestedInReligiousOrgs === 'Yes' && !formData.religion) {
+        alert('Please select your religion to continue.')
+        return
+      }
+      if (formData.interestedInReligiousOrgs === 'Yes' && formData.religion === 'Other' && !formData.religionOther.trim()) {
+        alert('Please specify your religion to continue.')
         return
       }
     }
@@ -415,9 +479,19 @@ export default function SurveyForm() {
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-8"
         >
-          <h1 className="text-4xl font-bold text-tamu-maroon mb-2">
-            Texas A&M University Survey
-          </h1>
+          <div className="flex items-center justify-center gap-4 mb-4">
+            <img 
+              src="/logo.png" 
+              alt="ORGanize TAMU Logo" 
+              className="w-28 h-28 flex-shrink-0 object-contain"
+            />
+            <h1 className="text-4xl font-bold text-tamu-maroon">
+              ORGanize TAMU
+            </h1>
+          </div>
+          <p className="text-gray-600 text-lg mb-2">
+            Find your perfect organization match
+          </p>
           <div className="w-24 h-1 bg-tamu-maroon mx-auto"></div>
         </motion.div>
 
@@ -499,7 +573,7 @@ export default function SurveyForm() {
               {currentStep === 1 && (
                 <div>
                   <h2 className="text-2xl font-semibold text-tamu-maroon mb-6">
-                    Which career fields are you interested in?
+                    Which career fields are you interested in? *
                   </h2>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     {CAREER_FIELDS.map((field) => (
@@ -525,7 +599,7 @@ export default function SurveyForm() {
               {currentStep === 2 && (
                 <div>
                   <h2 className="text-2xl font-semibold text-tamu-maroon mb-6">
-                    Do you live on campus?
+                    Do you live on campus? *
                   </h2>
                   <div className="space-y-4">
                     <div className="flex gap-4">
@@ -571,7 +645,7 @@ export default function SurveyForm() {
               {currentStep === 3 && (
                 <div>
                   <h2 className="text-2xl font-semibold text-tamu-maroon mb-6">
-                    What classification are you?
+                    What classification are you? *
                   </h2>
                   <div className="space-y-3">
                     {CLASSIFICATIONS.map((classification) => (
@@ -599,7 +673,7 @@ export default function SurveyForm() {
                   {/* Race */}
                   <div>
                     <h3 className="text-xl font-semibold text-tamu-maroon mb-4">
-                      What&apos;s your race?
+                      What&apos;s your race? *
                     </h3>
                     <div className="space-y-3">
                       {RACES.map((race) => (
@@ -626,7 +700,8 @@ export default function SurveyForm() {
                         value={formData.raceOther}
                         onChange={(e) => setFormData(prev => ({ ...prev, raceOther: e.target.value }))}
                         className="mt-4 w-full p-3 border-2 border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none"
-                        placeholder="Please specify"
+                        placeholder="Please specify *"
+                        required
                       />
                     )}
                   </div>
@@ -634,7 +709,7 @@ export default function SurveyForm() {
                   {/* Sexuality */}
                   <div>
                     <h3 className="text-xl font-semibold text-tamu-maroon mb-4">
-                      What&apos;s your sexuality?
+                      What&apos;s your sexuality? *
                     </h3>
                     <div className="space-y-3">
                       {SEXUALITIES.map((sexuality) => (
@@ -661,7 +736,8 @@ export default function SurveyForm() {
                         value={formData.sexualityOther}
                         onChange={(e) => setFormData(prev => ({ ...prev, sexualityOther: e.target.value }))}
                         className="mt-4 w-full p-3 border-2 border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none"
-                        placeholder="Please specify"
+                        placeholder="Please specify *"
+                        required
                       />
                     )}
                   </div>
@@ -669,7 +745,7 @@ export default function SurveyForm() {
                   {/* Gender */}
                   <div>
                     <h3 className="text-xl font-semibold text-tamu-maroon mb-4">
-                      What&apos;s your gender?
+                      What&apos;s your gender? *
                     </h3>
                     <div className="space-y-3">
                       {GENDERS.map((gender) => (
@@ -696,7 +772,8 @@ export default function SurveyForm() {
                         value={formData.genderOther}
                         onChange={(e) => setFormData(prev => ({ ...prev, genderOther: e.target.value }))}
                         className="mt-4 w-full p-3 border-2 border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none"
-                        placeholder="Please specify"
+                        placeholder="Please specify *"
+                        required
                       />
                     )}
                   </div>
@@ -772,7 +849,7 @@ export default function SurveyForm() {
                   {/* Activities */}
                   <div>
                     <h3 className="text-xl font-semibold text-tamu-maroon mb-4">
-                      Which of these activities sounds most appealing to you?
+                      Which of these activities sounds most appealing to you? *
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                       {ACTIVITIES.map((activity) => (
@@ -796,7 +873,7 @@ export default function SurveyForm() {
                   {/* Religious Orgs */}
                   <div>
                     <h3 className="text-xl font-semibold text-tamu-maroon mb-4">
-                      Are you interested in religious organizations?
+                      Are you interested in religious organizations? *
                     </h3>
                     <div className="flex gap-4 mb-4">
                       {['Yes', 'No'].map((option) => (
@@ -821,7 +898,7 @@ export default function SurveyForm() {
                         animate={{ opacity: 1, height: 'auto' }}
                       >
                         <h4 className="text-lg font-medium text-gray-700 mb-3">
-                          What is your religion?
+                          What is your religion? *
                         </h4>
                         <div className="space-y-3">
                           {RELIGIONS.map((religion) => (
@@ -857,8 +934,9 @@ export default function SurveyForm() {
                               type="text"
                               value={formData.religionOther}
                               onChange={(e) => setFormData(prev => ({ ...prev, religionOther: e.target.value }))}
-                              placeholder="Enter your religion"
+                              placeholder="Enter your religion *"
                               className="w-full px-4 py-2 border-2 border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none"
+                              required
                             />
                           </motion.div>
                         )}

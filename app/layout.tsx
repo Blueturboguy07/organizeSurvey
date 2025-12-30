@@ -2,8 +2,8 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'TAMU Survey',
-  description: 'Texas A&M University Survey',
+  title: 'ORGanize TAMU',
+  description: 'Find your perfect organization match at Texas A&M University',
 }
 
 export default function RootLayout({
