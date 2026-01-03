@@ -6,6 +6,7 @@ import { motion } from 'framer-motion'
 import { createClientComponentClient } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import Link from 'next/link'
+import Image from 'next/image'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -63,10 +64,12 @@ export default function LoginPage() {
       >
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-3 mb-4">
-            <img 
+            <Image 
               src="/logo.png" 
               alt="ORGanize TAMU Logo" 
-              className="w-16 h-16 flex-shrink-0 object-contain"
+              width={64}
+              height={64}
+              className="flex-shrink-0 object-contain"
             />
             <h1 className="text-3xl font-bold text-tamu-maroon">ORGanize TAMU</h1>
           </div>
@@ -139,7 +142,7 @@ export default function LoginPage() {
 
         <div className="mt-6 text-center">
           <p className="text-gray-600">
-            Don't have an account?{' '}
+            Don&apos;t have an account?{' '}
             <Link href="/register" className="text-tamu-maroon font-semibold hover:underline">
               Sign up
             </Link>

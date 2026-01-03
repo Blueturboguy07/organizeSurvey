@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { motion } from 'framer-motion'
 import { createClientComponentClient } from '@/lib/supabase'
 import Link from 'next/link'
+import Image from 'next/image'
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
@@ -51,7 +52,7 @@ export default function ForgotPasswordPage() {
             </div>
             <h2 className="text-2xl font-bold text-tamu-maroon mb-2">Check Your Email</h2>
             <p className="text-gray-600">
-              We've sent a password reset link to <strong>{email}</strong>
+              We&apos;ve sent a password reset link to <strong>{email}</strong>
             </p>
           </div>
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
@@ -79,10 +80,12 @@ export default function ForgotPasswordPage() {
       >
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-3 mb-4">
-            <img 
+            <Image 
               src="/logo.png" 
               alt="ORGanize TAMU Logo" 
-              className="w-16 h-16 flex-shrink-0 object-contain"
+              width={64}
+              height={64}
+              className="flex-shrink-0 object-contain"
             />
             <h1 className="text-3xl font-bold text-tamu-maroon">ORGanize TAMU</h1>
           </div>

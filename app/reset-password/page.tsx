@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { createClientComponentClient } from '@/lib/supabase'
 import Link from 'next/link'
+import Image from 'next/image'
 
 export default function ResetPasswordPage() {
   const [password, setPassword] = useState('')
@@ -89,10 +90,12 @@ export default function ResetPasswordPage() {
       >
         <div className="text-center mb-8">
           <div className="flex items-center justify-center gap-3 mb-4">
-            <img 
+            <Image 
               src="/logo.png" 
               alt="ORGanize TAMU Logo" 
-              className="w-16 h-16 flex-shrink-0 object-contain"
+              width={64}
+              height={64}
+              className="flex-shrink-0 object-contain"
             />
             <h1 className="text-3xl font-bold text-tamu-maroon">ORGanize TAMU</h1>
           </div>

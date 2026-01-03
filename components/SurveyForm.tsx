@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/contexts/AuthContext'
 import { createClientComponentClient } from '@/lib/supabase'
+import Image from 'next/image'
 
 const CAREER_FIELDS = [
   'Engineering',
@@ -565,9 +566,11 @@ export default function SurveyForm() {
           <div className="flex items-center justify-between mb-3 sm:mb-4">
             <div className="flex-1"></div>
             <div className="flex items-center justify-center gap-2 sm:gap-3 md:gap-4 flex-1">
-              <img 
+              <Image 
                 src="/logo.png" 
                 alt="ORGanize TAMU Logo" 
+                width={112}
+                height={112}
                 className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 lg:w-28 lg:h-28 flex-shrink-0 object-contain"
               />
               <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-tamu-maroon">
