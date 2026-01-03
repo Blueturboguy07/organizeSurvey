@@ -467,29 +467,37 @@ export default function SurveyForm() {
     setIsLoading(true)
     setSearchError('')
     
-    // Save full user profile to database FIRST (independent of search success)
-    // This ensures data is saved even if search fails
+    // Save query to database FIRST (independent of search success)
     const token = session?.access_token
-    fetch('/api/submit', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(token && { 'Authorization': `Bearer ${token}` }),
-      },
-      body: JSON.stringify({
-        name: formData.name,
-        email: formData.email,
-        query: finalCleansedString,
-        cleansedQuery: finalCleansedString,
-        queryKeywords: keywords,
-        profileData: formData, // Save full profile
-        searchResults: [], // Will be updated after search completes
-        website: honeypot // Honeypot field
+    if (token) {
+      fetch('/api/submit', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          name: formData.name,
+          email: formData.email,
+          query: finalCleansedString,
+          cleansedQuery: finalCleansedString,
+          website: honeypot // Honeypot field
+        })
       })
-    }).catch(err => {
-      console.error('Failed to save profile:', err)
-      // Silently fail - don't interrupt user experience
-    })
+      .then(res => res.json())
+      .then(data => {
+        if (data.error) {
+          console.error('❌ Failed to save query:', data.error)
+        } else {
+          console.log('✅ Query saved successfully')
+        }
+      })
+      .catch(err => {
+        console.error('❌ Failed to save query:', err)
+      })
+    } else {
+      console.warn('⚠️ No auth token - query not saved')
+    }
     
     const userDataForSearch = {
       gender: formData.gender || formData.genderOther || '',

@@ -123,52 +123,35 @@ export async function POST(request: NextRequest) {
 
     const now = new Date().toISOString()
 
-    // Check if user exists by user_id, then update or insert
-    const { data: existingUser } = await supabaseAdmin
-      .from('users')
-      .select('email')
-      .eq('user_id', user.id)
-      .single()
+    // Save to user_queries table (upsert by user_id)
+    const { data: upsertData, error: upsertError } = await supabaseAdmin
+      .from('user_queries')
+      .upsert({
+        user_id: user.id,
+        latest_cleansed_query: cleansedQuery || query,
+        updated_at: now
+      }, {
+        onConflict: 'user_id',
+        ignoreDuplicates: false
+      })
+      .select()
 
-    if (existingUser) {
-      // User exists - update by user_id (this updates the query fields)
-      const { error: updateError } = await supabaseAdmin
-        .from('users')
-        .update({
-          name,
-          latest_query: query,
-          latest_cleansed_query: cleansedQuery || query,
-          last_updated: now
-        })
-        .eq('user_id', user.id)
-
-      if (updateError) {
-        console.error('Supabase update error:', updateError)
-        throw updateError
+    if (upsertError) {
+      console.error('❌ Supabase upsert error:', upsertError)
+      console.error('Error code:', upsertError.code)
+      console.error('Error message:', upsertError.message)
+      console.error('Error details:', upsertError.details)
+      console.error('Error hint:', upsertError.hint)
+      
+      // If table doesn't exist, log helpful error
+      if (upsertError.code === '42P01' || upsertError.message?.includes('does not exist')) {
+        throw new Error('user_queries table does not exist. Please run CREATE_USER_QUERIES_TABLE.sql in Supabase SQL Editor.')
       }
-    } else {
-      // New user - insert (upsert by email since that's the primary key)
-      const { error: insertError } = await supabaseAdmin
-        .from('users')
-        .upsert({
-          email: normalizedEmail,
-          name,
-          user_id: user.id,
-          latest_query: query,
-          latest_cleansed_query: cleansedQuery || query,
-          last_updated: now,
-          first_seen: now
-        }, {
-          onConflict: 'email'
-        })
-
-      if (insertError) {
-        console.error('Supabase insert error:', insertError)
-        throw insertError
-      }
+      throw upsertError
     }
 
-    return NextResponse.json({ success: true })
+    console.log('✅ Query saved successfully:', upsertData)
+    return NextResponse.json({ success: true, data: upsertData })
   } catch (error: any) {
     console.error('Submit error:', error)
     return NextResponse.json(

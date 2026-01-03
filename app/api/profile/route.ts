@@ -32,15 +32,21 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Get user profile - just the query
-    const { data: userProfile, error: profileError } = await supabaseAdmin
-      .from('users')
-      .select('latest_cleansed_query, name, email')
+    // Get user query from user_queries table
+    const { data: userQuery, error: profileError } = await supabaseAdmin
+      .from('user_queries')
+      .select('latest_cleansed_query')
       .eq('user_id', user.id)
       .single()
 
     if (profileError && profileError.code !== 'PGRST116') {
       console.error('Profile fetch error:', profileError)
+      // If table doesn't exist, return null (user hasn't saved query yet)
+      if (profileError.code === '42P01' || profileError.message?.includes('does not exist')) {
+        return NextResponse.json({ 
+          query: null
+        })
+      }
       return NextResponse.json(
         { error: 'Failed to load profile' },
         { status: 500 }
@@ -48,9 +54,7 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({ 
-      query: userProfile?.latest_cleansed_query || null,
-      name: userProfile?.name || null,
-      email: userProfile?.email || null
+      query: userQuery?.latest_cleansed_query || null
     })
   } catch (error: any) {
     console.error('Profile GET error:', error)

@@ -31,13 +31,10 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Clear user's query
-    const { error: updateError } = await supabaseAdmin
-      .from('users')
-      .update({
-        latest_query: null,
-        latest_cleansed_query: null
-      })
+    // Clear user's query from user_queries table
+    const { error: deleteError } = await supabaseAdmin
+      .from('user_queries')
+      .delete()
       .eq('user_id', user.id)
 
     if (updateError) {
