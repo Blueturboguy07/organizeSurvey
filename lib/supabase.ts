@@ -1,4 +1,5 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js'
+import { createBrowserClient } from '@supabase/ssr'
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -14,17 +15,27 @@ function validateEnvVars() {
   }
 }
 
-// Client for client-side (uses anon key)
+// Client for client-side (uses anon key) - with session persistence
 // Use placeholder values during build - will be validated at runtime
 export const supabase: SupabaseClient = createClient(
   supabaseUrl || 'https://placeholder.supabase.co',
   supabaseAnonKey || 'placeholder-anon-key',
   {
     auth: {
-      persistSession: false
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true
     }
   }
 )
+
+// Browser client for use in client components (with SSR support)
+export function createClientComponentClient() {
+  return createBrowserClient(
+    supabaseUrl || 'https://placeholder.supabase.co',
+    supabaseAnonKey || 'placeholder-anon-key'
+  )
+}
 
 // Client for server-side API routes (uses service role key, bypasses RLS)
 // Falls back to anon key if service key not provided (for development)

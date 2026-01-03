@@ -2,6 +2,8 @@
 
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import { useAuth } from '@/contexts/AuthContext'
+import { createClientComponentClient } from '@/lib/supabase'
 
 const CAREER_FIELDS = [
   'Engineering',
@@ -103,10 +105,12 @@ interface SurveyData {
 }
 
 export default function SurveyForm() {
+  const { user, signOut, session } = useAuth()
+  const supabase = createClientComponentClient()
   const [currentStep, setCurrentStep] = useState(0)
   const [formData, setFormData] = useState<SurveyData>({
-    name: '',
-    email: '',
+    name: user?.user_metadata?.name || '',
+    email: user?.email || '',
     careerFields: [],
     engineeringTypes: [],
     livesOnCampus: '',
@@ -376,10 +380,12 @@ export default function SurveyForm() {
     
     // Save user query to database FIRST (independent of search success)
     // This ensures data is saved even if search fails
+    const token = session?.access_token
     fetch('/api/submit', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` }),
       },
       body: JSON.stringify({
         name: formData.name,
@@ -556,15 +562,30 @@ export default function SurveyForm() {
           animate={{ opacity: 1, y: 0 }}
           className="text-center mb-8"
         >
-          <div className="flex items-center justify-center gap-2 sm:gap-3 md:gap-4 mb-3 sm:mb-4">
-            <img 
-              src="/logo.png" 
-              alt="ORGanize TAMU Logo" 
-              className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 lg:w-28 lg:h-28 flex-shrink-0 object-contain"
-            />
-            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-tamu-maroon">
-              ORGanize TAMU
-          </h1>
+          <div className="flex items-center justify-between mb-3 sm:mb-4">
+            <div className="flex-1"></div>
+            <div className="flex items-center justify-center gap-2 sm:gap-3 md:gap-4 flex-1">
+              <img 
+                src="/logo.png" 
+                alt="ORGanize TAMU Logo" 
+                className="w-16 h-16 sm:w-20 sm:h-20 md:w-24 md:h-24 lg:w-28 lg:h-28 flex-shrink-0 object-contain"
+              />
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-tamu-maroon">
+                ORGanize TAMU
+              </h1>
+            </div>
+            <div className="flex-1 flex justify-end">
+              {user && (
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={signOut}
+                  className="px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm bg-gray-200 text-gray-700 rounded-lg font-medium hover:bg-gray-300 transition-all"
+                >
+                  Sign Out
+                </motion.button>
+              )}
+            </div>
           </div>
           <p className="text-gray-600 text-sm sm:text-base md:text-lg mb-2 px-2">
             Find your perfect organization match
@@ -635,12 +656,19 @@ export default function SurveyForm() {
                       </label>
                       <input
                         type="email"
-                        value={formData.email}
+                        value={user?.email || formData.email}
                         onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                        className="w-full p-2.5 sm:p-3 text-sm sm:text-base border-2 border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none"
-                        placeholder="Enter your email"
+                        className="w-full p-2.5 sm:p-3 text-sm sm:text-base border-2 border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none bg-gray-50"
+                        placeholder={user?.email || "Enter your email"}
                         required
+                        disabled={!!user?.email}
+                        readOnly={!!user?.email}
                       />
+                      {user?.email && (
+                        <p className="text-xs text-gray-500 mt-1">
+                          Using your account email: {user.email}
+                        </p>
+                      )}
                     </div>
                     {/* Honeypot field - hidden from users */}
                     <input
