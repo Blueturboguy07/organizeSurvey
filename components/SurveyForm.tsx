@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/contexts/AuthContext'
 import { createClientComponentClient } from '@/lib/supabase'
@@ -106,7 +106,7 @@ interface SurveyData {
 }
 
 export default function SurveyForm() {
-  const { user, signOut, session } = useAuth()
+  const { user, signOut, session, loading: authLoading } = useAuth()
   const supabase = createClientComponentClient()
   const [currentStep, setCurrentStep] = useState(0)
   const [formData, setFormData] = useState<SurveyData>({
@@ -151,6 +151,8 @@ export default function SurveyForm() {
   const [showInsights, setShowInsights] = useState(false)
   const [queryKeywords, setQueryKeywords] = useState<string[]>([])
   const [selectedOrg, setSelectedOrg] = useState<any | null>(null)
+  const [loadingProfile, setLoadingProfile] = useState(true)
+  const [hasExistingProfile, setHasExistingProfile] = useState(false)
 
   const steps = [
     'Contact Info',
@@ -159,7 +161,7 @@ export default function SurveyForm() {
     'Classification',
     'Demographics',
     'Activities',
-    'Results'
+    'Your Matches'
   ]
 
   const handleNext = () => {
@@ -244,6 +246,92 @@ export default function SurveyForm() {
       setCurrentStep(currentStep - 1)
     }
   }
+
+  // Re-run search from saved query
+  const rerunSearchFromQuery = async (query: string, userDataForSearch: any) => {
+    setIsLoading(true)
+    setSearchError('')
+    setShowResults(true)
+    setCurrentStep(steps.length - 1)
+    setCleansedString(query)
+
+    try {
+      const response = await fetch('/api/search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          query: query,
+          userData: userDataForSearch
+        })
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        const results = data.results || []
+        setAllSearchResults(results)
+        setSearchResults(results)
+        setSelectedFilter('')
+        setHasExistingProfile(true)
+      } else {
+        throw new Error('Search failed')
+      }
+    } catch (error: any) {
+      console.error('Search error:', error)
+      setSearchError(`Search error: ${error.message || 'Unknown error'}`)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  // Load user query on mount
+  useEffect(() => {
+    const loadQuery = async () => {
+      if (authLoading || !user || !session) {
+        setLoadingProfile(false)
+        return
+      }
+
+      try {
+        const token = session.access_token
+        const response = await fetch('/api/profile', {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          const savedQuery = data.query
+
+          if (savedQuery) {
+            // User has a saved query - re-run search
+            // Extract user data from form (will be empty first time, but that's ok)
+            const userDataForSearch = {
+              gender: formData.gender || formData.genderOther || '',
+              race: formData.race || formData.raceOther || '',
+              classification: formData.classification || '',
+              sexuality: formData.sexuality || formData.sexualityOther || '',
+              careerFields: formData.careerFields || [],
+              engineeringTypes: formData.engineeringTypes || [],
+              religion: formData.religion === 'Other' ? formData.religionOther : formData.religion || ''
+            }
+            
+            await rerunSearchFromQuery(savedQuery, userDataForSearch)
+          }
+          // If no query, user will see the survey form
+        }
+      } catch (error) {
+        console.error('Failed to load query:', error)
+      } finally {
+        setLoadingProfile(false)
+      }
+    }
+
+    loadQuery()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, session?.access_token, authLoading])
 
   const handleSubmit = async () => {
     // Honeypot check - if filled, it's a bot
@@ -379,7 +467,7 @@ export default function SurveyForm() {
     setIsLoading(true)
     setSearchError('')
     
-    // Save user query to database FIRST (independent of search success)
+    // Save full user profile to database FIRST (independent of search success)
     // This ensures data is saved even if search fails
     const token = session?.access_token
     fetch('/api/submit', {
@@ -394,10 +482,12 @@ export default function SurveyForm() {
         query: finalCleansedString,
         cleansedQuery: finalCleansedString,
         queryKeywords: keywords,
+        profileData: formData, // Save full profile
+        searchResults: [], // Will be updated after search completes
         website: honeypot // Honeypot field
       })
     }).catch(err => {
-      console.error('Failed to save query:', err)
+      console.error('Failed to save profile:', err)
       // Silently fail - don't interrupt user experience
     })
     
@@ -439,6 +529,7 @@ export default function SurveyForm() {
           setAllSearchResults(results)
           setSearchResults(results)
           setSelectedFilter('')
+          setHasExistingProfile(true)
         }
       })
       .catch(err => {
@@ -554,6 +645,18 @@ export default function SurveyForm() {
     setSearchResults(filtered)
   }
 
+  // Show loading state while checking profile
+  if (loadingProfile || authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-white to-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-tamu-maroon mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading your profile...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-gray-50 py-4 sm:py-8 md:py-12 px-3 sm:px-4 md:px-6">
       <div className="max-w-3xl mx-auto">
@@ -591,7 +694,7 @@ export default function SurveyForm() {
             </div>
           </div>
           <p className="text-gray-600 text-sm sm:text-base md:text-lg mb-2 px-2">
-            Find your perfect organization match
+            Complete your onboarding to find your perfect organization match
           </p>
           <div className="w-24 h-1 bg-tamu-maroon mx-auto"></div>
         </motion.div>
@@ -1184,7 +1287,7 @@ export default function SurveyForm() {
             >
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-xl sm:text-2xl font-semibold text-tamu-maroon">
-                  Recommended Organizations
+                  Your Organization Matches
                 </h2>
                 <motion.button
                   whileHover={{ scale: 1.05 }}
@@ -1666,48 +1769,97 @@ export default function SurveyForm() {
                 )}
               </AnimatePresence>
               
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => {
-                  setShowResults(false)
-                  setCurrentStep(0)
-                  setResultsString('')
-                  setCleansedString('')
-                  setSearchResults([])
-                  setAllSearchResults([])
-                  setSelectedFilter('')
-                  setSearchError('')
-                  setSelectedOrg(null)
-                  setFormData({
-                    name: '',
-                    email: '',
-                    careerFields: [],
-                    engineeringTypes: [],
-                    livesOnCampus: '',
-                    hall: '',
-                    classification: '',
-                    race: '',
-                    raceOther: '',
-                    sexuality: '',
-                    sexualityOther: '',
-                    gender: '',
-                    genderOther: '',
-                    hobbies: '',
-                    additionalHobbies: [],
-                    activities: [],
-                    interestedInReligiousOrgs: '',
-                    religion: '',
-                    religionOther: ''
-                  })
-                  setAdditionalHobbyInput('')
-                  setEngineeringTypeInput('')
-                  setShowEngineeringDropdown(false)
-                }}
-                className="mt-4 sm:mt-6 px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base bg-tamu-maroon text-white rounded-lg font-semibold hover:bg-tamu-maroon-light transition-all"
-              >
-                Start New Survey
-              </motion.button>
+              <div className="flex gap-3 justify-center mt-4 sm:mt-6">
+                {hasExistingProfile && (
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={async () => {
+                      // Re-run search with saved query
+                      if (cleansedString) {
+                        setIsLoading(true)
+                        setSearchError('')
+                        setShowResults(true)
+                        setCurrentStep(steps.length - 1)
+                        
+                        const userDataForSearch = {
+                          gender: formData.gender || formData.genderOther || '',
+                          race: formData.race || formData.raceOther || '',
+                          classification: formData.classification || '',
+                          sexuality: formData.sexuality || formData.sexualityOther || '',
+                          careerFields: formData.careerFields || [],
+                          engineeringTypes: formData.engineeringTypes || [],
+                          religion: formData.religion === 'Other' ? formData.religionOther : formData.religion || ''
+                        }
+
+                        await rerunSearchFromQuery(cleansedString, userDataForSearch)
+                      }
+                    }}
+                    className="px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base bg-tamu-maroon text-white rounded-lg font-semibold hover:bg-tamu-maroon-light transition-all"
+                  >
+                    Resubmit Interests
+                  </motion.button>
+                )}
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={async () => {
+                    // Reset profile - clear query
+                    if (hasExistingProfile && session?.access_token) {
+                      const confirmed = confirm('Are you sure you want to reset your profile? This will clear your saved interests.')
+                      if (!confirmed) return
+                      
+                      // Clear query in database
+                      await fetch('/api/reset-profile', {
+                        method: 'POST',
+                        headers: {
+                          'Authorization': `Bearer ${session.access_token}`,
+                        }
+                      })
+                      
+                      // Reset UI
+                      setShowResults(false)
+                      setCurrentStep(0)
+                      setResultsString('')
+                      setCleansedString('')
+                      setSearchResults([])
+                      setAllSearchResults([])
+                      setSelectedFilter('')
+                      setSearchError('')
+                      setSelectedOrg(null)
+                      setHasExistingProfile(false)
+                      setFormData({
+                        name: user?.user_metadata?.name || '',
+                        email: user?.email || '',
+                        careerFields: [],
+                        engineeringTypes: [],
+                        livesOnCampus: '',
+                        hall: '',
+                        classification: '',
+                        race: '',
+                        raceOther: '',
+                        sexuality: '',
+                        sexualityOther: '',
+                        gender: '',
+                        genderOther: '',
+                        hobbies: '',
+                        additionalHobbies: [],
+                        activities: [],
+                        interestedInReligiousOrgs: '',
+                        religion: '',
+                        religionOther: ''
+                      })
+                    } else {
+                      // Start new onboarding
+                      setShowResults(false)
+                      setCurrentStep(0)
+                    }
+                  }}
+                  className="px-4 py-2 sm:px-6 sm:py-3 text-sm sm:text-base bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-all"
+                >
+                  {hasExistingProfile ? 'Reset Profile' : 'Start Onboarding'}
+                </motion.button>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>

@@ -12,7 +12,7 @@ function validateAndSanitize(body: any) {
 
   // Email validation
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-  if (!emailRegex.test(body.email)) {
+  if (!body.email || !emailRegex.test(body.email)) {
     throw new Error('Invalid email format')
   }
 
@@ -43,10 +43,7 @@ function validateAndSanitize(body: any) {
     name: body.name.trim().substring(0, 100),
     email: body.email.toLowerCase().trim(),
     query: body.query?.substring(0, 5000) || '',
-    cleansedQuery: body.cleansedQuery?.substring(0, 5000) || '',
-    queryKeywords: Array.isArray(body.queryKeywords) 
-      ? body.queryKeywords.slice(0, 100) 
-      : []
+    cleansedQuery: body.cleansedQuery?.substring(0, 5000) || ''
   }
 }
 
@@ -106,7 +103,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true }, { status: 200 })
     }
 
-    const { name, email, query, cleansedQuery, queryKeywords } = sanitized
+    const { name, email, query, cleansedQuery } = sanitized
 
     if (!name || !email || !query) {
       return NextResponse.json(
@@ -124,58 +121,50 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Check if user exists to preserve firstSeen timestamp
+    const now = new Date().toISOString()
+
+    // Check if user exists by user_id, then update or insert
     const { data: existingUser } = await supabaseAdmin
       .from('users')
-      .select('first_seen')
-      .eq('email', normalizedEmail)
-      .single()
-
-    const now = new Date().toISOString()
-    const firstSeen = existingUser?.first_seen || now
-
-    // Upsert user data (insert or update)
-    // First try to update existing user
-    const { data: existing } = await supabaseAdmin
-      .from('users')
       .select('email')
-      .eq('email', normalizedEmail)
+      .eq('user_id', user.id)
       .single()
 
-    if (existing) {
-      // Update existing user
-      const { error } = await supabaseAdmin
+    if (existingUser) {
+      // User exists - update by user_id (this updates the query fields)
+      const { error: updateError } = await supabaseAdmin
         .from('users')
         .update({
           name,
           latest_query: query,
           latest_cleansed_query: cleansedQuery || query,
-          latest_query_keywords: queryKeywords || [],
           last_updated: now
         })
-        .eq('email', normalizedEmail)
+        .eq('user_id', user.id)
 
-      if (error) {
-        console.error('Supabase update error:', error)
-        throw error
+      if (updateError) {
+        console.error('Supabase update error:', updateError)
+        throw updateError
       }
     } else {
-      // Insert new user
-      const { error } = await supabaseAdmin
+      // New user - insert (upsert by email since that's the primary key)
+      const { error: insertError } = await supabaseAdmin
         .from('users')
-        .insert({
+        .upsert({
           email: normalizedEmail,
           name,
+          user_id: user.id,
           latest_query: query,
           latest_cleansed_query: cleansedQuery || query,
-          latest_query_keywords: queryKeywords || [],
           last_updated: now,
-          first_seen: firstSeen
+          first_seen: now
+        }, {
+          onConflict: 'email'
         })
 
-      if (error) {
-        console.error('Supabase insert error:', error)
-        throw error
+      if (insertError) {
+        console.error('Supabase insert error:', insertError)
+        throw insertError
       }
     }
 
