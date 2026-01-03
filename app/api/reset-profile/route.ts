@@ -37,9 +37,9 @@ export async function POST(request: NextRequest) {
       .delete()
       .eq('user_id', user.id)
 
-    if (updateError) {
-      console.error('Reset profile error:', updateError)
-      throw updateError
+    if (deleteError) {
+      console.error('Reset profile error:', deleteError)
+      throw deleteError
     }
 
     return NextResponse.json({ success: true })
