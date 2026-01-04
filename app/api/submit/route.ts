@@ -213,7 +213,7 @@ export async function POST(request: NextRequest) {
       if (upsertError.code === '42P01' || upsertError.message?.includes('does not exist')) {
         return NextResponse.json(
           { 
-            error: 'user_queries table does not exist. Please run CREATE_USER_QUERIES_TABLE.sql in Supabase SQL Editor.',
+            error: 'user_queries table does not exist. Please create the table in Supabase SQL Editor.',
             details: upsertError.message,
             code: upsertError.code
           },

@@ -1,13 +1,13 @@
 # TAMU Survey - Next.js Project
 
-A survey application for Texas A&M University built with Next.js, TypeScript, Tailwind CSS, and Framer Motion. This application uses vector embeddings and semantic search to match students with relevant organizations based on their survey responses.
+A survey application for Texas A&M University built with Next.js, TypeScript, Tailwind CSS, and Framer Motion. This application uses weighted text matching to match students with relevant organizations based on their survey responses.
 
 ## Features
 
 - Multi-step survey form with smooth animations
 - TAMU color theme (maroon and white)
 - Interactive form elements with Framer Motion animations
-- Vector-based semantic search using sentence transformers
+- Weighted text matching for organization recommendations
 - Eligibility filtering based on demographics (gender, race, classification, sexuality)
 - Top 20 organization recommendations with similarity scores
 - Responsive design
@@ -16,8 +16,8 @@ A survey application for Texas A&M University built with Next.js, TypeScript, Ta
 
 - Node.js 18+ and npm
 - Python 3.8+ with pip
-- `organizations_detailed.csv` file in the project root
-- Firebase project (for data collection)
+- `final.csv` file in the project root
+- Supabase project (for authentication and data storage)
 
 ## Getting Started
 
@@ -27,39 +27,20 @@ A survey application for Texas A&M University built with Next.js, TypeScript, Ta
 npm install
 ```
 
-This will install Firebase SDK along with other dependencies.
+### 2. Set Up Supabase
 
-### 2. Set Up Firebase
-
-1. Create a Firebase project at [Firebase Console](https://console.firebase.google.com/)
-2. Enable Firestore Database in your Firebase project
-3. Create a `.env.local` file in the project root with your Firebase configuration:
+1. Create a Supabase project at [Supabase Console](https://supabase.com/)
+2. Create a `.env.local` file in the project root with your Supabase configuration:
 
 ```env
-NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key_here
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_project_id.firebaseapp.com
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
-NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_project_id.appspot.com
-NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
-NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
+NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
 ```
 
-You can find these values in your Firebase project settings under "General" > "Your apps" > "Web app" configuration.
+You can find these values in your Supabase project settings under "API" > "Project API keys".
 
-4. Set up Firestore security rules (for development, you can use test mode, but for production, set up proper rules):
-
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /{document=**} {
-      allow read, write: if request.time < timestamp.date(2025, 12, 31);
-    }
-  }
-}
-```
-
-**Note:** The above rule is for testing only. For production, implement proper authentication and security rules.
+3. Set up the `user_queries` table in your Supabase SQL Editor (create the table schema as needed for your application).
 
 ### 3. Install Python Dependencies
 
@@ -73,22 +54,11 @@ pip install -r requirements.txt
 
 The API route will automatically use the virtual environment's Python if it exists.
 
-### 4. Generate Embeddings (One-time setup)
+### 4. Add Organizations CSV
 
-Generate the embeddings file for fast searches:
+Place your `final.csv` file in the project root directory.
 
-```bash
-source venv/bin/activate
-python3 scripts/generate_embeddings.py organizations_detailed.csv
-```
-
-This will create `organizations_embeddings.pkl` in the project root. This file is required for searches to work quickly. The first generation takes a few minutes, but all subsequent searches will be fast (~1-2 seconds).
-
-### 5. Add Organizations CSV
-
-Place your `organizations_detailed.csv` file in the project root directory.
-
-### 6. Run the Development Server
+### 5. Run the Development Server
 
 ```bash
 npm run dev
@@ -113,14 +83,11 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 4. The query is sent to the `/api/search` endpoint
 5. The API calls a Python script that:
    - Loads and processes the organizations CSV
-   - Generates vector embeddings for all organizations using sentence transformers
-   - Generates an embedding for the user's query
-   - Calculates cosine similarity scores
+   - Performs weighted text matching based on user preferences
    - Filters organizations based on eligibility criteria (gender, race, classification, sexuality)
-   - Returns the top 20 matching organizations
+   - Returns the top matching organizations
 6. Results are displayed to the user with similarity scores and organization details
-7. Submission data (name, email, survey responses, and top results) is automatically saved to Firebase
-8. Statistics (total submissions and unique users) are tracked and displayed in the header
+7. Submission data (name, email, survey responses, and top results) is automatically saved to Supabase
 
 ## Eligibility Filtering
 
@@ -136,11 +103,9 @@ The system automatically filters out organizations that the user is not eligible
 - TypeScript
 - Tailwind CSS
 - Framer Motion
-- Firebase (Firestore) - for data collection and analytics
+- Supabase - for authentication and data storage
 - Python 3.8+
-- sentence-transformers (all-MiniLM-L6-v2 model)
 - pandas
-- scikit-learn
 
 ## Project Structure
 
@@ -151,36 +116,35 @@ organizeSurvey/
 │   │   ├── search/
 │   │   │   └── route.ts          # API endpoint for organization search
 │   │   ├── submit/
-│   │   │   └── route.ts           # API endpoint to save submissions to Firebase
-│   │   └── stats/
-│   │       └── route.ts           # API endpoint to get submission statistics
+│   │   │   └── route.ts           # API endpoint to save submissions to Supabase
+│   │   ├── profile/
+│   │   │   └── route.ts           # API endpoint for user profile
+│   │   └── reset-profile/
+│   │       └── route.ts           # API endpoint to reset user profile
 │   ├── globals.css
 │   ├── layout.tsx
 │   └── page.tsx
 ├── components/
 │   └── SurveyForm.tsx             # Main survey form component
 ├── lib/
-│   └── firebase.ts                # Firebase configuration
+│   ├── supabase.ts                # Supabase configuration
+│   └── rateLimit.ts               # Rate limiting utility
 ├── scripts/
 │   └── weighted_search.py         # Python script for weighted search and filtering
-├── organizations_detailed.csv     # Organizations data (add this file)
-├── .env.local                     # Firebase configuration (create this file)
+├── final.csv                      # Organizations data (add this file)
+├── .env.local                     # Supabase configuration (create this file)
 └── requirements.txt               # Python dependencies
 ```
 
-## Firebase Data Structure
+## Supabase Data Structure
 
-The application stores data in Firestore with the following collections:
+The application stores data in Supabase with the following tables:
 
-- **`submissions`**: Each survey submission with name, email, survey data, and search results
-- **`users`**: User records tracking email, name, submission count, and timestamps
-- **`stats`**: Global statistics document with total submissions and unique user count
+- **`user_queries`**: Stores user survey queries and demographics
+- **`profiles`**: User profile information (managed by Supabase Auth)
 
 ## Notes
 
-- The first search may take longer as the sentence transformer model needs to be downloaded
-- Embeddings are regenerated on each search (consider caching for production)
-- Make sure `organizations_detailed.csv` is in the project root directory
-- Make sure `.env.local` is configured with your Firebase credentials
-- Statistics are displayed in the header showing total submissions and unique users
-- Each user's email is normalized (lowercase) to track unique users accurately
+- Make sure `final.csv` is in the project root directory
+- Make sure `.env.local` is configured with your Supabase credentials
+- The search uses weighted text matching for organization recommendations
