@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin, validateEnvVars } from '@/lib/supabase'
 import { createClient } from '@supabase/supabase-js'
 
+// Force dynamic rendering (required for request.headers)
+export const dynamic = 'force-dynamic'
+
 // GET - Load user profile
 export async function GET(request: NextRequest) {
   try {

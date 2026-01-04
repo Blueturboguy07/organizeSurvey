@@ -3,6 +3,9 @@ import { supabaseAdmin, validateEnvVars } from '@/lib/supabase'
 import { checkRateLimit } from '@/lib/rateLimit'
 import { createClient } from '@supabase/supabase-js'
 
+// Force dynamic rendering (required for request.headers)
+export const dynamic = 'force-dynamic'
+
 function validateAndSanitize(body: any) {
   // Honeypot check - if filled, it's a bot
   if (body.website) {

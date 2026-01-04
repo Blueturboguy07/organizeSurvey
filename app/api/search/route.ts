@@ -13,6 +13,9 @@ const execFileAsync = promisify(execFile)
 // Get search API URL from environment (Render service)
 const SEARCH_API_URL = process.env.SEARCH_API_URL
 
+// Force dynamic rendering (required for request.headers)
+export const dynamic = 'force-dynamic'
+
 export async function POST(request: NextRequest) {
   try {
     // Get IP for rate limiting
