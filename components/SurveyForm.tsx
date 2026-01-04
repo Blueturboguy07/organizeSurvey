@@ -5,6 +5,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/contexts/AuthContext'
 import { createClientComponentClient } from '@/lib/supabase'
 import Image from 'next/image'
+import Link from 'next/link'
 
 const CAREER_FIELDS = [
   'Engineering',
@@ -687,7 +688,30 @@ export default function SurveyForm() {
           className="text-center mb-8"
         >
           <div className="flex items-center justify-between mb-3 sm:mb-4">
-            <div className="flex-1"></div>
+            <div className="flex-1 flex justify-start gap-2">
+              {user && (
+                <>
+                  <Link href="/dashboard">
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      className="px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm text-tamu-maroon border border-tamu-maroon rounded-lg font-medium hover:bg-tamu-maroon hover:text-white transition-all"
+                    >
+                      Dashboard
+                    </motion.button>
+                  </Link>
+                  <Link href="/profile">
+                    <motion.button
+                      whileHover={{ scale: 1.05 }}
+                      whileTap={{ scale: 0.95 }}
+                      className="px-3 py-1.5 sm:px-4 sm:py-2 text-xs sm:text-sm text-tamu-maroon border border-tamu-maroon rounded-lg font-medium hover:bg-tamu-maroon hover:text-white transition-all"
+                    >
+                      Profile
+                    </motion.button>
+                  </Link>
+                </>
+              )}
+            </div>
             <div className="flex items-center justify-center gap-2 sm:gap-3 md:gap-4 flex-1">
               <Image 
                 src="/logo.png" 

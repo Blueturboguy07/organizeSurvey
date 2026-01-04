@@ -58,14 +58,19 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Protect survey route - require authentication
-  if (request.nextUrl.pathname.startsWith('/survey') && !user) {
+  // Protect routes that require authentication
+  const protectedRoutes = ['/survey', '/dashboard', '/profile']
+  const isProtectedRoute = protectedRoutes.some(route => 
+    request.nextUrl.pathname.startsWith(route)
+  )
+  
+  if (isProtectedRoute && !user) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
   // Redirect authenticated users away from auth pages
   if (user && (request.nextUrl.pathname === '/login' || request.nextUrl.pathname === '/register')) {
-    return NextResponse.redirect(new URL('/survey', request.url))
+    return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
   return response

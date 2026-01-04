@@ -20,7 +20,7 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (!authLoading && user) {
-      router.push('/survey')
+      router.push('/dashboard')
     }
   }, [user, authLoading, router])
 
@@ -38,7 +38,7 @@ export default function LoginPage() {
       if (signInError) throw signInError
 
       if (data.user) {
-        router.push('/survey')
+        router.push('/dashboard')
         router.refresh()
       }
     } catch (err: any) {
