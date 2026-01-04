@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClientComponentClient } from '@/lib/supabase'
@@ -41,12 +41,6 @@ export default function DashboardPage() {
     }
   }, [user, authLoading, router])
 
-  useEffect(() => {
-    if (user) {
-      loadDashboardData()
-    }
-  }, [user])
-
   // Close dropdown when clicking outside
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -61,7 +55,7 @@ export default function DashboardPage() {
     }
   }, [])
 
-  const loadDashboardData = async () => {
+  const loadDashboardData = useCallback(async () => {
     try {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) {
@@ -91,7 +85,13 @@ export default function DashboardPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [router, supabase])
+
+  useEffect(() => {
+    if (user) {
+      loadDashboardData()
+    }
+  }, [user, loadDashboardData])
 
   const loadRecommendedOrgs = async (query: string, demographics: any) => {
     setLoadingOrgs(true)
@@ -244,7 +244,7 @@ export default function DashboardPage() {
           ) : hasJoinedOrgs ? (
             // TODO: Show joined orgs when implemented
             <div className="text-center py-12">
-              <p className="text-gray-500">You haven't joined any organizations yet.</p>
+              <p className="text-gray-500">You haven&apos;t joined any organizations yet.</p>
             </div>
           ) : hasRecommendedOrgs ? (
             // Show recommended orgs
