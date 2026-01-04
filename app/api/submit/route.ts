@@ -124,6 +124,17 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    // Extract user demographic data for eligibility filtering
+    const userDemographics = {
+      gender: body.gender || body.genderOther || '',
+      race: body.race || body.raceOther || '',
+      classification: body.classification || '',
+      sexuality: body.sexuality || body.sexualityOther || '',
+      careerFields: body.careerFields || [],
+      engineeringTypes: body.engineeringTypes || [],
+      religion: body.religion === 'Other' ? body.religionOther : (body.religion || '')
+    }
+
     const now = new Date().toISOString()
     const queryToSave = cleansedQuery || query
 
@@ -161,6 +172,7 @@ export async function POST(request: NextRequest) {
         .from('user_queries')
         .update({
           latest_cleansed_query: queryToSave,
+          user_demographics: userDemographics,
           updated_at: now
         })
         .eq('user_id', user.id)
@@ -176,6 +188,7 @@ export async function POST(request: NextRequest) {
         .insert({
           user_id: user.id,
           latest_cleansed_query: queryToSave,
+          user_demographics: userDemographics,
           created_at: now,
           updated_at: now
         })

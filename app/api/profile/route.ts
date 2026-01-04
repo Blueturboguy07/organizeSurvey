@@ -38,7 +38,7 @@ export async function GET(request: NextRequest) {
     // Get user query from user_queries table
     const { data: userQuery, error: profileError } = await supabaseAdmin
       .from('user_queries')
-      .select('latest_cleansed_query')
+      .select('latest_cleansed_query, user_demographics')
       .eq('user_id', user.id)
       .single()
 
@@ -47,7 +47,8 @@ export async function GET(request: NextRequest) {
       // If table doesn't exist, return null (user hasn't saved query yet)
       if (profileError.code === '42P01' || profileError.message?.includes('does not exist')) {
         return NextResponse.json({ 
-          query: null
+          query: null,
+          demographics: null
         })
       }
       return NextResponse.json(
@@ -57,7 +58,8 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({ 
-      query: userQuery?.latest_cleansed_query || null
+      query: userQuery?.latest_cleansed_query || null,
+      demographics: userQuery?.user_demographics || null
     })
   } catch (error: any) {
     console.error('Profile GET error:', error)

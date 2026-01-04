@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS user_queries (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   latest_cleansed_query TEXT NOT NULL,
+  user_demographics JSONB, -- Store user demographic data for eligibility filtering
   created_at TIMESTAMP DEFAULT NOW(),
   updated_at TIMESTAMP DEFAULT NOW(),
   

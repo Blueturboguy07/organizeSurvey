@@ -304,11 +304,12 @@ export default function SurveyForm() {
         if (response.ok) {
           const data = await response.json()
           const savedQuery = data.query
+          const savedDemographics = data.demographics
 
           if (savedQuery) {
             // User has a saved query - re-run search
-            // Extract user data from form (will be empty first time, but that's ok)
-            const userDataForSearch = {
+            // Use saved demographics if available, otherwise fall back to form data
+            const userDataForSearch = savedDemographics || {
               gender: formData.gender || formData.genderOther || '',
               race: formData.race || formData.raceOther || '',
               classification: formData.classification || '',
@@ -481,6 +482,17 @@ export default function SurveyForm() {
           email: formData.email,
           query: finalCleansedString,
           cleansedQuery: finalCleansedString,
+          gender: formData.gender,
+          genderOther: formData.genderOther,
+          race: formData.race,
+          raceOther: formData.raceOther,
+          classification: formData.classification,
+          sexuality: formData.sexuality,
+          sexualityOther: formData.sexualityOther,
+          careerFields: formData.careerFields,
+          engineeringTypes: formData.engineeringTypes,
+          religion: formData.religion,
+          religionOther: formData.religionOther,
           website: honeypot // Honeypot field
         })
       })
