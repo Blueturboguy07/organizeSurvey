@@ -59,10 +59,11 @@ export default function RegisterPage() {
 
       if (data.user) {
         setSuccess(true)
-        // Create user profile in users table
+        // Create user profile in user_profiles table
         const { error: profileError } = await supabase
-          .from('users')
+          .from('user_profiles')
           .insert({
+            id: data.user.id,
             email: email.toLowerCase().trim(),
             name: name.trim(),
           })
