@@ -122,31 +122,77 @@ export async function POST(request: NextRequest) {
     }
 
     const now = new Date().toISOString()
+    const queryToSave = cleansedQuery || query
 
-    // Save to user_queries table (upsert by user_id)
-    const { data: upsertData, error: upsertError } = await supabaseAdmin
+    // Log admin client status (for debugging)
+    const hasServiceKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY
+    console.log('🔑 Using service role key:', hasServiceKey ? 'Yes' : 'No (falling back to anon key)')
+
+    // Check if record exists first
+    const { data: existingData, error: checkError } = await supabaseAdmin
       .from('user_queries')
-      .upsert({
-        user_id: user.id,
-        latest_cleansed_query: cleansedQuery || query,
-        updated_at: now
-      }, {
-        onConflict: 'user_id',
-        ignoreDuplicates: false
-      })
-      .select()
+      .select('id, created_at')
+      .eq('user_id', user.id)
+      .single()
+
+    let upsertData
+    let upsertError
+
+    if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows returned
+      console.error('❌ Error checking existing query:', checkError)
+      throw checkError
+    }
+
+    if (existingData) {
+      // Update existing record
+      const { data: updateData, error: updateError } = await supabaseAdmin
+        .from('user_queries')
+        .update({
+          latest_cleansed_query: queryToSave,
+          updated_at: now
+        })
+        .eq('user_id', user.id)
+        .select()
+        .single()
+
+      upsertData = updateData
+      upsertError = updateError
+    } else {
+      // Insert new record
+      const { data: insertData, error: insertError } = await supabaseAdmin
+        .from('user_queries')
+        .insert({
+          user_id: user.id,
+          latest_cleansed_query: queryToSave,
+          created_at: now,
+          updated_at: now
+        })
+        .select()
+        .single()
+
+      upsertData = insertData
+      upsertError = insertError
+    }
 
     if (upsertError) {
-      console.error('❌ Supabase upsert error:', upsertError)
+      console.error('❌ Supabase save error:', upsertError)
       console.error('Error code:', upsertError.code)
       console.error('Error message:', upsertError.message)
       console.error('Error details:', upsertError.details)
       console.error('Error hint:', upsertError.hint)
+      console.error('User ID:', user.id)
+      console.error('Query to save:', queryToSave.substring(0, 100))
       
       // If table doesn't exist, log helpful error
       if (upsertError.code === '42P01' || upsertError.message?.includes('does not exist')) {
         throw new Error('user_queries table does not exist. Please run CREATE_USER_QUERIES_TABLE.sql in Supabase SQL Editor.')
       }
+      
+      // If RLS policy issue
+      if (upsertError.code === '42501' || upsertError.message?.includes('permission denied')) {
+        throw new Error('Permission denied. Check RLS policies and ensure SUPABASE_SERVICE_ROLE_KEY is set correctly.')
+      }
+      
       throw upsertError
     }
 
