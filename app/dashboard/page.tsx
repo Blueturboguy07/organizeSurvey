@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { createClientComponentClient } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import Image from 'next/image'
@@ -16,12 +16,24 @@ interface DashboardData {
   demographics: any
 }
 
+interface Organization {
+  name: string
+  bio?: string
+  bio_snippet?: string
+  website?: string
+  [key: string]: any
+}
+
 export default function DashboardPage() {
   const { user, loading: authLoading, signOut } = useAuth()
   const router = useRouter()
   const supabase = createClientComponentClient()
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<DashboardData | null>(null)
+  const [recommendedOrgs, setRecommendedOrgs] = useState<Organization[]>([])
+  const [loadingOrgs, setLoadingOrgs] = useState(false)
+  const [showProfileDropdown, setShowProfileDropdown] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -34,6 +46,20 @@ export default function DashboardPage() {
       loadDashboardData()
     }
   }, [user])
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setShowProfileDropdown(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
 
   const loadDashboardData = async () => {
     try {
@@ -55,10 +81,42 @@ export default function DashboardPage() {
 
       const profileData = await response.json()
       setData(profileData)
+
+      // If user has a query, try to load recommended orgs
+      if (profileData.query) {
+        loadRecommendedOrgs(profileData.query, profileData.demographics)
+      }
     } catch (err) {
       console.error('Failed to load dashboard:', err)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const loadRecommendedOrgs = async (query: string, demographics: any) => {
+    setLoadingOrgs(true)
+    try {
+      const response = await fetch('/api/search', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          query,
+          userData: demographics || {}
+        })
+      })
+
+      if (response.ok) {
+        const result = await response.json()
+        if (result.results && result.results.length > 0) {
+          setRecommendedOrgs(result.results.slice(0, 6)) // Show top 6 recommendations
+        }
+      }
+    } catch (err) {
+      console.error('Failed to load recommended orgs:', err)
+    } finally {
+      setLoadingOrgs(false)
     }
   }
 
@@ -73,6 +131,11 @@ export default function DashboardPage() {
   if (!user) {
     return null
   }
+
+  // Determine what to show in My Orgs
+  const hasJoinedOrgs = false // TODO: Implement joined orgs tracking
+  const hasRecommendedOrgs = recommendedOrgs.length > 0
+  const hasQuery = !!data?.query
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-gray-50">
@@ -91,27 +154,54 @@ export default function DashboardPage() {
               <h1 className="text-2xl font-bold text-tamu-maroon">ORGanize TAMU</h1>
             </div>
             <div className="flex items-center gap-4">
-              <Link
-                href="/profile"
-                className="flex items-center gap-2 text-gray-700 hover:text-tamu-maroon transition-colors"
-              >
-                {data?.profilePictureUrl ? (
-                  <Image
-                    src={data.profilePictureUrl}
-                    alt="Profile"
-                    width={32}
-                    height={32}
-                    className="rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
-                    <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                  </div>
-                )}
-                <span className="font-medium">{data?.name || 'Profile'}</span>
-              </Link>
+              {/* Profile Dropdown */}
+              <div className="relative" ref={dropdownRef}>
+                <button
+                  onClick={() => setShowProfileDropdown(!showProfileDropdown)}
+                  className="flex items-center gap-2 hover:opacity-80 transition-opacity"
+                >
+                  {data?.profilePictureUrl ? (
+                    <Image
+                      src={data.profilePictureUrl}
+                      alt="Profile"
+                      width={40}
+                      height={40}
+                      className="rounded-full object-cover border-2 border-gray-200"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center border-2 border-gray-200">
+                      <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                      </svg>
+                    </div>
+                  )}
+                </button>
+
+                <AnimatePresence>
+                  {showProfileDropdown && (
+                    <motion.div
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      className="absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 py-2 z-50"
+                    >
+                      <Link
+                        href="/profile"
+                        onClick={() => setShowProfileDropdown(false)}
+                        className="block px-4 py-2 text-gray-700 hover:bg-gray-50 transition-colors"
+                      >
+                        <div className="flex items-center gap-2">
+                          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                          </svg>
+                          <span>My Profile</span>
+                        </div>
+                      </Link>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
               <motion.button
                 onClick={signOut}
                 whileHover={{ scale: 1.05 }}
@@ -136,157 +226,94 @@ export default function DashboardPage() {
           <h2 className="text-3xl font-bold text-gray-800 mb-2">
             Welcome back{data?.name ? `, ${data.name.split(' ')[0]}` : ''}!
           </h2>
-          <p className="text-gray-600">Manage your organization search and preferences</p>
         </motion.div>
 
-        {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1 }}
-          >
-            <Link href="/survey">
-              <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer border-2 border-transparent hover:border-tamu-maroon">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-tamu-maroon bg-opacity-10 rounded-lg flex items-center justify-center">
-                    <svg className="w-6 h-6 text-tamu-maroon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-800">Search Organizations</h3>
-                    <p className="text-sm text-gray-500">Find your perfect match</p>
-                  </div>
-                </div>
-              </div>
-            </Link>
-          </motion.div>
+        {/* My Orgs - Central Component */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="bg-white rounded-lg shadow-md p-6 sm:p-8"
+        >
+          <h3 className="text-2xl font-bold text-gray-800 mb-6">My Orgs</h3>
 
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.2 }}
-          >
-            <Link href="/profile">
-              <div className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow cursor-pointer border-2 border-transparent hover:border-tamu-maroon">
-                <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-tamu-maroon bg-opacity-10 rounded-lg flex items-center justify-center">
-                    <svg className="w-6 h-6 text-tamu-maroon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                  </div>
-                  <div>
-                    <h3 className="font-semibold text-gray-800">Profile Settings</h3>
-                    <p className="text-sm text-gray-500">Manage your account</p>
-                  </div>
-                </div>
-              </div>
-            </Link>
-          </motion.div>
-
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.3 }}
-          >
-            <div className="bg-white rounded-lg shadow-md p-6 border-2 border-gray-200">
-              <div className="flex items-center gap-4">
-                <div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
-                  <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                </div>
-                <div>
-                  <h3 className="font-semibold text-gray-800">Saved Searches</h3>
-                  <p className="text-sm text-gray-500">Coming soon</p>
-                </div>
+          {loadingOrgs ? (
+            <div className="flex items-center justify-center py-12">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-tamu-maroon"></div>
+            </div>
+          ) : hasJoinedOrgs ? (
+            // TODO: Show joined orgs when implemented
+            <div className="text-center py-12">
+              <p className="text-gray-500">You haven't joined any organizations yet.</p>
+            </div>
+          ) : hasRecommendedOrgs ? (
+            // Show recommended orgs
+            <div>
+              <p className="text-gray-600 mb-6">Recommended for you:</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {recommendedOrgs.map((org, index) => (
+                  <motion.div
+                    key={index}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.1 }}
+                    className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                  >
+                    <h4 className="font-semibold text-gray-800 mb-2">{org.name}</h4>
+                    <p className="text-sm text-gray-600 line-clamp-3">
+                      {org.bio_snippet || org.bio || 'No description available.'}
+                    </p>
+                    {org.website && (
+                      <a
+                        href={org.website}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-tamu-maroon hover:underline mt-2 inline-block"
+                      >
+                        Visit website →
+                      </a>
+                    )}
+                  </motion.div>
+                ))}
               </div>
             </div>
-          </motion.div>
-        </div>
-
-        {/* Profile Summary */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Profile Card */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4 }}
-            className="bg-white rounded-lg shadow-md p-6"
-          >
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-semibold text-gray-800">Profile Summary</h3>
-              <Link
-                href="/profile"
-                className="text-tamu-maroon hover:text-tamu-maroon-light text-sm font-medium"
-              >
-                Edit
+          ) : hasQuery ? (
+            // Has query but no recommendations
+            <div className="text-center py-12">
+              <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              <p className="text-gray-600 mb-4">No recommendations available yet.</p>
+              <Link href="/survey">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="px-6 py-3 bg-tamu-maroon text-white rounded-lg font-semibold hover:bg-tamu-maroon-light"
+                >
+                  Take Survey to Get Recommendations
+                </motion.button>
               </Link>
             </div>
-            <div className="space-y-4">
-              <div className="flex items-center gap-4">
-                {data?.profilePictureUrl ? (
-                  <Image
-                    src={data.profilePictureUrl}
-                    alt="Profile"
-                    width={64}
-                    height={64}
-                    className="rounded-full object-cover"
-                  />
-                ) : (
-                  <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center">
-                    <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
-                    </svg>
-                  </div>
-                )}
-                <div>
-                  <p className="font-semibold text-gray-800">{data?.name || 'Not set'}</p>
-                  <p className="text-sm text-gray-500">{data?.email || user.email}</p>
-                </div>
-              </div>
+          ) : (
+            // No query - prompt to take survey
+            <div className="text-center py-12">
+              <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <p className="text-gray-600 mb-4">Complete the survey to discover organizations that match your interests!</p>
+              <Link href="/survey">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="px-6 py-3 bg-tamu-maroon text-white rounded-lg font-semibold hover:bg-tamu-maroon-light"
+                >
+                  Take Survey
+                </motion.button>
+              </Link>
             </div>
-          </motion.div>
-
-          {/* Recent Activity */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.5 }}
-            className="bg-white rounded-lg shadow-md p-6"
-          >
-            <h3 className="text-xl font-semibold text-gray-800 mb-4">Recent Activity</h3>
-            <div className="space-y-4">
-              {data?.query ? (
-                <div>
-                  <p className="text-sm font-medium text-gray-700 mb-2">Last Search Query</p>
-                  <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">
-                    {data.query.length > 100 ? `${data.query.substring(0, 100)}...` : data.query}
-                  </p>
-                </div>
-              ) : (
-                <div className="text-center py-8">
-                  <svg className="w-12 h-12 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                  <p className="text-gray-500 mb-4">No search history yet</p>
-                  <Link href="/survey">
-                    <motion.button
-                      whileHover={{ scale: 1.05 }}
-                      whileTap={{ scale: 0.95 }}
-                      className="px-4 py-2 bg-tamu-maroon text-white rounded-lg font-medium hover:bg-tamu-maroon-light"
-                    >
-                      Start Searching
-                    </motion.button>
-                  </Link>
-                </div>
-              )}
-            </div>
-          </motion.div>
-        </div>
+          )}
+        </motion.div>
       </main>
     </div>
   )
 }
-
