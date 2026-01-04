@@ -31,3 +31,10 @@ CREATE POLICY "Users can insert own queries" ON user_queries
   FOR INSERT
   WITH CHECK (auth.uid() = user_id);
 
+-- Policy: Allow service role to bypass RLS (for admin operations)
+-- This ensures API routes using service role key can insert/update/select
+CREATE POLICY "Service role can manage all queries" ON user_queries
+  FOR ALL
+  USING (auth.jwt() ->> 'role' = 'service_role')
+  WITH CHECK (auth.jwt() ->> 'role' = 'service_role');
+

@@ -127,9 +127,18 @@ export async function POST(request: NextRequest) {
     const now = new Date().toISOString()
     const queryToSave = cleansedQuery || query
 
+    // Validate query is not empty
+    if (!queryToSave || queryToSave.trim().length === 0) {
+      return NextResponse.json(
+        { error: 'Query cannot be empty' },
+        { status: 400 }
+      )
+    }
+
     // Log admin client status (for debugging)
     const hasServiceKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY
     console.log('🔑 Using service role key:', hasServiceKey ? 'Yes' : 'No (falling back to anon key)')
+    console.log('📝 Saving query for user:', user.id, 'Query length:', queryToSave.length)
 
     // Check if record exists first
     const { data: existingData, error: checkError } = await supabaseAdmin
@@ -185,26 +194,55 @@ export async function POST(request: NextRequest) {
       console.error('Error hint:', upsertError.hint)
       console.error('User ID:', user.id)
       console.error('Query to save:', queryToSave.substring(0, 100))
+      console.error('Has service key:', hasServiceKey)
       
       // If table doesn't exist, log helpful error
       if (upsertError.code === '42P01' || upsertError.message?.includes('does not exist')) {
-        throw new Error('user_queries table does not exist. Please run CREATE_USER_QUERIES_TABLE.sql in Supabase SQL Editor.')
+        return NextResponse.json(
+          { 
+            error: 'user_queries table does not exist. Please run CREATE_USER_QUERIES_TABLE.sql in Supabase SQL Editor.',
+            details: upsertError.message,
+            code: upsertError.code
+          },
+          { status: 500 }
+        )
       }
       
       // If RLS policy issue
-      if (upsertError.code === '42501' || upsertError.message?.includes('permission denied')) {
-        throw new Error('Permission denied. Check RLS policies and ensure SUPABASE_SERVICE_ROLE_KEY is set correctly.')
+      if (upsertError.code === '42501' || upsertError.message?.includes('permission denied') || upsertError.message?.includes('new row violates row-level security')) {
+        return NextResponse.json(
+          { 
+            error: 'Permission denied. Check RLS policies and ensure SUPABASE_SERVICE_ROLE_KEY is set correctly in Vercel environment variables.',
+            details: upsertError.message,
+            code: upsertError.code,
+            hasServiceKey: hasServiceKey
+          },
+          { status: 500 }
+        )
       }
       
-      throw upsertError
+      // Return detailed error for debugging
+      return NextResponse.json(
+        { 
+          error: 'Failed to save query to database',
+          details: upsertError.message,
+          code: upsertError.code,
+          hint: upsertError.hint
+        },
+        { status: 500 }
+      )
     }
 
     console.log('✅ Query saved successfully:', upsertData)
     return NextResponse.json({ success: true, data: upsertData })
   } catch (error: any) {
     console.error('Submit error:', error)
+    console.error('Error stack:', error.stack)
     return NextResponse.json(
-      { error: error.message || 'Failed to save data' },
+      { 
+        error: error.message || 'Failed to save data',
+        details: error.details || error.toString()
+      },
       { status: 500 }
     )
   }
