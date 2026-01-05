@@ -306,6 +306,7 @@ export default function ProfilePage() {
         throw new Error('Not authenticated')
       }
 
+      console.log('📤 Sending interests update:', interestsData)
       const response = await fetch('/api/profile/interests', {
         method: 'PUT',
         headers: {
@@ -315,9 +316,11 @@ export default function ProfilePage() {
         body: JSON.stringify(interestsData)
       })
 
+      const responseData = await response.json()
+      console.log('📥 Response:', responseData)
+
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Failed to update interests')
+        throw new Error(responseData.error || 'Failed to update interests')
       }
 
       setSuccess('Interests updated successfully! Your recommendations will be updated.')
