@@ -126,18 +126,21 @@ export default function DashboardPage() {
                   className="flex items-center gap-2 hover:opacity-80 transition-opacity"
                 >
                   {data?.profilePictureUrl && !imageError ? (
-                    <Image
-                      src={data.profilePictureUrl}
-                      alt="Profile"
-                      width={40}
-                      height={40}
-                      className="rounded-full object-cover border-2 border-gray-200"
-                      onError={() => {
-                        console.error('Failed to load profile picture:', data.profilePictureUrl)
-                        setImageError(true)
-                      }}
-                      unoptimized={data.profilePictureUrl?.includes('supabase.co')}
-                    />
+                    <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-gray-200">
+                      <Image
+                        src={data.profilePictureUrl}
+                        alt="Profile"
+                        width={40}
+                        height={40}
+                        className="w-full h-full object-cover"
+                        style={{ aspectRatio: '1 / 1' }}
+                        onError={() => {
+                          console.error('Failed to load profile picture:', data.profilePictureUrl)
+                          setImageError(true)
+                        }}
+                        unoptimized={data.profilePictureUrl?.includes('supabase.co')}
+                      />
+                    </div>
                   ) : (
                     <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center border-2 border-gray-200">
                       <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
