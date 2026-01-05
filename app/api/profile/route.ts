@@ -40,6 +40,12 @@ export async function GET(request: NextRequest) {
       )
     }
 
+    // Disable caching to ensure fresh data
+    const headers = new Headers()
+    headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
+    headers.set('Pragma', 'no-cache')
+    headers.set('Expires', '0')
+
     // Get user profile from user_profiles table (if exists)
     const { data: userProfile } = await supabaseAdmin
       .from('user_profiles')
@@ -69,7 +75,7 @@ export async function GET(request: NextRequest) {
           },
           query: null,
           demographics: null
-        })
+        }, { headers })
       }
     }
 
@@ -86,7 +92,7 @@ export async function GET(request: NextRequest) {
       },
       query: userQuery?.latest_cleansed_query || null,
       demographics: userQuery?.user_demographics || null
-    })
+    }, { headers })
   } catch (error: any) {
     console.error('Profile GET error:', error)
     return NextResponse.json(

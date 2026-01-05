@@ -339,8 +339,11 @@ export default function SurveyForm() {
       try {
         const response = await fetch('/api/profile', {
           headers: {
-            'Authorization': `Bearer ${token}`
-          }
+            'Authorization': `Bearer ${token}`,
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
+          },
+          cache: 'no-store'
         })
 
         if (response.ok) {
