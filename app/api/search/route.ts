@@ -38,12 +38,15 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const { query, userData } = body
 
-    if (!query || !userData) {
+    if (!query) {
       return NextResponse.json(
-        { error: 'Missing query or userData' },
+        { error: 'Missing query' },
         { status: 400 }
       )
     }
+
+    // Ensure userData is always an object (can be empty for filtering)
+    const formattedUserData = userData || {}
 
     // If SEARCH_API_URL is set, use Render API service
     if (SEARCH_API_URL) {
@@ -53,7 +56,7 @@ export async function POST(request: NextRequest) {
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ query, userData }),
+          body: JSON.stringify({ query, userData: formattedUserData }),
           // Add timeout for Render free tier cold starts
           signal: AbortSignal.timeout(60000) // 60 second timeout
         })
@@ -85,7 +88,7 @@ export async function POST(request: NextRequest) {
     const venvPython = path.join(process.cwd(), 'venv', 'bin', 'python3')
     
     tempFile = join(tmpdir(), `search_${Date.now()}_${Math.random().toString(36).substring(7)}.json`)
-    await writeFile(tempFile, JSON.stringify({ query, userData }), 'utf-8')
+    await writeFile(tempFile, JSON.stringify({ query, userData: formattedUserData }), 'utf-8')
     
     const pythonPath = existsSync(venvPython) ? venvPython : 'python3'
     const { stdout, stderr } = await execFileAsync(pythonPath, [scriptPath, tempFile, csvPath])

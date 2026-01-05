@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/contexts/AuthContext'
 import { createClientComponentClient } from '@/lib/supabase'
+import { useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 
@@ -109,6 +110,8 @@ interface SurveyData {
 export default function SurveyForm() {
   const { user, signOut, session, loading: authLoading } = useAuth()
   const supabase = createClientComponentClient()
+  const searchParams = useSearchParams()
+  const shouldShowResults = searchParams?.get('showResults') === 'true'
   const [currentStep, setCurrentStep] = useState(0)
   const [formData, setFormData] = useState<SurveyData>({
     name: user?.user_metadata?.name || '',
@@ -256,6 +259,19 @@ export default function SurveyForm() {
     setCurrentStep(steps.length - 1)
     setCleansedString(query)
 
+    // Ensure userData is properly formatted
+    const formattedUserData = {
+      gender: (userDataForSearch?.gender || '').trim(),
+      race: (userDataForSearch?.race || '').trim(),
+      classification: (userDataForSearch?.classification || '').trim(),
+      sexuality: (userDataForSearch?.sexuality || '').trim(),
+      careerFields: Array.isArray(userDataForSearch?.careerFields) ? userDataForSearch.careerFields : [],
+      engineeringTypes: Array.isArray(userDataForSearch?.engineeringTypes) ? userDataForSearch.engineeringTypes : [],
+      religion: (userDataForSearch?.religion || '').trim()
+    }
+
+    console.log('Searching with userData:', formattedUserData)
+
     try {
       const response = await fetch('/api/search', {
         method: 'POST',
@@ -264,7 +280,7 @@ export default function SurveyForm() {
         },
         body: JSON.stringify({
           query: query,
-          userData: userDataForSearch
+          userData: formattedUserData
         })
       })
 
@@ -289,13 +305,31 @@ export default function SurveyForm() {
   // Load user query on mount
   useEffect(() => {
     const loadQuery = async () => {
-      if (authLoading || !user || !session) {
+      if (authLoading) {
+        return // Still loading auth, wait
+      }
+
+      if (!user) {
         setLoadingProfile(false)
-        return
+        return // No user, show survey form
+      }
+
+      // Wait for session to be available
+      let token: string | null = null
+      if (session?.access_token) {
+        token = session.access_token
+      } else {
+        // Try to get session if not available yet
+        const { data: { session: currentSession } } = await supabase.auth.getSession()
+        if (currentSession?.access_token) {
+          token = currentSession.access_token
+        } else {
+          setLoadingProfile(false)
+          return // No session available
+        }
       }
 
       try {
-        const token = session.access_token
         const response = await fetch('/api/profile', {
           headers: {
             'Authorization': `Bearer ${token}`
@@ -309,18 +343,37 @@ export default function SurveyForm() {
 
           if (savedQuery) {
             // User has a saved query - re-run search
-            // Use saved demographics if available, otherwise fall back to form data
-            const userDataForSearch = savedDemographics || {
-              gender: formData.gender || formData.genderOther || '',
-              race: formData.race || formData.raceOther || '',
-              classification: formData.classification || '',
-              sexuality: formData.sexuality || formData.sexualityOther || '',
-              careerFields: formData.careerFields || [],
-              engineeringTypes: formData.engineeringTypes || [],
-              religion: formData.religion === 'Other' ? formData.religionOther : formData.religion || ''
+            // Use saved demographics if available and valid, otherwise fall back to form data
+            let userDataForSearch
+            if (savedDemographics && typeof savedDemographics === 'object' && Object.keys(savedDemographics).length > 0) {
+              // Ensure saved demographics have the correct structure
+              userDataForSearch = {
+                gender: savedDemographics.gender || '',
+                race: savedDemographics.race || '',
+                classification: savedDemographics.classification || '',
+                sexuality: savedDemographics.sexuality || '',
+                careerFields: Array.isArray(savedDemographics.careerFields) ? savedDemographics.careerFields : [],
+                engineeringTypes: Array.isArray(savedDemographics.engineeringTypes) ? savedDemographics.engineeringTypes : [],
+                religion: savedDemographics.religion || ''
+              }
+            } else {
+              // Fall back to form data if saved demographics are missing/invalid
+              userDataForSearch = {
+                gender: formData.gender || formData.genderOther || '',
+                race: formData.race || formData.raceOther || '',
+                classification: formData.classification || '',
+                sexuality: formData.sexuality || formData.sexualityOther || '',
+                careerFields: formData.careerFields || [],
+                engineeringTypes: formData.engineeringTypes || [],
+                religion: formData.religion === 'Other' ? formData.religionOther : formData.religion || ''
+              }
             }
             
+            console.log('Loading search with demographics:', userDataForSearch)
             await rerunSearchFromQuery(savedQuery, userDataForSearch)
+          } else if (shouldShowResults) {
+            // If coming from dashboard but no saved query, ensure we're on the right step
+            setCurrentStep(steps.length - 1)
           }
           // If no query, user will see the survey form
         }
@@ -333,7 +386,7 @@ export default function SurveyForm() {
 
     loadQuery()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, session?.access_token, authLoading])
+  }, [user?.id, session?.access_token, authLoading, supabase])
 
   const handleSubmit = async () => {
     // Honeypot check - if filled, it's a bot
