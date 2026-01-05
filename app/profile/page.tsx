@@ -40,6 +40,62 @@ export default function ProfilePage() {
   const [uploadingPicture, setUploadingPicture] = useState(false)
   const [imageError, setImageError] = useState(false)
 
+  // Crop image to square aspect ratio
+  const cropImageToSquare = (file: File): Promise<File> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = (e: ProgressEvent<FileReader>) => {
+        const img = document.createElement('img')
+        img.onload = () => {
+          const canvas = document.createElement('canvas')
+          const ctx = canvas.getContext('2d')
+          if (!ctx) {
+            reject(new Error('Could not get canvas context'))
+            return
+          }
+
+          // Calculate square dimensions (use the smaller dimension)
+          const size = Math.min(img.width, img.height)
+          canvas.width = size
+          canvas.height = size
+
+          // Calculate crop position (center the image)
+          const x = (img.width - size) / 2
+          const y = (img.height - size) / 2
+
+          // Draw cropped image
+          ctx.drawImage(img, x, y, size, size, 0, 0, size, size)
+
+          // Convert to blob
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) {
+                reject(new Error('Failed to create blob'))
+                return
+              }
+              // Create a new File from the blob
+              const croppedFile = new File([blob], file.name, {
+                type: file.type,
+                lastModified: Date.now()
+              })
+              resolve(croppedFile)
+            },
+            file.type,
+            0.95 // Quality (0.95 = 95%)
+          )
+        }
+        img.onerror = () => reject(new Error('Failed to load image'))
+        if (e.target?.result) {
+          img.src = e.target.result as string
+        } else {
+          reject(new Error('Failed to read file'))
+        }
+      }
+      reader.onerror = () => reject(new Error('Failed to read file'))
+      reader.readAsDataURL(file)
+    })
+  }
+
   useEffect(() => {
     if (!authLoading && !user) {
       router.push('/login')
@@ -140,8 +196,11 @@ export default function ProfilePage() {
         throw new Error('Not authenticated')
       }
 
+      // Crop image to square aspect ratio
+      const croppedFile = await cropImageToSquare(file)
+
       const formData = new FormData()
-      formData.append('file', file)
+      formData.append('file', croppedFile, file.name)
 
       const response = await fetch('/api/profile/upload', {
         method: 'POST',
@@ -271,7 +330,7 @@ export default function ProfilePage() {
                     {uploadingPicture ? 'Uploading...' : 'Change Picture'}
                   </motion.button>
                 </label>
-                <p className="text-sm text-gray-500 mt-2">JPEG, PNG or WebP. Max 5MB.</p>
+                <p className="text-sm text-gray-500 mt-2">JPEG, PNG or WebP. Max 5MB. Image will be cropped to square.</p>
               </div>
             </div>
           </div>
