@@ -23,6 +23,7 @@ export default function DashboardPage() {
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<DashboardData | null>(null)
   const [hasRecommendations, setHasRecommendations] = useState(false)
+  const [imageError, setImageError] = useState(false)
   const [showProfileDropdown, setShowProfileDropdown] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -124,13 +125,18 @@ export default function DashboardPage() {
                   onClick={() => setShowProfileDropdown(!showProfileDropdown)}
                   className="flex items-center gap-2 hover:opacity-80 transition-opacity"
                 >
-                  {data?.profilePictureUrl ? (
+                  {data?.profilePictureUrl && !imageError ? (
                     <Image
                       src={data.profilePictureUrl}
                       alt="Profile"
                       width={40}
                       height={40}
                       className="rounded-full object-cover border-2 border-gray-200"
+                      onError={() => {
+                        console.error('Failed to load profile picture:', data.profilePictureUrl)
+                        setImageError(true)
+                      }}
+                      unoptimized={data.profilePictureUrl?.includes('supabase.co')}
                     />
                   ) : (
                     <div className="w-10 h-10 rounded-full bg-gray-200 flex items-center justify-center border-2 border-gray-200">

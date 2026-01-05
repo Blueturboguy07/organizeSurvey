@@ -382,13 +382,13 @@ export default function SurveyForm() {
             } else {
               // Fall back to form data if saved demographics are missing/invalid
               userDataForSearch = {
-                gender: formData.gender || formData.genderOther || '',
-                race: formData.race || formData.raceOther || '',
-                classification: formData.classification || '',
-                sexuality: formData.sexuality || formData.sexualityOther || '',
-                careerFields: formData.careerFields || [],
-                engineeringTypes: formData.engineeringTypes || [],
-                religion: formData.religion === 'Other' ? formData.religionOther : formData.religion || ''
+              gender: formData.gender || formData.genderOther || '',
+              race: formData.race || formData.raceOther || '',
+              classification: formData.classification || '',
+              sexuality: formData.sexuality || formData.sexualityOther || '',
+              careerFields: formData.careerFields || [],
+              engineeringTypes: formData.engineeringTypes || [],
+              religion: formData.religion === 'Other' ? formData.religionOther : formData.religion || ''
               }
             }
             

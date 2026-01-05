@@ -38,6 +38,7 @@ export default function ProfilePage() {
     }
   })
   const [uploadingPicture, setUploadingPicture] = useState(false)
+  const [imageError, setImageError] = useState(false)
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -156,6 +157,7 @@ export default function ProfilePage() {
       }
 
       await loadProfile()
+      setImageError(false) // Reset error state on successful upload
       setSuccess('Profile picture updated successfully!')
       setTimeout(() => setSuccess(''), 3000)
     } catch (err: any) {
@@ -222,13 +224,18 @@ export default function ProfilePage() {
             <h2 className="text-2xl font-semibold text-gray-800 mb-4">Profile Picture</h2>
             <div className="flex items-center gap-6">
               <div className="relative">
-                {profile?.profilePictureUrl ? (
+                {profile?.profilePictureUrl && !imageError ? (
                   <Image
                     src={profile.profilePictureUrl}
                     alt="Profile"
                     width={120}
                     height={120}
                     className="rounded-full object-cover border-4 border-gray-200"
+                    onError={() => {
+                      console.error('Failed to load profile picture:', profile.profilePictureUrl)
+                      setImageError(true)
+                    }}
+                    unoptimized={profile.profilePictureUrl?.includes('supabase.co')}
                   />
                 ) : (
                   <div className="w-[120px] h-[120px] rounded-full bg-gray-200 flex items-center justify-center border-4 border-gray-300">

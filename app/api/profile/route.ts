@@ -7,19 +7,19 @@ export const dynamic = 'force-dynamic'
 
 // Helper function to get authenticated user
 async function getAuthenticatedUser(request: NextRequest) {
-  const authHeader = request.headers.get('authorization')
-  if (!authHeader) {
+    const authHeader = request.headers.get('authorization')
+    if (!authHeader) {
     return { user: null, error: 'Unauthorized. Please sign in.' }
-  }
+    }
 
-  const token = authHeader.replace('Bearer ', '')
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  )
-  
-  const { data: { user }, error: authError } = await supabase.auth.getUser(token)
-  
+    const token = authHeader.replace('Bearer ', '')
+    const supabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+    
+    const { data: { user }, error: authError } = await supabase.auth.getUser(token)
+    
   if (authError || !user) {
     return { user: null, error: 'Unauthorized. Invalid or expired session.' }
   }
