@@ -16,6 +16,16 @@ interface DashboardData {
   demographics: any
 }
 
+interface Organization {
+  name: string
+  bio_snippet?: string
+  full_bio?: string
+  typical_majors?: string
+  typical_activities?: string
+  website?: string
+  relevance_score?: number
+}
+
 export default function DashboardPage() {
   const { user, loading: authLoading, signOut } = useAuth()
   const router = useRouter()
@@ -25,7 +35,12 @@ export default function DashboardPage() {
   const [hasRecommendations, setHasRecommendations] = useState(false)
   const [imageError, setImageError] = useState(false)
   const [showProfileDropdown, setShowProfileDropdown] = useState(false)
+  const [searchQuery, setSearchQuery] = useState('')
+  const [searchResults, setSearchResults] = useState<Organization[]>([])
+  const [isSearching, setIsSearching] = useState(false)
+  const [showSearchResults, setShowSearchResults] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -84,6 +99,54 @@ export default function DashboardPage() {
       loadDashboardData()
     }
   }, [user, loadDashboardData])
+
+  // Handle keyword search with debouncing
+  useEffect(() => {
+    // Clear previous timeout
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+    }
+
+    // If search query is empty, clear results
+    if (!searchQuery.trim()) {
+      setSearchResults([])
+      setShowSearchResults(false)
+      return
+    }
+
+    // Debounce search by 500ms
+    searchTimeoutRef.current = setTimeout(async () => {
+      setIsSearching(true)
+      try {
+        const response = await fetch('/api/search-keyword', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ keyword: searchQuery.trim() })
+        })
+
+        if (response.ok) {
+          const data = await response.json()
+          setSearchResults(data.results || [])
+          setShowSearchResults(true)
+        } else {
+          setSearchResults([])
+        }
+      } catch (err) {
+        console.error('Search error:', err)
+        setSearchResults([])
+      } finally {
+        setIsSearching(false)
+      }
+    }, 500)
+
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+    }
+  }, [searchQuery])
 
 
   if (authLoading || loading) {
@@ -199,6 +262,98 @@ export default function DashboardPage() {
           <h2 className="text-3xl font-bold text-gray-800 mb-2">
             Welcome back{data?.name ? `, ${data.name.split(' ')[0]}` : ''}!
           </h2>
+        </motion.div>
+
+        {/* Search Bar */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.05 }}
+          className="mb-8"
+        >
+          <div className="relative">
+            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
+              <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+              </svg>
+            </div>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Search organizations by name or keyword..."
+              className="w-full pl-12 pr-4 py-3 border-2 border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none text-gray-800 placeholder-gray-400"
+            />
+            {isSearching && (
+              <div className="absolute inset-y-0 right-0 pr-4 flex items-center">
+                <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-tamu-maroon"></div>
+              </div>
+            )}
+          </div>
+
+          {/* Search Results */}
+          <AnimatePresence>
+            {showSearchResults && searchResults.length > 0 && (
+              <motion.div
+                initial={{ opacity: 0, y: -10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className="mt-4 bg-white rounded-lg shadow-lg border border-gray-200 max-h-96 overflow-y-auto"
+              >
+                <div className="p-4 border-b border-gray-200">
+                  <p className="text-sm font-semibold text-gray-700">
+                    Found {searchResults.length} organization{searchResults.length !== 1 ? 's' : ''}
+                  </p>
+                </div>
+                <div className="divide-y divide-gray-200">
+                  {searchResults.map((org, index) => (
+                    <motion.div
+                      key={index}
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: index * 0.05 }}
+                      className="p-4 hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="flex items-start justify-between">
+                        <div className="flex-1">
+                          <h4 className="font-semibold text-gray-800 mb-1">{org.name}</h4>
+                          {org.bio_snippet && (
+                            <p className="text-sm text-gray-600 line-clamp-2 mb-2">
+                              {org.bio_snippet}
+                            </p>
+                          )}
+                          {org.typical_majors && org.typical_majors !== 'nan' && (
+                            <p className="text-xs text-gray-500">
+                              Majors: {org.typical_majors}
+                            </p>
+                          )}
+                        </div>
+                        {org.website && (
+                          <a
+                            href={org.website}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="ml-4 text-sm text-tamu-maroon hover:underline whitespace-nowrap"
+                          >
+                            Visit →
+                          </a>
+                        )}
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              </motion.div>
+            )}
+            {showSearchResults && searchQuery.trim() && searchResults.length === 0 && !isSearching && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="mt-4 bg-white rounded-lg shadow-lg border border-gray-200 p-8 text-center"
+              >
+                <p className="text-gray-600">No organizations found matching &quot;{searchQuery}&quot;</p>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
 
         {/* My Orgs - Central Component */}
