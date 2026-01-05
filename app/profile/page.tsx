@@ -48,7 +48,7 @@ export default function ProfilePage() {
         const img = document.createElement('img')
         img.onload = () => {
           const canvas = document.createElement('canvas')
-          const ctx = canvas.getContext('2d')
+          const ctx = canvas.getContext('2d', { willReadFrequently: false })
           if (!ctx) {
             reject(new Error('Could not get canvas context'))
             return
@@ -56,31 +56,48 @@ export default function ProfilePage() {
 
           // Calculate square dimensions (use the smaller dimension)
           const size = Math.min(img.width, img.height)
+          
+          // Set canvas to exact square dimensions
           canvas.width = size
           canvas.height = size
 
           // Calculate crop position (center the image)
-          const x = (img.width - size) / 2
-          const y = (img.height - size) / 2
+          const sourceX = (img.width - size) / 2
+          const sourceY = (img.height - size) / 2
 
-          // Draw cropped image
-          ctx.drawImage(img, x, y, size, size, 0, 0, size, size)
+          // Clear canvas with white background (optional, for transparency issues)
+          ctx.fillStyle = '#FFFFFF'
+          ctx.fillRect(0, 0, size, size)
 
-          // Convert to blob
+          // Draw cropped image - source rectangle from original, destination fills entire canvas
+          ctx.drawImage(
+            img,
+            sourceX, sourceY, size, size,  // Source rectangle (what to crop from original)
+            0, 0, size, size                 // Destination rectangle (where to draw on canvas)
+          )
+
+          // Convert to blob with explicit image format
+          const outputType = file.type || 'image/jpeg'
           canvas.toBlob(
             (blob) => {
               if (!blob) {
                 reject(new Error('Failed to create blob'))
                 return
               }
-              // Create a new File from the blob
-              const croppedFile = new File([blob], file.name, {
-                type: file.type,
+              // Verify the blob has content
+              if (blob.size === 0) {
+                reject(new Error('Cropped image is empty'))
+                return
+              }
+              // Create a new File from the blob with proper extension
+              const extension = outputType.includes('png') ? 'png' : outputType.includes('webp') ? 'webp' : 'jpg'
+              const croppedFile = new File([blob], `profile.${extension}`, {
+                type: outputType,
                 lastModified: Date.now()
               })
               resolve(croppedFile)
             },
-            file.type,
+            outputType,
             0.95 // Quality (0.95 = 95%)
           )
         }
@@ -187,8 +204,37 @@ export default function ProfilePage() {
     const file = e.target.files?.[0]
     if (!file) return
 
+    // Reset file input
+    e.target.value = ''
+
     setUploadingPicture(true)
     setError('')
+
+    // Basic validation - check image dimensions before cropping
+    try {
+      const img = document.createElement('img')
+      const url = URL.createObjectURL(file)
+      await new Promise((resolve, reject) => {
+        img.onload = () => {
+          URL.revokeObjectURL(url)
+          // Check minimum dimensions (at least 100x100)
+          if (img.width < 100 || img.height < 100) {
+            reject(new Error('Image must be at least 100x100 pixels'))
+            return
+          }
+          resolve(null)
+        }
+        img.onerror = () => {
+          URL.revokeObjectURL(url)
+          reject(new Error('Invalid image file'))
+        }
+        img.src = url
+      })
+    } catch (err: any) {
+      setUploadingPicture(false)
+      setError(err.message || 'Invalid image file')
+      return
+    }
 
     try {
       const { data: { session } } = await supabase.auth.getSession()
@@ -197,10 +243,18 @@ export default function ProfilePage() {
       }
 
       // Crop image to square aspect ratio
-      const croppedFile = await cropImageToSquare(file)
+      let croppedFile: File
+      try {
+        croppedFile = await cropImageToSquare(file)
+        console.log('Image cropped successfully. Original size:', file.size, 'Cropped size:', croppedFile.size)
+      } catch (cropError: any) {
+        console.error('Cropping failed, using original:', cropError)
+        // If cropping fails, use original file
+        croppedFile = file
+      }
 
       const formData = new FormData()
-      formData.append('file', croppedFile, file.name)
+      formData.append('file', croppedFile, croppedFile.name)
 
       const response = await fetch('/api/profile/upload', {
         method: 'POST',
@@ -284,18 +338,21 @@ export default function ProfilePage() {
             <div className="flex items-center gap-6">
               <div className="relative">
                 {profile?.profilePictureUrl && !imageError ? (
-                  <Image
-                    src={profile.profilePictureUrl}
-                    alt="Profile"
-                    width={120}
-                    height={120}
-                    className="rounded-full object-cover border-4 border-gray-200"
-                    onError={() => {
-                      console.error('Failed to load profile picture:', profile.profilePictureUrl)
-                      setImageError(true)
-                    }}
-                    unoptimized={profile.profilePictureUrl?.includes('supabase.co')}
-                  />
+                  <div className="w-[120px] h-[120px] rounded-full overflow-hidden border-4 border-gray-200">
+                    <Image
+                      src={profile.profilePictureUrl}
+                      alt="Profile"
+                      width={120}
+                      height={120}
+                      className="w-full h-full object-cover"
+                      style={{ aspectRatio: '1 / 1' }}
+                      onError={() => {
+                        console.error('Failed to load profile picture:', profile.profilePictureUrl)
+                        setImageError(true)
+                      }}
+                      unoptimized={profile.profilePictureUrl?.includes('supabase.co')}
+                    />
+                  </div>
                 ) : (
                   <div className="w-[120px] h-[120px] rounded-full bg-gray-200 flex items-center justify-center border-4 border-gray-300">
                     <svg className="w-16 h-16 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
