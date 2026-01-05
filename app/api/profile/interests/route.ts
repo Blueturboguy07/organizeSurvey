@@ -175,40 +175,46 @@ export async function PUT(request: NextRequest) {
       console.warn('⚠️ Warning checking existing query:', checkError)
     }
 
-    let result
-    if (existingData) {
-      // Update existing record
-      console.log('📝 Updating existing query record')
-      const { data, error } = await supabaseAdmin
-        .from('user_queries')
-        .update({
-          latest_cleansed_query: cleansedQuery,
-          user_demographics: userDemographics,
-          updated_at: now
-        })
-        .eq('user_id', user.id)
-        .select()
-        .single()
-      
-      result = { data, error }
-      console.log('✅ Update result:', { data, error: error?.message })
+    // Use upsert to ensure the record is created/updated atomically
+    console.log('📝 Upserting query record for user:', user.id)
+    console.log('📝 Data to upsert:', {
+      user_id: user.id,
+      queryLength: cleansedQuery.length,
+      demographics: userDemographics
+    })
+    
+    const upsertPayload: any = {
+      user_id: user.id,
+      latest_cleansed_query: cleansedQuery,
+      user_demographics: userDemographics,
+      updated_at: now
+    }
+    
+    // Only set created_at if this is a new record
+    if (!existingData) {
+      upsertPayload.created_at = now
+    }
+    
+    const { data: upsertData, error: upsertError } = await supabaseAdmin
+      .from('user_queries')
+      .upsert(upsertPayload, {
+        onConflict: 'user_id',
+        ignoreDuplicates: false
+      })
+      .select()
+      .single()
+    
+    const result = { data: upsertData, error: upsertError }
+    
+    if (upsertError) {
+      console.error('❌ Upsert error:', upsertError)
+      console.error('❌ Full error:', JSON.stringify(upsertError, null, 2))
     } else {
-      // Insert new record
-      console.log('📝 Inserting new query record')
-      const { data, error } = await supabaseAdmin
-        .from('user_queries')
-        .insert({
-          user_id: user.id,
-          latest_cleansed_query: cleansedQuery,
-          user_demographics: userDemographics,
-          created_at: now,
-          updated_at: now
-        })
-        .select()
-        .single()
-      
-      result = { data, error }
-      console.log('✅ Insert result:', { data, error: error?.message })
+      console.log('✅ Upsert successful:', {
+        userId: upsertData?.user_id,
+        queryLength: upsertData?.latest_cleansed_query?.length,
+        hasDemographics: !!upsertData?.user_demographics
+      })
     }
 
     if (result.error) {
