@@ -215,6 +215,22 @@ export async function PUT(request: NextRequest) {
       )
     }
 
+    // Verify the update actually persisted by reading it back
+    const { data: verifyData, error: verifyError } = await supabaseAdmin
+      .from('user_queries')
+      .select('latest_cleansed_query, user_demographics')
+      .eq('user_id', user.id)
+      .single()
+
+    if (verifyError) {
+      console.warn('⚠️ Verification read failed:', verifyError)
+    } else {
+      console.log('✅ Verified update persisted:', {
+        query: verifyData.latest_cleansed_query,
+        demographics: verifyData.user_demographics
+      })
+    }
+
     return NextResponse.json({ 
       success: true,
       query: cleansedQuery,
