@@ -259,6 +259,13 @@ export default function SurveyForm() {
     setCurrentStep(steps.length - 1)
     setCleansedString(query)
 
+    // Extract keywords from query for insights display
+    const keywords = query
+      .split(/[|,]/)
+      .map(k => k.trim())
+      .filter(k => k.length > 0)
+    setQueryKeywords(keywords)
+
     // Ensure userData is properly formatted
     const formattedUserData = {
       gender: (userDataForSearch?.gender || '').trim(),
@@ -356,6 +363,22 @@ export default function SurveyForm() {
                 engineeringTypes: Array.isArray(savedDemographics.engineeringTypes) ? savedDemographics.engineeringTypes : [],
                 religion: savedDemographics.religion || ''
               }
+              
+              // Update formData with saved demographics so insights can display them
+              setFormData(prev => ({
+                ...prev,
+                gender: savedDemographics.gender || prev.gender || '',
+                genderOther: savedDemographics.genderOther || prev.genderOther || '',
+                race: savedDemographics.race || prev.race || '',
+                raceOther: savedDemographics.raceOther || prev.raceOther || '',
+                classification: savedDemographics.classification || prev.classification || '',
+                sexuality: savedDemographics.sexuality || prev.sexuality || '',
+                sexualityOther: savedDemographics.sexualityOther || prev.sexualityOther || '',
+                careerFields: Array.isArray(savedDemographics.careerFields) ? savedDemographics.careerFields : prev.careerFields || [],
+                engineeringTypes: Array.isArray(savedDemographics.engineeringTypes) ? savedDemographics.engineeringTypes : prev.engineeringTypes || [],
+                religion: savedDemographics.religion || prev.religion || '',
+                religionOther: savedDemographics.religionOther || prev.religionOther || ''
+              }))
             } else {
               // Fall back to form data if saved demographics are missing/invalid
               userDataForSearch = {
