@@ -16,22 +16,13 @@ interface DashboardData {
   demographics: any
 }
 
-interface Organization {
-  name: string
-  bio?: string
-  bio_snippet?: string
-  website?: string
-  [key: string]: any
-}
-
 export default function DashboardPage() {
   const { user, loading: authLoading, signOut } = useAuth()
   const router = useRouter()
   const supabase = createClientComponentClient()
   const [loading, setLoading] = useState(true)
   const [data, setData] = useState<DashboardData | null>(null)
-  const [recommendedOrgs, setRecommendedOrgs] = useState<Organization[]>([])
-  const [loadingOrgs, setLoadingOrgs] = useState(false)
+  const [hasRecommendations, setHasRecommendations] = useState(false)
   const [showProfileDropdown, setShowProfileDropdown] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
 
@@ -76,9 +67,9 @@ export default function DashboardPage() {
       const profileData = await response.json()
       setData(profileData)
 
-      // If user has a query, try to load recommended orgs
+      // Check if user has recommendations available (has a query)
       if (profileData.query) {
-        loadRecommendedOrgs(profileData.query, profileData.demographics)
+        setHasRecommendations(true)
       }
     } catch (err) {
       console.error('Failed to load dashboard:', err)
@@ -93,32 +84,6 @@ export default function DashboardPage() {
     }
   }, [user, loadDashboardData])
 
-  const loadRecommendedOrgs = async (query: string, demographics: any) => {
-    setLoadingOrgs(true)
-    try {
-      const response = await fetch('/api/search', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          query,
-          userData: demographics || {}
-        })
-      })
-
-      if (response.ok) {
-        const result = await response.json()
-        if (result.results && result.results.length > 0) {
-          setRecommendedOrgs(result.results.slice(0, 6)) // Show top 6 recommendations
-        }
-      }
-    } catch (err) {
-      console.error('Failed to load recommended orgs:', err)
-    } finally {
-      setLoadingOrgs(false)
-    }
-  }
 
   if (authLoading || loading) {
     return (
@@ -134,7 +99,6 @@ export default function DashboardPage() {
 
   // Determine what to show in My Orgs
   const hasJoinedOrgs = false // TODO: Implement joined orgs tracking
-  const hasRecommendedOrgs = recommendedOrgs.length > 0
   const hasQuery = !!data?.query
 
   return (
@@ -237,45 +201,27 @@ export default function DashboardPage() {
         >
           <h3 className="text-2xl font-bold text-gray-800 mb-6">My Orgs</h3>
 
-          {loadingOrgs ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-tamu-maroon"></div>
-            </div>
-          ) : hasJoinedOrgs ? (
+          {hasJoinedOrgs ? (
             // TODO: Show joined orgs when implemented
             <div className="text-center py-12">
               <p className="text-gray-500">You haven&apos;t joined any organizations yet.</p>
             </div>
-          ) : hasRecommendedOrgs ? (
-            // Show recommended orgs
-            <div>
-              <p className="text-gray-600 mb-6">Recommended for you:</p>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {recommendedOrgs.map((org, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: index * 0.1 }}
-                    className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
-                  >
-                    <h4 className="font-semibold text-gray-800 mb-2">{org.name}</h4>
-                    <p className="text-sm text-gray-600 line-clamp-3">
-                      {org.bio_snippet || org.bio || 'No description available.'}
-                    </p>
-                    {org.website && (
-                      <a
-                        href={org.website}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-sm text-tamu-maroon hover:underline mt-2 inline-block"
-                      >
-                        Visit website →
-                      </a>
-                    )}
-                  </motion.div>
-                ))}
-              </div>
+          ) : hasRecommendations ? (
+            // Show explore button for recommended orgs
+            <div className="text-center py-12">
+              <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              <p className="text-gray-600 mb-6">We have organization recommendations for you!</p>
+              <Link href="/survey">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="px-6 py-3 bg-tamu-maroon text-white rounded-lg font-semibold hover:bg-tamu-maroon-light"
+                >
+                  Explore Recommended Orgs
+                </motion.button>
+              </Link>
             </div>
           ) : hasQuery ? (
             // Has query but no recommendations
