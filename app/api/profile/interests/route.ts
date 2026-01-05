@@ -153,36 +153,27 @@ export async function PUT(request: NextRequest) {
 
     const now = new Date().toISOString()
 
-    // Check if record exists first (use single() like submit route does)
+    // Log admin client status (for debugging)
+    const hasServiceKey = !!process.env.SUPABASE_SERVICE_ROLE_KEY
+    console.log('🔑 Using service role key:', hasServiceKey ? 'Yes' : 'No (falling back to anon key)')
+    console.log('📝 Saving interests for user:', user.id, 'Query length:', cleansedQuery.length)
+
+    // Check if record exists first
     const { data: existingData, error: checkError } = await supabaseAdmin
       .from('user_queries')
-      .select('id, created_at, latest_cleansed_query, user_demographics')
+      .select('id, created_at')
       .eq('user_id', user.id)
       .maybeSingle()
 
-    console.log('🔍 Existing query check:', { 
-      existingData: existingData ? {
-        id: existingData.id,
-        hasQuery: !!existingData.latest_cleansed_query,
-        hasDemo: !!existingData.user_demographics
-      } : null,
-      checkError: checkError?.message,
-      errorCode: checkError?.code 
-    })
+    let upsertData
+    let upsertError
 
-    // If there's an error other than "no rows found", log it but continue
-    if (checkError && checkError.code !== 'PGRST116') {
-      console.warn('⚠️ Warning checking existing query:', checkError)
+    if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows returned
+      console.error('❌ Error checking existing query:', checkError)
+      throw checkError
     }
 
-    // Use upsert to ensure the record is created/updated atomically
-    console.log('📝 Upserting query record for user:', user.id)
-    console.log('📝 Data to upsert:', {
-      user_id: user.id,
-      queryLength: cleansedQuery.length,
-      demographics: userDemographics
-    })
-    
+    // Use upsert for atomic create/update (same as submit route)
     const upsertPayload: any = {
       user_id: user.id,
       latest_cleansed_query: cleansedQuery,
@@ -194,8 +185,8 @@ export async function PUT(request: NextRequest) {
     if (!existingData) {
       upsertPayload.created_at = now
     }
-    
-    const { data: upsertData, error: upsertError } = await supabaseAdmin
+
+    const { data: upsertDataResult, error: upsertErrorResult } = await supabaseAdmin
       .from('user_queries')
       .upsert(upsertPayload, {
         onConflict: 'user_id',
@@ -203,66 +194,57 @@ export async function PUT(request: NextRequest) {
       })
       .select()
       .single()
-    
-    const result = { data: upsertData, error: upsertError }
-    
-    if (upsertError) {
-      console.error('❌ Upsert error:', upsertError)
-      console.error('❌ Full error:', JSON.stringify(upsertError, null, 2))
-    } else {
-      console.log('✅ Upsert successful:', {
-        userId: upsertData?.user_id,
-        queryLength: upsertData?.latest_cleansed_query?.length,
-        hasDemographics: !!upsertData?.user_demographics
-      })
-    }
 
-    if (result.error) {
-      console.error('❌ Interests update error:', result.error)
-      console.error('❌ Full error details:', JSON.stringify(result.error, null, 2))
+    upsertData = upsertDataResult
+    upsertError = upsertErrorResult
+
+    if (upsertError) {
+      console.error('❌ Supabase save error:', upsertError)
+      console.error('Error code:', upsertError.code)
+      console.error('Error message:', upsertError.message)
+      console.error('Error details:', upsertError.details)
+      console.error('Error hint:', upsertError.hint)
+      console.error('User ID:', user.id)
+      console.error('Query to save:', cleansedQuery.substring(0, 100))
+      console.error('Has service key:', hasServiceKey)
+      
+      // If table doesn't exist, log helpful error
+      if (upsertError.code === '42P01' || upsertError.message?.includes('does not exist')) {
+        return NextResponse.json(
+          { 
+            error: 'user_queries table does not exist. Please create the table in Supabase SQL Editor.',
+            details: upsertError.message,
+            code: upsertError.code
+          },
+          { status: 500 }
+        )
+      }
+      
+      // If RLS policy issue
+      if (upsertError.code === '42501' || upsertError.message?.includes('permission denied') || upsertError.message?.includes('new row violates row-level security')) {
+        return NextResponse.json(
+          { 
+            error: 'Permission denied. Check RLS policies and ensure SUPABASE_SERVICE_ROLE_KEY is set correctly in Vercel environment variables.',
+            details: upsertError.message,
+            code: upsertError.code,
+            hasServiceKey: hasServiceKey
+          },
+          { status: 500 }
+        )
+      }
+      
       return NextResponse.json(
-        { error: `Failed to update interests: ${result.error.message || 'Unknown error'}` },
+        {
+          error: 'Failed to save interests',
+          details: upsertError.message,
+          code: upsertError.code,
+          hint: upsertError.hint
+        },
         { status: 500 }
       )
     }
 
-    // Log what was actually saved
-    console.log('✅ Update/Insert successful. Saved data:', {
-      query: cleansedQuery.substring(0, 100) + '...',
-      demographics: userDemographics,
-      resultData: result.data
-    })
-
-    // Small delay to ensure write consistency
-    await new Promise(resolve => setTimeout(resolve, 100))
-
-    // Verify the update actually persisted by reading it back
-    const { data: verifyData, error: verifyError } = await supabaseAdmin
-      .from('user_queries')
-      .select('latest_cleansed_query, user_demographics')
-      .eq('user_id', user.id)
-      .maybeSingle()
-
-    if (verifyError) {
-      console.warn('⚠️ Verification read failed:', verifyError)
-    } else if (!verifyData) {
-      console.error('❌ Verification read returned no data - update may not have persisted!')
-    } else {
-      const queryMatches = verifyData.latest_cleansed_query === cleansedQuery
-      const demoMatches = JSON.stringify(verifyData.user_demographics) === JSON.stringify(userDemographics)
-      console.log('✅ Verified update persisted:', {
-        queryMatches,
-        demoMatches,
-        savedQuery: cleansedQuery.substring(0, 50) + '...',
-        readQuery: verifyData.latest_cleansed_query?.substring(0, 50) + '...',
-        savedDemo: userDemographics,
-        readDemo: verifyData.user_demographics
-      })
-      
-      if (!queryMatches || !demoMatches) {
-        console.error('⚠️ WARNING: Verification shows data mismatch! Update may not have persisted correctly.')
-      }
-    }
+    console.log('✅ Query saved successfully:', upsertData)
 
     return NextResponse.json({ 
       success: true,
