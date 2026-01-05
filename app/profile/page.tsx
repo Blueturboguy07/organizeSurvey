@@ -365,9 +365,41 @@ export default function ProfilePage() {
       }
       
       // Reload profile after a delay to sync with database
+      // But don't overwrite if we already have the correct data
       setTimeout(async () => {
+        console.log('🔄 Reloading profile from database...')
         await loadProfile()
-      }, 1000)
+        // After reload, check if we got stale data and warn
+        if (profile?.demographics && responseData.demographics) {
+          const currentCareerFields = profile.demographics.careerFields || []
+          const savedCareerFields = responseData.demographics.careerFields || []
+          if (JSON.stringify(currentCareerFields) !== JSON.stringify(savedCareerFields)) {
+            console.warn('⚠️ Profile reload returned different data than what was saved!')
+            console.warn('Saved:', savedCareerFields)
+            console.warn('Loaded:', currentCareerFields)
+            // Keep the saved data instead
+            setInterestsData({
+              careerFields: responseData.demographics.careerFields || [],
+              engineeringTypes: responseData.demographics.engineeringTypes || [],
+              livesOnCampus: responseData.demographics.livesOnCampus || '',
+              hall: responseData.demographics.hall || '',
+              classification: responseData.demographics.classification || '',
+              race: responseData.demographics.race || '',
+              raceOther: responseData.demographics.raceOther || '',
+              sexuality: responseData.demographics.sexuality || '',
+              sexualityOther: responseData.demographics.sexualityOther || '',
+              gender: responseData.demographics.gender || '',
+              genderOther: responseData.demographics.genderOther || '',
+              hobbies: responseData.demographics.hobbies || '',
+              additionalHobbies: responseData.demographics.additionalHobbies || [],
+              activities: responseData.demographics.activities || [],
+              interestedInReligiousOrgs: responseData.demographics.interestedInReligiousOrgs || '',
+              religion: responseData.demographics.religion || '',
+              religionOther: responseData.demographics.religionOther || ''
+            })
+          }
+        }
+      }, 2000)
       
       setTimeout(() => setSuccess(''), 5000)
     } catch (err: any) {
