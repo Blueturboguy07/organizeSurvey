@@ -8,13 +8,16 @@ import Image from 'next/image'
 import Link from 'next/link'
 
 export default function DashboardPage() {
+  // Use AuthContext for real-time auth state and user data
+  // AuthContext maintains real-time subscriptions to user_profiles and user_queries tables
+  // All user data (profile, query) updates automatically when changed elsewhere
   const { 
     user, 
     loading: authLoading, 
     signOut,
-    userProfile,
+    userProfile,        // Real-time profile data (name, picture, preferences)
     userProfileLoading,
-    userQuery,
+    userQuery,          // Real-time survey query data (interests, demographics)
     userQueryLoading
   } = useAuth()
   const router = useRouter()

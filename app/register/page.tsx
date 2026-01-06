@@ -1,9 +1,10 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { createClientComponentClient } from '@/lib/supabase'
+import { useAuth } from '@/contexts/AuthContext'
 import Link from 'next/link'
 import Image from 'next/image'
 
@@ -17,6 +18,15 @@ export default function RegisterPage() {
   const [success, setSuccess] = useState(false)
   const router = useRouter()
   const supabase = createClientComponentClient()
+  // Use AuthContext for real-time auth state (redirect if already logged in)
+  const { user, loading: authLoading } = useAuth()
+
+  // Redirect to dashboard if already logged in
+  useEffect(() => {
+    if (!authLoading && user) {
+      router.push('/dashboard')
+    }
+  }, [user, authLoading, router])
 
   const validateTAMUEmail = (email: string): boolean => {
     const tamuEmailRegex = /^[a-zA-Z0-9._%+-]+@(tamu\.edu|email\.tamu\.edu)$/i
@@ -77,6 +87,15 @@ export default function RegisterPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  // Show loading while checking auth state
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-white to-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-tamu-maroon"></div>
+      </div>
+    )
   }
 
   if (success) {

@@ -15,7 +15,11 @@ export default function LoginPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const router = useRouter()
+  // Note: supabase client is used directly here for signInWithPassword
+  // because we're creating a new session, not using an existing one.
+  // AuthContext will automatically pick up the new session after successful login.
   const supabase = createClientComponentClient()
+  // Use AuthContext to check if user is already logged in (real-time subscription)
   const { user, loading: authLoading } = useAuth()
 
   useEffect(() => {

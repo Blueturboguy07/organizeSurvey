@@ -1,5 +1,30 @@
 'use client'
 
+/**
+ * AuthContext - Central authentication and user data provider with real-time subscriptions
+ * 
+ * IMPORTANT: Always use this context for authentication state and session tokens.
+ * The context maintains real-time subscriptions to:
+ * - Auth state changes (login/logout)
+ * - user_queries table (survey interests)
+ * - user_profiles table (profile data, picture, preferences)
+ * 
+ * Usage in components:
+ * ```
+ * const { user, session, userProfile, userQuery } = useAuth()
+ * 
+ * // For API calls requiring auth, use session.access_token:
+ * if (session?.access_token) {
+ *   fetch('/api/endpoint', {
+ *     headers: { 'Authorization': `Bearer ${session.access_token}` }
+ *   })
+ * }
+ * ```
+ * 
+ * DO NOT call supabase.auth.getSession() directly in components.
+ * Instead, use the session from this context for consistency and real-time updates.
+ */
+
 import { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { User, Session, RealtimeChannel } from '@supabase/supabase-js'
 import { createClientComponentClient } from '@/lib/supabase'

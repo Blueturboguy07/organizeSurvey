@@ -108,6 +108,9 @@ interface SurveyData {
 }
 
 export default function SurveyForm() {
+  // Use AuthContext for real-time auth state and session token
+  // session.access_token is used for authenticated API calls
+  // userQuery provides real-time updates to saved survey interests
   const { user, signOut, session, loading: authLoading, userQuery, userQueryLoading } = useAuth()
   const supabase = createClientComponentClient()
   const searchParams = useSearchParams()

@@ -9,7 +9,9 @@ import Image from 'next/image'
 import Link from 'next/link'
 
 export default function ProfilePage() {
-  const { user, loading: authLoading, userProfile, userProfileLoading } = useAuth()
+  // Use AuthContext for real-time session and profile updates
+  // AuthContext maintains real-time subscriptions to auth state and user profile
+  const { user, session, loading: authLoading, userProfile, userProfileLoading } = useAuth()
   const router = useRouter()
   const supabase = createClientComponentClient()
   const [saving, setSaving] = useState(false)
@@ -121,17 +123,20 @@ export default function ProfilePage() {
     }
   }, [userProfile, editing])
 
+  // Use session from AuthContext (real-time subscription) for all API calls
   const handleSave = async () => {
     setSaving(true)
     setError('')
     setSuccess('')
 
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        throw new Error('Not authenticated')
-      }
+    // Use session from AuthContext (real-time subscription)
+    if (!session?.access_token) {
+      setError('Not authenticated')
+      setSaving(false)
+      return
+    }
 
+    try {
       const response = await fetch('/api/profile', {
         method: 'PUT',
         headers: {
@@ -197,12 +202,14 @@ export default function ProfilePage() {
       return
     }
 
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        throw new Error('Not authenticated')
-      }
+    // Use session from AuthContext (real-time subscription)
+    if (!session?.access_token) {
+      setUploadingPicture(false)
+      setError('Not authenticated')
+      return
+    }
 
+    try {
       // Crop image to square aspect ratio
       let croppedFile: File
       try {
@@ -495,6 +502,7 @@ export default function ProfilePage() {
           )}
 
           {/* Reset Interests Section */}
+          {/* Uses session from AuthContext for real-time auth state */}
           <div className="pt-6 border-t">
             <h2 className="text-2xl font-semibold text-gray-800 mb-4">Organization Interests</h2>
             <p className="text-gray-600 mb-4">
@@ -505,12 +513,13 @@ export default function ProfilePage() {
                 const confirmed = confirm('Are you sure you want to reset your interests? This will clear your saved preferences and take you back to the survey.')
                 if (!confirmed) return
 
-                try {
-                  const { data: { session } } = await supabase.auth.getSession()
-                  if (!session) {
-                    throw new Error('Not authenticated')
-                  }
+                // Use session from AuthContext (real-time subscription)
+                if (!session?.access_token) {
+                  setError('Not authenticated')
+                  return
+                }
 
+                try {
                   await fetch('/api/reset-profile', {
                     method: 'POST',
                     headers: {
