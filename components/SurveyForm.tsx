@@ -108,7 +108,7 @@ interface SurveyData {
 }
 
 export default function SurveyForm() {
-  const { user, signOut, session, loading: authLoading } = useAuth()
+  const { user, signOut, session, loading: authLoading, userQuery, userQueryLoading } = useAuth()
   const supabase = createClientComponentClient()
   const searchParams = useSearchParams()
   const shouldShowResults = searchParams?.get('showResults') === 'true'
@@ -309,107 +309,80 @@ export default function SurveyForm() {
     }
   }
 
-  // Load user query on mount
+  // Load user query from context (real-time subscription)
   useEffect(() => {
-    const loadQuery = async () => {
-      if (authLoading) {
-        return // Still loading auth, wait
-      }
-
-      if (!user) {
-        setLoadingProfile(false)
-        return // No user, show survey form
-      }
-
-      // Wait for session to be available
-      let token: string | null = null
-      if (session?.access_token) {
-        token = session.access_token
-      } else {
-        // Try to get session if not available yet
-        const { data: { session: currentSession } } = await supabase.auth.getSession()
-        if (currentSession?.access_token) {
-          token = currentSession.access_token
-        } else {
-          setLoadingProfile(false)
-          return // No session available
-        }
-      }
-
-      try {
-        const response = await fetch('/api/profile', {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        })
-
-        if (response.ok) {
-          const data = await response.json()
-          const savedQuery = data.query
-          const savedDemographics = data.demographics
-
-          if (savedQuery) {
-            // User has a saved query - re-run search
-            // Use saved demographics if available and valid, otherwise fall back to form data
-            let userDataForSearch
-            if (savedDemographics && typeof savedDemographics === 'object' && Object.keys(savedDemographics).length > 0) {
-              // Ensure saved demographics have the correct structure
-              userDataForSearch = {
-                gender: savedDemographics.gender || '',
-                race: savedDemographics.race || '',
-                classification: savedDemographics.classification || '',
-                sexuality: savedDemographics.sexuality || '',
-                careerFields: Array.isArray(savedDemographics.careerFields) ? savedDemographics.careerFields : [],
-                engineeringTypes: Array.isArray(savedDemographics.engineeringTypes) ? savedDemographics.engineeringTypes : [],
-                religion: savedDemographics.religion || ''
-              }
-              
-              // Update formData with saved demographics so insights can display them
-              setFormData(prev => ({
-                ...prev,
-                gender: savedDemographics.gender || prev.gender || '',
-                genderOther: savedDemographics.genderOther || prev.genderOther || '',
-                race: savedDemographics.race || prev.race || '',
-                raceOther: savedDemographics.raceOther || prev.raceOther || '',
-                classification: savedDemographics.classification || prev.classification || '',
-                sexuality: savedDemographics.sexuality || prev.sexuality || '',
-                sexualityOther: savedDemographics.sexualityOther || prev.sexualityOther || '',
-                careerFields: Array.isArray(savedDemographics.careerFields) ? savedDemographics.careerFields : prev.careerFields || [],
-                engineeringTypes: Array.isArray(savedDemographics.engineeringTypes) ? savedDemographics.engineeringTypes : prev.engineeringTypes || [],
-                religion: savedDemographics.religion || prev.religion || '',
-                religionOther: savedDemographics.religionOther || prev.religionOther || ''
-              }))
-            } else {
-              // Fall back to form data if saved demographics are missing/invalid
-              userDataForSearch = {
-              gender: formData.gender || formData.genderOther || '',
-              race: formData.race || formData.raceOther || '',
-              classification: formData.classification || '',
-              sexuality: formData.sexuality || formData.sexualityOther || '',
-              careerFields: formData.careerFields || [],
-              engineeringTypes: formData.engineeringTypes || [],
-              religion: formData.religion === 'Other' ? formData.religionOther : formData.religion || ''
-              }
-            }
-            
-            console.log('Loading search with demographics:', userDataForSearch)
-            await rerunSearchFromQuery(savedQuery, userDataForSearch)
-          } else if (shouldShowResults) {
-            // If coming from dashboard but no saved query, ensure we're on the right step
-            setCurrentStep(steps.length - 1)
-          }
-          // If no query, user will see the survey form
-        }
-      } catch (error) {
-        console.error('Failed to load query:', error)
-      } finally {
-        setLoadingProfile(false)
-      }
+    // Wait for auth and userQuery to be loaded
+    if (authLoading || userQueryLoading) {
+      return
     }
 
-    loadQuery()
+    if (!user) {
+      setLoadingProfile(false)
+      return // No user, show survey form
+    }
+
+    const loadFromContext = async () => {
+      const savedQuery = userQuery?.latest_cleansed_query
+      const savedDemographics = userQuery?.user_demographics as Record<string, unknown> | null
+
+      if (savedQuery) {
+        // User has a saved query - re-run search
+        // Use saved demographics if available and valid, otherwise fall back to form data
+        let userDataForSearch
+        if (savedDemographics && typeof savedDemographics === 'object' && Object.keys(savedDemographics).length > 0) {
+          // Ensure saved demographics have the correct structure
+          userDataForSearch = {
+            gender: (savedDemographics.gender as string) || '',
+            race: (savedDemographics.race as string) || '',
+            classification: (savedDemographics.classification as string) || '',
+            sexuality: (savedDemographics.sexuality as string) || '',
+            careerFields: Array.isArray(savedDemographics.careerFields) ? savedDemographics.careerFields : [],
+            engineeringTypes: Array.isArray(savedDemographics.engineeringTypes) ? savedDemographics.engineeringTypes : [],
+            religion: (savedDemographics.religion as string) || ''
+          }
+          
+          // Update formData with saved demographics so insights can display them
+          setFormData(prev => ({
+            ...prev,
+            gender: (savedDemographics.gender as string) || prev.gender || '',
+            genderOther: (savedDemographics.genderOther as string) || prev.genderOther || '',
+            race: (savedDemographics.race as string) || prev.race || '',
+            raceOther: (savedDemographics.raceOther as string) || prev.raceOther || '',
+            classification: (savedDemographics.classification as string) || prev.classification || '',
+            sexuality: (savedDemographics.sexuality as string) || prev.sexuality || '',
+            sexualityOther: (savedDemographics.sexualityOther as string) || prev.sexualityOther || '',
+            careerFields: Array.isArray(savedDemographics.careerFields) ? savedDemographics.careerFields : prev.careerFields || [],
+            engineeringTypes: Array.isArray(savedDemographics.engineeringTypes) ? savedDemographics.engineeringTypes : prev.engineeringTypes || [],
+            religion: (savedDemographics.religion as string) || prev.religion || '',
+            religionOther: (savedDemographics.religionOther as string) || prev.religionOther || ''
+          }))
+        } else {
+          // Fall back to form data if saved demographics are missing/invalid
+          userDataForSearch = {
+            gender: formData.gender || formData.genderOther || '',
+            race: formData.race || formData.raceOther || '',
+            classification: formData.classification || '',
+            sexuality: formData.sexuality || formData.sexualityOther || '',
+            careerFields: formData.careerFields || [],
+            engineeringTypes: formData.engineeringTypes || [],
+            religion: formData.religion === 'Other' ? formData.religionOther : formData.religion || ''
+          }
+        }
+        
+        console.log('Loading search from context with demographics:', userDataForSearch)
+        await rerunSearchFromQuery(savedQuery, userDataForSearch)
+      } else if (shouldShowResults) {
+        // If coming from dashboard but no saved query, ensure we're on the right step
+        setCurrentStep(steps.length - 1)
+      }
+      // If no query, user will see the survey form
+      
+      setLoadingProfile(false)
+    }
+
+    loadFromContext()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, session?.access_token, authLoading, supabase])
+  }, [user?.id, authLoading, userQueryLoading, userQuery])
 
   const handleSubmit = async () => {
     // Honeypot check - if filled, it's a bot
@@ -743,7 +716,7 @@ export default function SurveyForm() {
   }
 
   // Show loading state while checking profile
-  if (loadingProfile || authLoading) {
+  if (loadingProfile || authLoading || userQueryLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-white to-gray-50 flex items-center justify-center">
         <div className="text-center">
