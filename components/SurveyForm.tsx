@@ -372,17 +372,12 @@ export default function SurveyForm() {
           
           console.log('🔍 Loaded query from DB:', savedQuery ? savedQuery.substring(0, 50) + '...' : 'null', 'Changed:', queryChanged, 'ShowResults:', shouldShowResults, 'IsNewNav:', isNewNavigation, 'ShouldReload:', shouldReload, 'LoadKey:', loadKey, 'LastKey:', lastLoadKeyRef.current)
           
-          // ALWAYS update refs to track current state (even if not reloading)
-          // This prevents false positives on next navigation
           if (savedQuery) {
-            lastLoadedQueryRef.current = savedQuery
-          } else {
-            lastLoadedQueryRef.current = null
-          }
-          lastLoadKeyRef.current = loadKey
-          
-          if (savedQuery) {
+            
             if (shouldReload) {
+              // Update both refs to track current state
+              lastLoadedQueryRef.current = savedQuery
+              lastLoadKeyRef.current = loadKey
               
               // User has a saved query - re-run search
               // Use saved demographics if available and valid, otherwise fall back to form data
@@ -433,22 +428,17 @@ export default function SurveyForm() {
               console.log('⏭️ Skipping reload - query unchanged and not explicitly showing results')
             }
           } else {
-            // No saved query - refs already cleared above
+            // No saved query - clear the ref
+            lastLoadedQueryRef.current = null
             if (shouldShowResults) {
               // If coming from dashboard but no saved query, ensure we're on the right step
               setCurrentStep(steps.length - 1)
             }
             // If no query, user will see the survey form
           }
-        } else {
-          // Response not OK - handle HTTP errors
-          const errorData = await response.json().catch(() => ({ error: 'Unknown error' }))
-          console.error('❌ API error:', response.status, errorData)
-          setSearchError(`Failed to load profile: ${errorData.error || 'Unknown error'}`)
         }
       } catch (error) {
-        console.error('❌ Failed to load query:', error)
-        setSearchError(`Failed to load query: ${error instanceof Error ? error.message : 'Unknown error'}`)
+        console.error('Failed to load query:', error)
       } finally {
         setLoadingProfile(false)
       }
