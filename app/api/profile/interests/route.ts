@@ -70,11 +70,11 @@ function generateCleansedQuery(formData: any): string {
     cleansed.push(formData.hall)
   }
   
-    // Demographics - include but don't emphasize (filtering only, not for matching)
-    if (formData.race) {
-      const raceValue = formData.race + (formData.raceOther ? ` (${formData.raceOther})` : '')
-      cleansed.push(raceValue)
-    }
+  // Demographics - include but don't emphasize (filtering only, not for matching)
+  const raceValue = formData.race + (formData.raceOther ? ` (${formData.raceOther})` : '')
+  if (formData.race) {
+    cleansed.push(raceValue)
+  }
   
   if (formData.sexuality && formData.sexuality !== 'Straight') {
     if (formData.sexuality === 'Other' && formData.sexualityOther) {
@@ -114,7 +114,6 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json()
-    console.log('📝 Received interests update request:', JSON.stringify(body, null, 2))
     
     // Extract user demographic data for eligibility filtering and full profile
     const userDemographics = {
@@ -140,11 +139,9 @@ export async function PUT(request: NextRequest) {
 
     // Generate cleansed query from form data
     const cleansedQuery = generateCleansedQuery(body)
-    console.log('🔍 Generated cleansed query:', cleansedQuery)
 
     // Validate query is not empty
     if (!cleansedQuery || cleansedQuery.trim().length === 0) {
-      console.error('❌ Query is empty after generation')
       return NextResponse.json(
         { error: 'Query cannot be empty. Please fill in at least some interests.' },
         { status: 400 }
@@ -154,27 +151,15 @@ export async function PUT(request: NextRequest) {
     const now = new Date().toISOString()
 
     // Check if record exists first
-    const { data: existingData, error: checkError } = await supabaseAdmin
+    const { data: existingData } = await supabaseAdmin
       .from('user_queries')
       .select('id, created_at')
       .eq('user_id', user.id)
-      .maybeSingle()
-
-    console.log('🔍 Existing query check:', { 
-      existingData, 
-      checkError: checkError?.message,
-      errorCode: checkError?.code 
-    })
-
-    // If there's an error other than "no rows found", log it but continue
-    if (checkError && checkError.code !== 'PGRST116') {
-      console.warn('⚠️ Warning checking existing query:', checkError)
-    }
+      .single()
 
     let result
     if (existingData) {
       // Update existing record
-      console.log('📝 Updating existing query record')
       const { data, error } = await supabaseAdmin
         .from('user_queries')
         .update({
@@ -187,10 +172,8 @@ export async function PUT(request: NextRequest) {
         .single()
       
       result = { data, error }
-      console.log('✅ Update result:', { data, error: error?.message })
     } else {
       // Insert new record
-      console.log('📝 Inserting new query record')
       const { data, error } = await supabaseAdmin
         .from('user_queries')
         .insert({
@@ -204,13 +187,12 @@ export async function PUT(request: NextRequest) {
         .single()
       
       result = { data, error }
-      console.log('✅ Insert result:', { data, error: error?.message })
     }
 
     if (result.error) {
-      console.error('❌ Interests update error:', result.error)
+      console.error('Interests update error:', result.error)
       return NextResponse.json(
-        { error: `Failed to update interests: ${result.error.message || 'Unknown error'}` },
+        { error: 'Failed to update interests' },
         { status: 500 }
       )
     }
