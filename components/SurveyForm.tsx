@@ -255,11 +255,11 @@ export default function SurveyForm() {
   }
 
   // Re-run search from saved query
-  const rerunSearchFromQuery = useCallback(async (query: string, userDataForSearch: any) => {
+  const rerunSearchFromQuery = async (query: string, userDataForSearch: any) => {
     setIsLoading(true)
     setSearchError('')
     setShowResults(true)
-    setCurrentStep(6) // steps.length - 1 = 7 - 1 = 6
+    setCurrentStep(steps.length - 1)
     setCleansedString(query)
 
     // Extract keywords from query for insights display
@@ -310,7 +310,7 @@ export default function SurveyForm() {
     } finally {
       setIsLoading(false)
     }
-  }, [])
+  }
 
   // Load user query on mount and when navigating to show results
   useEffect(() => {
@@ -385,19 +385,21 @@ export default function SurveyForm() {
             if (shouldReload) {
               
               // User has a saved query - re-run search
-              // Use saved demographics from database (always prefer DB data over form state)
-              const userDataForSearch = {
-                gender: savedDemographics?.gender || '',
-                race: savedDemographics?.race || '',
-                classification: savedDemographics?.classification || '',
-                sexuality: savedDemographics?.sexuality || '',
-                careerFields: Array.isArray(savedDemographics?.careerFields) ? savedDemographics.careerFields : [],
-                engineeringTypes: Array.isArray(savedDemographics?.engineeringTypes) ? savedDemographics.engineeringTypes : [],
-                religion: savedDemographics?.religion || ''
-              }
-              
-              // Update formData with saved demographics so insights can display them
-              if (savedDemographics && typeof savedDemographics === 'object') {
+              // Use saved demographics if available and valid, otherwise fall back to form data
+              let userDataForSearch
+              if (savedDemographics && typeof savedDemographics === 'object' && Object.keys(savedDemographics).length > 0) {
+                // Ensure saved demographics have the correct structure
+                userDataForSearch = {
+                  gender: savedDemographics.gender || '',
+                  race: savedDemographics.race || '',
+                  classification: savedDemographics.classification || '',
+                  sexuality: savedDemographics.sexuality || '',
+                  careerFields: Array.isArray(savedDemographics.careerFields) ? savedDemographics.careerFields : [],
+                  engineeringTypes: Array.isArray(savedDemographics.engineeringTypes) ? savedDemographics.engineeringTypes : [],
+                  religion: savedDemographics.religion || ''
+                }
+                
+                // Update formData with saved demographics so insights can display them
                 setFormData(prev => ({
                   ...prev,
                   gender: savedDemographics.gender || prev.gender || '',
@@ -412,6 +414,17 @@ export default function SurveyForm() {
                   religion: savedDemographics.religion || prev.religion || '',
                   religionOther: savedDemographics.religionOther || prev.religionOther || ''
                 }))
+              } else {
+                // Fall back to form data if saved demographics are missing/invalid
+                userDataForSearch = {
+                  gender: formData.gender || formData.genderOther || '',
+                  race: formData.race || formData.raceOther || '',
+                  classification: formData.classification || '',
+                  sexuality: formData.sexuality || formData.sexualityOther || '',
+                  careerFields: formData.careerFields || [],
+                  engineeringTypes: formData.engineeringTypes || [],
+                  religion: formData.religion === 'Other' ? formData.religionOther : formData.religion || ''
+                }
               }
               
               console.log('🔄 Reloading search with fresh query from database')
@@ -423,7 +436,7 @@ export default function SurveyForm() {
             // No saved query - refs already cleared above
             if (shouldShowResults) {
               // If coming from dashboard but no saved query, ensure we're on the right step
-              setCurrentStep(6) // steps.length - 1
+              setCurrentStep(steps.length - 1)
             }
             // If no query, user will see the survey form
           }
@@ -442,7 +455,7 @@ export default function SurveyForm() {
     }
 
     loadQuery()
-  }, [user, session?.access_token, authLoading, supabase, shouldShowResults, pathname, rerunSearchFromQuery])
+  }, [user?.id, session?.access_token, authLoading, supabase, shouldShowResults, pathname])
 
   const handleSubmit = async () => {
     // Honeypot check - if filled, it's a bot
