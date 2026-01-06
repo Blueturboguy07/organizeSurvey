@@ -362,17 +362,15 @@ export default function SurveyForm() {
           const loadKey = `${pathname}-${shouldShowResults ? 'show' : 'hide'}`
           const isNewNavigation = loadKey !== lastLoadKeyRef.current
           
-          // ALWAYS reload when:
-          // 1. Explicitly showing results (from dashboard) - this is the main use case
-          // 2. New navigation detected (pathname or showResults changed)
-          // 3. Query changed (different content)
-          // 4. First time loading
-          // This ensures we ALWAYS get fresh data when user wants to see results
-          const shouldReload = shouldShowResults || isNewNavigation || queryChanged || lastLoadedQueryRef.current === null
-          
-          console.log('🔍 Loaded query from DB:', savedQuery ? savedQuery.substring(0, 50) + '...' : 'null', 'Changed:', queryChanged, 'ShowResults:', shouldShowResults, 'IsNewNav:', isNewNavigation, 'ShouldReload:', shouldReload, 'LoadKey:', loadKey, 'LastKey:', lastLoadKeyRef.current)
+          console.log('🔍 Loaded query from DB:', savedQuery ? savedQuery.substring(0, 50) + '...' : 'null', 'Changed:', queryChanged, 'ShowResults:', shouldShowResults, 'IsNewNav:', isNewNavigation, 'LoadKey:', loadKey, 'LastKey:', lastLoadKeyRef.current)
           
           if (savedQuery) {
+            // Reload search when:
+            // 1. Query changed (different content in database)
+            // 2. Explicitly showing results (from dashboard button)
+            // 3. First time loading (ref is null)
+            // 4. New navigation detected (pathname or showResults changed - ensures fresh data)
+            const shouldReload = queryChanged || shouldShowResults || lastLoadedQueryRef.current === null || isNewNavigation
             
             if (shouldReload) {
               // Update both refs to track current state
