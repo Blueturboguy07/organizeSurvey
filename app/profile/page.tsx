@@ -68,7 +68,6 @@ interface ProfileData {
     recommendations: boolean
   }
   demographics?: any
-  query?: string | null
 }
 
 export default function ProfilePage() {
@@ -334,40 +333,9 @@ export default function ProfilePage() {
       setSuccess('Interests updated successfully! Your recommendations will be updated.')
       setEditingInterests(false)
       
-      // Update state immediately with the response data
-      if (responseData.demographics) {
-        console.log('🔄 Updating state immediately with response data')
-        setInterestsData({
-          careerFields: responseData.demographics.careerFields || [],
-          engineeringTypes: responseData.demographics.engineeringTypes || [],
-          livesOnCampus: responseData.demographics.livesOnCampus || '',
-          hall: responseData.demographics.hall || '',
-          classification: responseData.demographics.classification || '',
-          race: responseData.demographics.race || '',
-          raceOther: responseData.demographics.raceOther || '',
-          sexuality: responseData.demographics.sexuality || '',
-          sexualityOther: responseData.demographics.sexualityOther || '',
-          gender: responseData.demographics.gender || '',
-          genderOther: responseData.demographics.genderOther || '',
-          hobbies: responseData.demographics.hobbies || '',
-          additionalHobbies: responseData.demographics.additionalHobbies || [],
-          activities: responseData.demographics.activities || [],
-          interestedInReligiousOrgs: responseData.demographics.interestedInReligiousOrgs || '',
-          religion: responseData.demographics.religion || '',
-          religionOther: responseData.demographics.religionOther || ''
-        })
-        // Also update profile state
-        setProfile(prev => prev ? {
-          ...prev,
-          demographics: responseData.demographics,
-          query: responseData.query
-        } : null)
-      }
-      
-      // Reload profile after a delay to sync with database
-      setTimeout(async () => {
-        await loadProfile()
-      }, 1000)
+      // Small delay to ensure database write completes
+      await new Promise(resolve => setTimeout(resolve, 500))
+      await loadProfile()
       
       setTimeout(() => setSuccess(''), 5000)
     } catch (err: any) {
