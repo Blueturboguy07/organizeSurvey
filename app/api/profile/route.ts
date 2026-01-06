@@ -55,14 +55,15 @@ export async function GET(request: NextRequest) {
       .eq('user_id', user.id)
       .single()
 
-    if (profileError && profileError.code !== 'PGRST116') {
-      console.error('Profile fetch error:', profileError)
-      console.error('Error code:', profileError.code)
-      console.error('Error message:', profileError.message)
-      console.error('User ID:', user.id)
-      
-      // If table doesn't exist, return null (user hasn't saved query yet)
-      if (profileError.code === '42P01' || profileError.message?.includes('does not exist')) {
+    if (profileError) {
+      // PGRST116 = no rows returned (user hasn't saved query yet) - this is OK
+      if (profileError.code === 'PGRST116') {
+        // User hasn't saved a query yet - return null query (this is expected)
+        console.log('ℹ️ No query found for user (PGRST116):', user.id)
+      } 
+      // 42P01 = table doesn't exist - return null query (table not set up yet)
+      else if (profileError.code === '42P01' || profileError.message?.includes('does not exist')) {
+        console.log('ℹ️ user_queries table does not exist yet')
         return NextResponse.json({ 
           name: userProfile?.name || user.user_metadata?.name || null,
           email: user.email,
@@ -81,6 +82,14 @@ export async function GET(request: NextRequest) {
             'Expires': '0'
           }
         })
+      } 
+      // Any other error is a real problem - log it but continue (might be permissions issue)
+      else {
+        console.error('⚠️ Profile fetch error (non-fatal):', profileError)
+        console.error('Error code:', profileError.code)
+        console.error('Error message:', profileError.message)
+        console.error('User ID:', user.id)
+        // Continue execution - userQuery will be null/undefined, which is handled below
       }
     }
 
