@@ -56,9 +56,12 @@ export default function DashboardPage() {
       }
 
       const response = await fetch('/api/profile', {
+        method: 'GET',
         headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        }
+          'Authorization': `Bearer ${session.access_token}`,
+          'Cache-Control': 'no-cache'
+        },
+        cache: 'no-store'
       })
 
       if (!response.ok) {

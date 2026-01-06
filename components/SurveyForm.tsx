@@ -341,13 +341,13 @@ export default function SurveyForm() {
 
       try {
         // Always fetch fresh data from database (no cache)
-        // Add timestamp to prevent any caching
-        const response = await fetch(`/api/profile?t=${Date.now()}`, {
+        const response = await fetch('/api/profile', {
+          method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`,
-            'Cache-Control': 'no-cache, no-store, must-revalidate',
-            'Pragma': 'no-cache'
-          }
+            'Cache-Control': 'no-cache'
+          },
+          cache: 'no-store'
         })
 
         if (response.ok) {
