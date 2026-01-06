@@ -1,10 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/contexts/AuthContext'
 import { createClientComponentClient } from '@/lib/supabase'
-import { useSearchParams } from 'next/navigation'
+import { useSearchParams, usePathname } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
 
@@ -111,6 +111,7 @@ export default function SurveyForm() {
   const { user, signOut, session, loading: authLoading } = useAuth()
   const supabase = createClientComponentClient()
   const searchParams = useSearchParams()
+  const pathname = usePathname()
   const shouldShowResults = searchParams?.get('showResults') === 'true'
   const [currentStep, setCurrentStep] = useState(0)
   const [formData, setFormData] = useState<SurveyData>({
@@ -157,6 +158,7 @@ export default function SurveyForm() {
   const [selectedOrg, setSelectedOrg] = useState<any | null>(null)
   const [loadingProfile, setLoadingProfile] = useState(true)
   const [hasExistingProfile, setHasExistingProfile] = useState(false)
+  const lastLoadedQueryRef = useRef<string | null>(null)
 
   const steps = [
     'Contact Info',
@@ -309,7 +311,7 @@ export default function SurveyForm() {
     }
   }
 
-  // Load user query on mount
+  // Load user query on mount and when navigating to show results
   useEffect(() => {
     const loadQuery = async () => {
       if (authLoading) {
@@ -337,9 +339,11 @@ export default function SurveyForm() {
       }
 
       try {
+        // Always fetch fresh data from database (no cache)
         const response = await fetch('/api/profile', {
           headers: {
-            'Authorization': `Bearer ${token}`
+            'Authorization': `Bearer ${token}`,
+            'Cache-Control': 'no-cache'
           }
         })
 
@@ -348,10 +352,19 @@ export default function SurveyForm() {
           const savedQuery = data.query
           const savedDemographics = data.demographics
 
+          // Check if query has changed since last load
+          const queryChanged = savedQuery !== lastLoadedQueryRef.current
+          
           if (savedQuery) {
-            // User has a saved query - re-run search
-            // Use saved demographics if available and valid, otherwise fall back to form data
-            let userDataForSearch
+            // Always reload search if query changed or if explicitly showing results
+            // This ensures fresh data after profile reset
+            if (queryChanged || shouldShowResults || lastLoadedQueryRef.current === null) {
+              // Update ref to track current query
+              lastLoadedQueryRef.current = savedQuery
+              
+              // User has a saved query - re-run search
+              // Use saved demographics if available and valid, otherwise fall back to form data
+              let userDataForSearch
             if (savedDemographics && typeof savedDemographics === 'object' && Object.keys(savedDemographics).length > 0) {
               // Ensure saved demographics have the correct structure
               userDataForSearch = {
@@ -392,13 +405,18 @@ export default function SurveyForm() {
               }
             }
             
-            console.log('Loading search with demographics:', userDataForSearch)
+            console.log('Loading search with query:', savedQuery, 'and demographics:', userDataForSearch)
             await rerunSearchFromQuery(savedQuery, userDataForSearch)
-          } else if (shouldShowResults) {
-            // If coming from dashboard but no saved query, ensure we're on the right step
-            setCurrentStep(steps.length - 1)
           }
-          // If no query, user will see the survey form
+          } else {
+            // No saved query - clear the ref
+            lastLoadedQueryRef.current = null
+            if (shouldShowResults) {
+              // If coming from dashboard but no saved query, ensure we're on the right step
+              setCurrentStep(steps.length - 1)
+            }
+            // If no query, user will see the survey form
+          }
         }
       } catch (error) {
         console.error('Failed to load query:', error)
@@ -408,8 +426,7 @@ export default function SurveyForm() {
     }
 
     loadQuery()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, session?.access_token, authLoading, supabase])
+  }, [user?.id, session?.access_token, authLoading, supabase, shouldShowResults, pathname])
 
   const handleSubmit = async () => {
     // Honeypot check - if filled, it's a bot
