@@ -151,34 +151,53 @@ export async function POST(request: NextRequest) {
     console.log('🔑 Using service role key:', hasServiceKey ? 'Yes' : 'No (falling back to anon key)')
     console.log('📝 Saving query for user:', user.id, 'Query length:', queryToSave.length)
 
-    // Check if record exists first (to determine if we need created_at)
+    // Check if record exists first
     const { data: existingData, error: checkError } = await supabaseAdmin
       .from('user_queries')
       .select('id, created_at')
       .eq('user_id', user.id)
-      .maybeSingle()
-
-    // Use upsert for atomic create/update
-    const upsertPayload: any = {
-      user_id: user.id,
-      latest_cleansed_query: queryToSave,
-      user_demographics: userDemographics,
-      updated_at: now
-    }
-    
-    // Only set created_at if this is a new record
-    if (!existingData) {
-      upsertPayload.created_at = now
-    }
-
-    const { data: upsertData, error: upsertError } = await supabaseAdmin
-      .from('user_queries')
-      .upsert(upsertPayload, {
-        onConflict: 'user_id',
-        ignoreDuplicates: false
-      })
-      .select()
       .single()
+
+    let upsertData
+    let upsertError
+
+    if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = no rows returned
+      console.error('❌ Error checking existing query:', checkError)
+      throw checkError
+    }
+
+    if (existingData) {
+      // Update existing record
+      const { data: updateData, error: updateError } = await supabaseAdmin
+        .from('user_queries')
+        .update({
+          latest_cleansed_query: queryToSave,
+          user_demographics: userDemographics,
+          updated_at: now
+        })
+        .eq('user_id', user.id)
+        .select()
+        .single()
+
+      upsertData = updateData
+      upsertError = updateError
+    } else {
+      // Insert new record
+      const { data: insertData, error: insertError } = await supabaseAdmin
+        .from('user_queries')
+        .insert({
+          user_id: user.id,
+          latest_cleansed_query: queryToSave,
+          user_demographics: userDemographics,
+          created_at: now,
+          updated_at: now
+        })
+        .select()
+        .single()
+
+      upsertData = insertData
+      upsertError = insertError
+    }
 
     if (upsertError) {
       console.error('❌ Supabase save error:', upsertError)
