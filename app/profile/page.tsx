@@ -202,11 +202,8 @@ export default function ProfilePage() {
 
       const response = await fetch('/api/profile', {
         headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Cache-Control': 'no-cache, no-store, must-revalidate',
-          'Pragma': 'no-cache'
-        },
-        cache: 'no-store'
+          'Authorization': `Bearer ${session.access_token}`
+        }
       })
 
       if (!response.ok) {
