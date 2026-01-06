@@ -159,6 +159,7 @@ export default function SurveyForm() {
   const [loadingProfile, setLoadingProfile] = useState(true)
   const [hasExistingProfile, setHasExistingProfile] = useState(false)
   const lastLoadedQueryRef = useRef<string | null>(null)
+  const lastLoadKeyRef = useRef<string | null>(null)
 
   const steps = [
     'Contact Info',
@@ -340,10 +341,12 @@ export default function SurveyForm() {
 
       try {
         // Always fetch fresh data from database (no cache)
-        const response = await fetch('/api/profile', {
+        // Add timestamp to prevent any caching
+        const response = await fetch(`/api/profile?t=${Date.now()}`, {
           headers: {
             'Authorization': `Bearer ${token}`,
-            'Cache-Control': 'no-cache'
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
           }
         })
 
@@ -352,62 +355,76 @@ export default function SurveyForm() {
           const savedQuery = data.query
           const savedDemographics = data.demographics
 
-          // Check if query has changed since last load
+          // Check if query changed
           const queryChanged = savedQuery !== lastLoadedQueryRef.current
           
+          // Create a unique key for this load attempt (includes pathname to detect navigation)
+          const loadKey = `${pathname}-${shouldShowResults ? 'show' : 'hide'}`
+          const isNewNavigation = loadKey !== lastLoadKeyRef.current
+          
+          console.log('🔍 Loaded query from DB:', savedQuery ? savedQuery.substring(0, 50) + '...' : 'null', 'Changed:', queryChanged, 'ShowResults:', shouldShowResults, 'IsNewNav:', isNewNavigation, 'LoadKey:', loadKey, 'LastKey:', lastLoadKeyRef.current)
+          
           if (savedQuery) {
-            // Always reload search if query changed or if explicitly showing results
-            // This ensures fresh data after profile reset
-            if (queryChanged || shouldShowResults || lastLoadedQueryRef.current === null) {
-              // Update ref to track current query
+            // Reload search when:
+            // 1. Query changed (different content in database)
+            // 2. Explicitly showing results (from dashboard button)
+            // 3. First time loading (ref is null)
+            // 4. New navigation detected (pathname or showResults changed - ensures fresh data)
+            const shouldReload = queryChanged || shouldShowResults || lastLoadedQueryRef.current === null || isNewNavigation
+            
+            if (shouldReload) {
+              // Update both refs to track current state
               lastLoadedQueryRef.current = savedQuery
+              lastLoadKeyRef.current = loadKey
               
               // User has a saved query - re-run search
               // Use saved demographics if available and valid, otherwise fall back to form data
               let userDataForSearch
-            if (savedDemographics && typeof savedDemographics === 'object' && Object.keys(savedDemographics).length > 0) {
-              // Ensure saved demographics have the correct structure
-              userDataForSearch = {
-                gender: savedDemographics.gender || '',
-                race: savedDemographics.race || '',
-                classification: savedDemographics.classification || '',
-                sexuality: savedDemographics.sexuality || '',
-                careerFields: Array.isArray(savedDemographics.careerFields) ? savedDemographics.careerFields : [],
-                engineeringTypes: Array.isArray(savedDemographics.engineeringTypes) ? savedDemographics.engineeringTypes : [],
-                religion: savedDemographics.religion || ''
+              if (savedDemographics && typeof savedDemographics === 'object' && Object.keys(savedDemographics).length > 0) {
+                // Ensure saved demographics have the correct structure
+                userDataForSearch = {
+                  gender: savedDemographics.gender || '',
+                  race: savedDemographics.race || '',
+                  classification: savedDemographics.classification || '',
+                  sexuality: savedDemographics.sexuality || '',
+                  careerFields: Array.isArray(savedDemographics.careerFields) ? savedDemographics.careerFields : [],
+                  engineeringTypes: Array.isArray(savedDemographics.engineeringTypes) ? savedDemographics.engineeringTypes : [],
+                  religion: savedDemographics.religion || ''
+                }
+                
+                // Update formData with saved demographics so insights can display them
+                setFormData(prev => ({
+                  ...prev,
+                  gender: savedDemographics.gender || prev.gender || '',
+                  genderOther: savedDemographics.genderOther || prev.genderOther || '',
+                  race: savedDemographics.race || prev.race || '',
+                  raceOther: savedDemographics.raceOther || prev.raceOther || '',
+                  classification: savedDemographics.classification || prev.classification || '',
+                  sexuality: savedDemographics.sexuality || prev.sexuality || '',
+                  sexualityOther: savedDemographics.sexualityOther || prev.sexualityOther || '',
+                  careerFields: Array.isArray(savedDemographics.careerFields) ? savedDemographics.careerFields : prev.careerFields || [],
+                  engineeringTypes: Array.isArray(savedDemographics.engineeringTypes) ? savedDemographics.engineeringTypes : prev.engineeringTypes || [],
+                  religion: savedDemographics.religion || prev.religion || '',
+                  religionOther: savedDemographics.religionOther || prev.religionOther || ''
+                }))
+              } else {
+                // Fall back to form data if saved demographics are missing/invalid
+                userDataForSearch = {
+                  gender: formData.gender || formData.genderOther || '',
+                  race: formData.race || formData.raceOther || '',
+                  classification: formData.classification || '',
+                  sexuality: formData.sexuality || formData.sexualityOther || '',
+                  careerFields: formData.careerFields || [],
+                  engineeringTypes: formData.engineeringTypes || [],
+                  religion: formData.religion === 'Other' ? formData.religionOther : formData.religion || ''
+                }
               }
               
-              // Update formData with saved demographics so insights can display them
-              setFormData(prev => ({
-                ...prev,
-                gender: savedDemographics.gender || prev.gender || '',
-                genderOther: savedDemographics.genderOther || prev.genderOther || '',
-                race: savedDemographics.race || prev.race || '',
-                raceOther: savedDemographics.raceOther || prev.raceOther || '',
-                classification: savedDemographics.classification || prev.classification || '',
-                sexuality: savedDemographics.sexuality || prev.sexuality || '',
-                sexualityOther: savedDemographics.sexualityOther || prev.sexualityOther || '',
-                careerFields: Array.isArray(savedDemographics.careerFields) ? savedDemographics.careerFields : prev.careerFields || [],
-                engineeringTypes: Array.isArray(savedDemographics.engineeringTypes) ? savedDemographics.engineeringTypes : prev.engineeringTypes || [],
-                religion: savedDemographics.religion || prev.religion || '',
-                religionOther: savedDemographics.religionOther || prev.religionOther || ''
-              }))
+              console.log('🔄 Reloading search with fresh query from database')
+              await rerunSearchFromQuery(savedQuery, userDataForSearch)
             } else {
-              // Fall back to form data if saved demographics are missing/invalid
-              userDataForSearch = {
-              gender: formData.gender || formData.genderOther || '',
-              race: formData.race || formData.raceOther || '',
-              classification: formData.classification || '',
-              sexuality: formData.sexuality || formData.sexualityOther || '',
-              careerFields: formData.careerFields || [],
-              engineeringTypes: formData.engineeringTypes || [],
-              religion: formData.religion === 'Other' ? formData.religionOther : formData.religion || ''
-              }
+              console.log('⏭️ Skipping reload - query unchanged and not explicitly showing results')
             }
-            
-            console.log('Loading search with query:', savedQuery, 'and demographics:', userDataForSearch)
-            await rerunSearchFromQuery(savedQuery, userDataForSearch)
-          }
           } else {
             // No saved query - clear the ref
             lastLoadedQueryRef.current = null
