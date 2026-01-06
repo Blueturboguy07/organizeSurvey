@@ -113,7 +113,7 @@ export async function POST(request: NextRequest) {
         }
         
         // Check individual words for fuzzy match
-        const keywordWords = searchKeyword.split(/\s+/).filter((w: string) => w.length > 2)
+        const keywordWords = searchKeyword.split(/\s+/).filter(w => w.length > 2)
         for (const word of keywordWords) {
           // Check if word appears in name or bio (allowing minor typos)
           if (fuzzyMatch(word, name) || fuzzyMatch(word, bio) || 
