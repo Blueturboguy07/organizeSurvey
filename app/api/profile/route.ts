@@ -48,19 +48,14 @@ export async function GET(request: NextRequest) {
       .single()
 
     // Get user query from user_queries table
-    // Force fresh read by using admin client and no caching
     const { data: userQuery, error: profileError } = await supabaseAdmin
       .from('user_queries')
-      .select('latest_cleansed_query, user_demographics, updated_at')
+      .select('latest_cleansed_query, user_demographics')
       .eq('user_id', user.id)
       .single()
 
     if (profileError && profileError.code !== 'PGRST116') {
       console.error('Profile fetch error:', profileError)
-      console.error('Error code:', profileError.code)
-      console.error('Error message:', profileError.message)
-      console.error('User ID:', user.id)
-      
       // If table doesn't exist, return null (user hasn't saved query yet)
       if (profileError.code === '42P01' || profileError.message?.includes('does not exist')) {
         return NextResponse.json({ 
@@ -74,21 +69,8 @@ export async function GET(request: NextRequest) {
           },
           query: null,
           demographics: null
-        }, {
-          headers: {
-            'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-            'Pragma': 'no-cache',
-            'Expires': '0'
-          }
         })
       }
-    }
-
-    // Log for debugging
-    if (userQuery) {
-      console.log('✅ Loaded query for user:', user.id, 'Query length:', userQuery.latest_cleansed_query?.length, 'Updated at:', userQuery.updated_at)
-    } else {
-      console.log('ℹ️ No query found for user:', user.id)
     }
 
     return NextResponse.json({ 
@@ -102,12 +84,6 @@ export async function GET(request: NextRequest) {
       },
       query: userQuery?.latest_cleansed_query || null,
       demographics: userQuery?.user_demographics || null
-    }, {
-      headers: {
-        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate',
-        'Pragma': 'no-cache',
-        'Expires': '0'
-      }
     })
   } catch (error: any) {
     console.error('Profile GET error:', error)
