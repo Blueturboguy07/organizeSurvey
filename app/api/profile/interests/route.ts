@@ -153,19 +153,15 @@ export async function PUT(request: NextRequest) {
 
     const now = new Date().toISOString()
 
-    // Check if record exists first (use single() like submit route does)
+    // Check if record exists first
     const { data: existingData, error: checkError } = await supabaseAdmin
       .from('user_queries')
-      .select('id, created_at, latest_cleansed_query, user_demographics')
+      .select('id, created_at')
       .eq('user_id', user.id)
       .maybeSingle()
 
     console.log('🔍 Existing query check:', { 
-      existingData: existingData ? {
-        id: existingData.id,
-        hasQuery: !!existingData.latest_cleansed_query,
-        hasDemo: !!existingData.user_demographics
-      } : null,
+      existingData, 
       checkError: checkError?.message,
       errorCode: checkError?.code 
     })
@@ -213,49 +209,26 @@ export async function PUT(request: NextRequest) {
 
     if (result.error) {
       console.error('❌ Interests update error:', result.error)
-      console.error('❌ Full error details:', JSON.stringify(result.error, null, 2))
       return NextResponse.json(
         { error: `Failed to update interests: ${result.error.message || 'Unknown error'}` },
         { status: 500 }
       )
     }
 
-    // Log what was actually saved
-    console.log('✅ Update/Insert successful. Saved data:', {
-      query: cleansedQuery.substring(0, 100) + '...',
-      demographics: userDemographics,
-      resultData: result.data
-    })
-
-    // Small delay to ensure write consistency
-    await new Promise(resolve => setTimeout(resolve, 100))
-
     // Verify the update actually persisted by reading it back
     const { data: verifyData, error: verifyError } = await supabaseAdmin
       .from('user_queries')
       .select('latest_cleansed_query, user_demographics')
       .eq('user_id', user.id)
-      .maybeSingle()
+      .single()
 
     if (verifyError) {
       console.warn('⚠️ Verification read failed:', verifyError)
-    } else if (!verifyData) {
-      console.error('❌ Verification read returned no data - update may not have persisted!')
     } else {
-      const queryMatches = verifyData.latest_cleansed_query === cleansedQuery
-      const demoMatches = JSON.stringify(verifyData.user_demographics) === JSON.stringify(userDemographics)
       console.log('✅ Verified update persisted:', {
-        queryMatches,
-        demoMatches,
-        savedQuery: cleansedQuery.substring(0, 50) + '...',
-        readQuery: verifyData.latest_cleansed_query?.substring(0, 50) + '...',
-        savedDemo: userDemographics,
-        readDemo: verifyData.user_demographics
+        query: verifyData.latest_cleansed_query,
+        demographics: verifyData.user_demographics
       })
-      
-      if (!queryMatches || !demoMatches) {
-        console.error('⚠️ WARNING: Verification shows data mismatch! Update may not have persisted correctly.')
-      }
     }
 
     return NextResponse.json({ 
