@@ -559,15 +559,15 @@ export default function ProfilePage() {
                   {demographics?.classification && (
                     <div className="bg-gray-50 rounded-lg p-4">
                       <p className="text-sm text-gray-500 mb-1">Classification</p>
-                      <p className="font-medium text-gray-800">{String(demographics.classification)}</p>
+                      <p className="font-medium text-gray-800">{demographics.classification as string}</p>
                     </div>
                   )}
                   {demographics?.gender && (
                     <div className="bg-gray-50 rounded-lg p-4">
                       <p className="text-sm text-gray-500 mb-1">Gender</p>
                       <p className="font-medium text-gray-800">
-                        {String(demographics.gender)}
-                        {demographics.genderOther ? ` (${String(demographics.genderOther)})` : ''}
+                        {demographics.gender as string}
+                        {demographics.genderOther ? ` (${demographics.genderOther})` : ''}
                       </p>
                     </div>
                   )}
@@ -575,8 +575,8 @@ export default function ProfilePage() {
                     <div className="bg-gray-50 rounded-lg p-4">
                       <p className="text-sm text-gray-500 mb-1">Race/Ethnicity</p>
                       <p className="font-medium text-gray-800">
-                        {String(demographics.race)}
-                        {demographics.raceOther ? ` (${String(demographics.raceOther)})` : ''}
+                        {demographics.race as string}
+                        {demographics.raceOther ? ` (${demographics.raceOther})` : ''}
                       </p>
                     </div>
                   )}
@@ -584,8 +584,8 @@ export default function ProfilePage() {
                     <div className="bg-gray-50 rounded-lg p-4">
                       <p className="text-sm text-gray-500 mb-1">Sexuality</p>
                       <p className="font-medium text-gray-800">
-                        {String(demographics.sexuality)}
-                        {demographics.sexualityOther ? ` (${String(demographics.sexualityOther)})` : ''}
+                        {demographics.sexuality as string}
+                        {demographics.sexualityOther ? ` (${demographics.sexualityOther})` : ''}
                       </p>
                     </div>
                   )}
@@ -593,8 +593,8 @@ export default function ProfilePage() {
                     <div className="bg-gray-50 rounded-lg p-4">
                       <p className="text-sm text-gray-500 mb-1">Religion</p>
                       <p className="font-medium text-gray-800">
-                        {String(demographics.religion)}
-                        {demographics.religionOther ? ` (${String(demographics.religionOther)})` : ''}
+                        {demographics.religion as string}
+                        {demographics.religionOther ? ` (${demographics.religionOther})` : ''}
                       </p>
                     </div>
                   )}
