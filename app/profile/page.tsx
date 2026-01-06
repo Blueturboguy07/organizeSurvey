@@ -9,7 +9,7 @@ import Image from 'next/image'
 import Link from 'next/link'
 
 export default function ProfilePage() {
-  const { user, loading: authLoading, userProfile, userProfileLoading, userQuery, userQueryLoading } = useAuth()
+  const { user, loading: authLoading, userProfile, userProfileLoading } = useAuth()
   const router = useRouter()
   const supabase = createClientComponentClient()
   const [saving, setSaving] = useState(false)
@@ -241,16 +241,13 @@ export default function ProfilePage() {
     }
   }
 
-  if (authLoading || userProfileLoading || userQueryLoading) {
+  if (authLoading || userProfileLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-white to-gray-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-tamu-maroon"></div>
       </div>
     )
   }
-
-  // Extract demographics from userQuery
-  const demographics = userQuery?.user_demographics as Record<string, unknown> | null
 
   if (!user) {
     return null
@@ -494,164 +491,6 @@ export default function ProfilePage() {
               >
                 Cancel
               </motion.button>
-            </div>
-          )}
-        </div>
-
-        {/* Survey Interests Section */}
-        <div className="bg-white rounded-lg shadow-lg p-8 mt-8">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h2 className="text-2xl font-semibold text-gray-800">My Interests & Preferences</h2>
-              <p className="text-gray-500 text-sm mt-1">Your survey responses used for organization matching</p>
-            </div>
-            <Link href="/survey">
-              <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                className="px-4 py-2 bg-tamu-maroon text-white rounded-lg font-medium hover:bg-tamu-maroon-light"
-              >
-                {userQuery?.latest_cleansed_query ? 'Update Preferences' : 'Take Survey'}
-              </motion.button>
-            </Link>
-          </div>
-
-          {userQuery?.latest_cleansed_query ? (
-            <div className="space-y-6">
-              {/* Career Fields */}
-              {demographics?.careerFields && Array.isArray(demographics.careerFields) && demographics.careerFields.length > 0 && (
-                <div>
-                  <h3 className="text-lg font-medium text-gray-700 mb-3">Career Interests</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {(demographics.careerFields as string[]).map((field, idx) => (
-                      <span
-                        key={idx}
-                        className="px-3 py-1.5 bg-tamu-maroon/10 text-tamu-maroon rounded-full text-sm font-medium"
-                      >
-                        {field}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Engineering Types */}
-              {demographics?.engineeringTypes && Array.isArray(demographics.engineeringTypes) && demographics.engineeringTypes.length > 0 && (
-                <div>
-                  <h3 className="text-lg font-medium text-gray-700 mb-3">Engineering Specializations</h3>
-                  <div className="flex flex-wrap gap-2">
-                    {(demographics.engineeringTypes as string[]).map((type, idx) => (
-                      <span
-                        key={idx}
-                        className="px-3 py-1.5 bg-blue-100 text-blue-800 rounded-full text-sm font-medium"
-                      >
-                        {type}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Demographics Info */}
-              <div>
-                <h3 className="text-lg font-medium text-gray-700 mb-3">Demographics</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {demographics?.classification && (
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <p className="text-sm text-gray-500 mb-1">Classification</p>
-                      <p className="font-medium text-gray-800">{demographics.classification as string}</p>
-                    </div>
-                  )}
-                  {demographics?.gender && (
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <p className="text-sm text-gray-500 mb-1">Gender</p>
-                      <p className="font-medium text-gray-800">
-                        {demographics.gender as string}
-                        {demographics.genderOther ? ` (${demographics.genderOther})` : ''}
-                      </p>
-                    </div>
-                  )}
-                  {demographics?.race && (
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <p className="text-sm text-gray-500 mb-1">Race/Ethnicity</p>
-                      <p className="font-medium text-gray-800">
-                        {demographics.race as string}
-                        {demographics.raceOther ? ` (${demographics.raceOther})` : ''}
-                      </p>
-                    </div>
-                  )}
-                  {demographics?.sexuality && demographics.sexuality !== 'Straight' && (
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <p className="text-sm text-gray-500 mb-1">Sexuality</p>
-                      <p className="font-medium text-gray-800">
-                        {demographics.sexuality as string}
-                        {demographics.sexualityOther ? ` (${demographics.sexualityOther})` : ''}
-                      </p>
-                    </div>
-                  )}
-                  {demographics?.religion && (
-                    <div className="bg-gray-50 rounded-lg p-4">
-                      <p className="text-sm text-gray-500 mb-1">Religion</p>
-                      <p className="font-medium text-gray-800">
-                        {demographics.religion as string}
-                        {demographics.religionOther ? ` (${demographics.religionOther})` : ''}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* Search Query Preview */}
-              <div>
-                <h3 className="text-lg font-medium text-gray-700 mb-3">Search Query</h3>
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <p className="text-sm text-gray-600 leading-relaxed break-words">
-                    {userQuery.latest_cleansed_query}
-                  </p>
-                </div>
-                <p className="text-xs text-gray-400 mt-2">
-                  This query is used to match you with relevant organizations
-                </p>
-              </div>
-
-              {/* Quick Actions */}
-              <div className="flex flex-wrap gap-3 pt-4 border-t">
-                <Link href="/survey?showResults=true">
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200"
-                  >
-                    View My Matches
-                  </motion.button>
-                </Link>
-                <Link href="/survey">
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    className="px-4 py-2 text-tamu-maroon border border-tamu-maroon rounded-lg font-medium hover:bg-tamu-maroon hover:text-white transition-colors"
-                  >
-                    Retake Survey
-                  </motion.button>
-                </Link>
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-12">
-              <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <p className="text-gray-600 mb-2">You haven&apos;t completed the survey yet</p>
-              <p className="text-gray-500 text-sm mb-6">Take the survey to get personalized organization recommendations</p>
-              <Link href="/survey">
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  className="px-6 py-3 bg-tamu-maroon text-white rounded-lg font-semibold hover:bg-tamu-maroon-light"
-                >
-                  Take Survey Now
-                </motion.button>
-              </Link>
             </div>
           )}
         </div>
