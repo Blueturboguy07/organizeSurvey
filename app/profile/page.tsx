@@ -493,6 +493,43 @@ export default function ProfilePage() {
               </motion.button>
             </div>
           )}
+
+          {/* Reset Interests Section */}
+          <div className="pt-6 border-t">
+            <h2 className="text-2xl font-semibold text-gray-800 mb-4">Organization Interests</h2>
+            <p className="text-gray-600 mb-4">
+              Reset your interests to retake the survey and get new organization recommendations.
+            </p>
+            <motion.button
+              onClick={async () => {
+                const confirmed = confirm('Are you sure you want to reset your interests? This will clear your saved preferences and take you back to the survey.')
+                if (!confirmed) return
+
+                try {
+                  const { data: { session } } = await supabase.auth.getSession()
+                  if (!session) {
+                    throw new Error('Not authenticated')
+                  }
+
+                  await fetch('/api/reset-profile', {
+                    method: 'POST',
+                    headers: {
+                      'Authorization': `Bearer ${session.access_token}`,
+                    }
+                  })
+
+                  router.push('/survey')
+                } catch (err: any) {
+                  setError(err.message || 'Failed to reset interests')
+                }
+              }}
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="px-6 py-3 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-colors"
+            >
+              Reset Interests
+            </motion.button>
+          </div>
         </div>
       </div>
     </div>
