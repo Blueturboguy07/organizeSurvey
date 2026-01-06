@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { createClientComponentClient } from '@/lib/supabase'
@@ -8,26 +8,13 @@ import { useAuth } from '@/contexts/AuthContext'
 import Image from 'next/image'
 import Link from 'next/link'
 
-interface ProfileData {
-  name: string | null
-  email: string | null
-  profilePictureUrl: string | null
-  emailPreferences: {
-    marketing: boolean
-    updates: boolean
-    recommendations: boolean
-  }
-}
-
 export default function ProfilePage() {
-  const { user, loading: authLoading } = useAuth()
+  const { user, loading: authLoading, userProfile, userProfileLoading } = useAuth()
   const router = useRouter()
   const supabase = createClientComponentClient()
-  const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
-  const [profile, setProfile] = useState<ProfileData | null>(null)
   const [editing, setEditing] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
@@ -119,46 +106,20 @@ export default function ProfilePage() {
     }
   }, [user, authLoading, router])
 
-  const loadProfile = useCallback(async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        router.push('/login')
-        return
-      }
-
-      const response = await fetch('/api/profile', {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        }
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to load profile')
-      }
-
-      const data = await response.json()
-      setProfile(data)
+  // Sync formData with userProfile from context (real-time updates)
+  useEffect(() => {
+    if (userProfile && !editing) {
       setFormData({
-        name: data.name || '',
-        emailPreferences: data.emailPreferences || {
+        name: userProfile.name || '',
+        emailPreferences: userProfile.email_preferences || {
           marketing: true,
           updates: true,
           recommendations: true
         }
       })
-    } catch (err: any) {
-      setError(err.message || 'Failed to load profile')
-    } finally {
-      setLoading(false)
+      setImageError(false) // Reset image error when profile updates
     }
-  }, [router, supabase])
-
-  useEffect(() => {
-    if (user) {
-      loadProfile()
-    }
-  }, [user, loadProfile])
+  }, [userProfile, editing])
 
   const handleSave = async () => {
     setSaving(true)
@@ -190,7 +151,7 @@ export default function ProfilePage() {
 
       setSuccess('Profile updated successfully!')
       setEditing(false)
-      await loadProfile()
+      // No need to manually reload - real-time subscription will update context
       
       setTimeout(() => setSuccess(''), 3000)
     } catch (err: any) {
@@ -269,7 +230,7 @@ export default function ProfilePage() {
         throw new Error(errorData.error || 'Failed to upload picture')
       }
 
-      await loadProfile()
+      // No need to manually reload - real-time subscription will update context
       setImageError(false) // Reset error state on successful upload
       setSuccess('Profile picture updated successfully!')
       setTimeout(() => setSuccess(''), 3000)
@@ -280,7 +241,7 @@ export default function ProfilePage() {
     }
   }
 
-  if (authLoading || loading) {
+  if (authLoading || userProfileLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-white to-gray-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-tamu-maroon"></div>
@@ -337,20 +298,20 @@ export default function ProfilePage() {
             <h2 className="text-2xl font-semibold text-gray-800 mb-4">Profile Picture</h2>
             <div className="flex items-center gap-6">
               <div className="relative">
-                {profile?.profilePictureUrl && !imageError ? (
+                {userProfile?.profile_picture_url && !imageError ? (
                   <div className="w-[120px] h-[120px] rounded-full overflow-hidden border-4 border-gray-200">
                     <Image
-                      src={profile.profilePictureUrl}
+                      src={userProfile.profile_picture_url}
                       alt="Profile"
                       width={120}
                       height={120}
                       className="w-full h-full object-cover"
                       style={{ aspectRatio: '1 / 1' }}
                       onError={() => {
-                        console.error('Failed to load profile picture:', profile.profilePictureUrl)
+                        console.error('Failed to load profile picture:', userProfile.profile_picture_url)
                         setImageError(true)
                       }}
-                      unoptimized={profile.profilePictureUrl?.includes('supabase.co')}
+                      unoptimized={userProfile.profile_picture_url?.includes('supabase.co')}
                     />
                   </div>
                 ) : (
@@ -420,13 +381,13 @@ export default function ProfilePage() {
                     placeholder="Your name"
                   />
                 ) : (
-                  <p className="p-3 bg-gray-50 rounded-lg">{profile?.name || 'Not set'}</p>
+                  <p className="p-3 bg-gray-50 rounded-lg">{userProfile?.name || 'Not set'}</p>
                 )}
               </div>
 
               <div>
                 <label className="block text-gray-700 font-medium mb-2">Email</label>
-                <p className="p-3 bg-gray-50 rounded-lg">{profile?.email || user.email}</p>
+                <p className="p-3 bg-gray-50 rounded-lg">{user.email}</p>
                 <p className="text-sm text-gray-500 mt-1">Email cannot be changed</p>
               </div>
             </div>
@@ -514,8 +475,8 @@ export default function ProfilePage() {
                 onClick={() => {
                   setEditing(false)
                   setFormData({
-                    name: profile?.name || '',
-                    emailPreferences: profile?.emailPreferences || {
+                    name: userProfile?.name || '',
+                    emailPreferences: userProfile?.email_preferences || {
                       marketing: true,
                       updates: true,
                       recommendations: true

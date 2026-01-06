@@ -10,6 +10,16 @@ interface UserQueryData {
   user_demographics: Record<string, unknown> | null
 }
 
+interface UserProfileData {
+  name: string | null
+  profile_picture_url: string | null
+  email_preferences: {
+    marketing: boolean
+    updates: boolean
+    recommendations: boolean
+  } | null
+}
+
 interface AuthContextType {
   user: User | null
   session: Session | null
@@ -19,6 +29,10 @@ interface AuthContextType {
   userQuery: UserQueryData | null
   userQueryLoading: boolean
   refreshUserQuery: () => Promise<void>
+  // User profile real-time data
+  userProfile: UserProfileData | null
+  userProfileLoading: boolean
+  refreshUserProfile: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -29,6 +43,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
   const [userQuery, setUserQuery] = useState<UserQueryData | null>(null)
   const [userQueryLoading, setUserQueryLoading] = useState(false)
+  const [userProfile, setUserProfile] = useState<UserProfileData | null>(null)
+  const [userProfileLoading, setUserProfileLoading] = useState(false)
   const router = useRouter()
   const supabase = createClientComponentClient()
 
@@ -55,12 +71,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [supabase])
 
-  // Manual refresh function
+  // Fetch user profile data
+  const fetchUserProfile = useCallback(async (userId: string) => {
+    setUserProfileLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('user_profiles')
+        .select('name, profile_picture_url, email_preferences')
+        .eq('id', userId)
+        .single()
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching user profile:', error)
+      }
+      
+      setUserProfile(data || null)
+    } catch (err) {
+      console.error('Failed to fetch user profile:', err)
+      setUserProfile(null)
+    } finally {
+      setUserProfileLoading(false)
+    }
+  }, [supabase])
+
+  // Manual refresh functions
   const refreshUserQuery = useCallback(async () => {
     if (user) {
       await fetchUserQuery(user.id)
     }
   }, [user, fetchUserQuery])
+
+  const refreshUserProfile = useCallback(async () => {
+    if (user) {
+      await fetchUserProfile(user.id)
+    }
+  }, [user, fetchUserProfile])
 
   useEffect(() => {
     // Get initial session
@@ -69,9 +114,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(session?.user ?? null)
       setLoading(false)
       
-      // Fetch user query if logged in
+      // Fetch user data if logged in
       if (session?.user) {
         fetchUserQuery(session.user.id)
+        fetchUserProfile(session.user.id)
       }
     })
 
@@ -83,11 +129,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(session?.user ?? null)
       setLoading(false)
       
-      // Fetch/clear user query based on auth state
+      // Fetch/clear user data based on auth state
       if (session?.user) {
         fetchUserQuery(session.user.id)
+        fetchUserProfile(session.user.id)
       } else {
         setUserQuery(null)
+        setUserProfile(null)
       }
       
       // Redirect to login if signed out
@@ -97,7 +145,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })
 
     return () => subscription.unsubscribe()
-  }, [router, supabase.auth, fetchUserQuery])
+  }, [router, supabase.auth, fetchUserQuery, fetchUserProfile])
 
   // Real-time subscription for user_queries
   useEffect(() => {
@@ -144,9 +192,57 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, supabase])
 
+  // Real-time subscription for user_profiles (includes profile picture)
+  useEffect(() => {
+    if (!user) return
+
+    let channel: RealtimeChannel | null = null
+
+    const setupSubscription = () => {
+      channel = supabase
+        .channel(`user_profiles_realtime_${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*', // Listen to INSERT, UPDATE, DELETE
+            schema: 'public',
+            table: 'user_profiles',
+            filter: `id=eq.${user.id}`
+          },
+          (payload) => {
+            console.log('Real-time user_profiles update:', payload)
+            
+            if (payload.eventType === 'DELETE') {
+              setUserProfile(null)
+            } else if (payload.new) {
+              const newData = payload.new as Record<string, unknown>
+              setUserProfile({
+                name: (newData.name as string) || null,
+                profile_picture_url: (newData.profile_picture_url as string) || null,
+                email_preferences: (newData.email_preferences as UserProfileData['email_preferences']) || null
+              })
+            }
+          }
+        )
+        .subscribe((status) => {
+          console.log('user_profiles subscription status:', status)
+        })
+    }
+
+    setupSubscription()
+
+    // Cleanup subscription on unmount or user change
+    return () => {
+      if (channel) {
+        supabase.removeChannel(channel)
+      }
+    }
+  }, [user, supabase])
+
   const signOut = async () => {
     await supabase.auth.signOut()
     setUserQuery(null)
+    setUserProfile(null)
     router.push('/login')
   }
 
@@ -158,7 +254,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       signOut,
       userQuery,
       userQueryLoading,
-      refreshUserQuery
+      refreshUserQuery,
+      userProfile,
+      userProfileLoading,
+      refreshUserProfile
     }}>
       {children}
     </AuthContext.Provider>
