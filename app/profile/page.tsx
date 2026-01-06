@@ -210,11 +210,7 @@ export default function ProfilePage() {
       }
 
       const data = await response.json()
-      console.log('📥 Profile loaded:', data)
-      setProfile({
-        ...data,
-        demographics: data.demographics || null
-      })
+      setProfile(data)
       setFormData({
         name: data.name || '',
         emailPreferences: data.emailPreferences || {
@@ -226,7 +222,6 @@ export default function ProfilePage() {
       
       // Load demographics/interests if available
       if (data.demographics) {
-        console.log('📥 Loading demographics into state:', data.demographics)
         setInterestsData({
           careerFields: data.demographics.careerFields || [],
           engineeringTypes: data.demographics.engineeringTypes || [],
@@ -246,8 +241,6 @@ export default function ProfilePage() {
           religion: data.demographics.religion || '',
           religionOther: data.demographics.religionOther || ''
         })
-      } else {
-        console.log('⚠️ No demographics found in profile data')
       }
     } catch (err: any) {
       setError(err.message || 'Failed to load profile')
@@ -332,11 +325,7 @@ export default function ProfilePage() {
 
       setSuccess('Interests updated successfully! Your recommendations will be updated.')
       setEditingInterests(false)
-      
-      // Small delay to ensure database write completes
-      await new Promise(resolve => setTimeout(resolve, 500))
       await loadProfile()
-      
       setTimeout(() => setSuccess(''), 5000)
     } catch (err: any) {
       setError(err.message || 'Failed to update interests')

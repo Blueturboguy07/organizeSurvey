@@ -52,7 +52,7 @@ export async function GET(request: NextRequest) {
       .from('user_queries')
       .select('latest_cleansed_query, user_demographics')
       .eq('user_id', user.id)
-      .maybeSingle()
+      .single()
 
     if (profileError && profileError.code !== 'PGRST116') {
       console.error('Profile fetch error:', profileError)
@@ -72,8 +72,6 @@ export async function GET(request: NextRequest) {
         })
       }
     }
-
-    console.log('📥 Profile GET - userQuery:', userQuery)
 
     return NextResponse.json({ 
       name: userProfile?.name || user.user_metadata?.name || null,
