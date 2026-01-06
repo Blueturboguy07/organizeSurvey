@@ -1,28 +1,23 @@
 'use client'
 
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
-import { createClientComponentClient } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import Image from 'next/image'
 import Link from 'next/link'
 
-interface DashboardData {
-  name: string | null
-  email: string | null
-  profilePictureUrl: string | null
-  query: string | null
-  demographics: any
-}
-
 export default function DashboardPage() {
-  const { user, loading: authLoading, signOut } = useAuth()
+  const { 
+    user, 
+    loading: authLoading, 
+    signOut,
+    userProfile,
+    userProfileLoading,
+    userQuery,
+    userQueryLoading
+  } = useAuth()
   const router = useRouter()
-  const supabase = createClientComponentClient()
-  const [loading, setLoading] = useState(true)
-  const [data, setData] = useState<DashboardData | null>(null)
-  const [hasRecommendations, setHasRecommendations] = useState(false)
   const [imageError, setImageError] = useState(false)
   const [showProfileDropdown, setShowProfileDropdown] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -47,46 +42,15 @@ export default function DashboardPage() {
     }
   }, [])
 
-  const loadDashboardData = useCallback(async () => {
-    try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) {
-        router.push('/login')
-        return
-      }
-
-      const response = await fetch('/api/profile', {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        }
-      })
-
-      if (!response.ok) {
-        throw new Error('Failed to load dashboard data')
-      }
-
-      const profileData = await response.json()
-      setData(profileData)
-
-      // Check if user has recommendations available (has a query)
-      if (profileData.query) {
-        setHasRecommendations(true)
-      }
-    } catch (err) {
-      console.error('Failed to load dashboard:', err)
-    } finally {
-      setLoading(false)
-    }
-  }, [router, supabase])
-
+  // Reset image error when profile picture URL changes
   useEffect(() => {
-    if (user) {
-      loadDashboardData()
-    }
-  }, [user, loadDashboardData])
+    setImageError(false)
+  }, [userProfile?.profile_picture_url])
 
+  // Determine loading state
+  const loading = authLoading || userProfileLoading || userQueryLoading
 
-  if (authLoading || loading) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-white to-gray-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-tamu-maroon"></div>
@@ -100,7 +64,8 @@ export default function DashboardPage() {
 
   // Determine what to show in My Orgs
   const hasJoinedOrgs = false // TODO: Implement joined orgs tracking
-  const hasQuery = !!data?.query
+  const hasQuery = !!userQuery?.latest_cleansed_query
+  const hasRecommendations = hasQuery
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-white to-gray-50">
@@ -125,20 +90,21 @@ export default function DashboardPage() {
                   onClick={() => setShowProfileDropdown(!showProfileDropdown)}
                   className="flex items-center gap-2 hover:opacity-80 transition-opacity"
                 >
-                  {data?.profilePictureUrl && !imageError ? (
+                  {userProfile?.profile_picture_url && !imageError ? (
                     <div className="w-10 h-10 rounded-full overflow-hidden border-2 border-gray-200">
                       <Image
-                        src={data.profilePictureUrl}
+                        key={userProfile.profile_picture_url}
+                        src={userProfile.profile_picture_url}
                         alt="Profile"
                         width={40}
                         height={40}
                         className="w-full h-full object-cover"
                         style={{ aspectRatio: '1 / 1' }}
                         onError={() => {
-                          console.error('Failed to load profile picture:', data.profilePictureUrl)
+                          console.error('Failed to load profile picture:', userProfile.profile_picture_url)
                           setImageError(true)
                         }}
-                        unoptimized={data.profilePictureUrl?.includes('supabase.co')}
+                        unoptimized
                       />
                     </div>
                   ) : (
@@ -197,7 +163,7 @@ export default function DashboardPage() {
           className="mb-8"
         >
           <h2 className="text-3xl font-bold text-gray-800 mb-2">
-            Welcome back{data?.name ? `, ${data.name.split(' ')[0]}` : ''}!
+            Welcome back{userProfile?.name ? `, ${userProfile.name.split(' ')[0]}` : ''}!
           </h2>
         </motion.div>
 
