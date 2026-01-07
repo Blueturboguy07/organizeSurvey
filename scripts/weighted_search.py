@@ -493,18 +493,41 @@ def search_clubs(query, user_data=None, csv_path='final.csv', top_n=10):
     return results
 
 def load_data_from_supabase(supabase_client):
-    """Load organization data from Supabase into a DataFrame"""
+    """Load organization data from Supabase into a DataFrame.
+    
+    Note: Supabase has a default row limit of 1000, so we need to paginate
+    to fetch all organizations.
+    """
     try:
-        # Fetch all organizations from Supabase
-        result = supabase_client.table('organizations').select('*').execute()
+        all_data = []
+        page_size = 1000
+        offset = 0
         
-        if not result.data:
+        # Paginate through all results
+        while True:
+            result = supabase_client.table('organizations') \
+                .select('*') \
+                .range(offset, offset + page_size - 1) \
+                .execute()
+            
+            if not result.data:
+                break
+                
+            all_data.extend(result.data)
+            
+            # If we got fewer than page_size, we've reached the end
+            if len(result.data) < page_size:
+                break
+                
+            offset += page_size
+        
+        if not all_data:
             return pd.DataFrame()
         
         # Convert to DataFrame
-        df = pd.DataFrame(result.data)
+        df = pd.DataFrame(all_data)
         
-        # Fill NaN values with empty strings (matching CSV behavior)
+        # Fill NaN/None values with empty strings (matching CSV behavior)
         for col in df.columns:
             df[col] = df[col].fillna('').astype(str)
         
