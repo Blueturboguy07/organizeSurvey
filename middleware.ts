@@ -58,19 +58,41 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser()
 
-  // Protect routes that require authentication
-  const protectedRoutes = ['/survey', '/dashboard', '/profile']
-  const isProtectedRoute = protectedRoutes.some(route => 
-    request.nextUrl.pathname.startsWith(route)
+  const pathname = request.nextUrl.pathname
+  const isOrgAccount = user?.user_metadata?.is_org_account
+
+  // Protect student routes that require authentication
+  const studentProtectedRoutes = ['/survey', '/dashboard', '/profile']
+  const isStudentProtectedRoute = studentProtectedRoutes.some(route => 
+    pathname.startsWith(route)
   )
   
-  if (isProtectedRoute && !user) {
+  // Protect org routes that require authentication
+  const orgProtectedRoutes = ['/org/dashboard']
+  const isOrgProtectedRoute = orgProtectedRoutes.some(route => 
+    pathname.startsWith(route)
+  )
+
+  // Redirect unauthenticated users from protected routes
+  if ((isStudentProtectedRoute || isOrgProtectedRoute) && !user) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // Redirect authenticated users away from auth pages
-  if (user && (request.nextUrl.pathname === '/login' || request.nextUrl.pathname === '/register')) {
+  // Redirect org users trying to access student routes to org dashboard
+  if (isStudentProtectedRoute && isOrgAccount) {
+    return NextResponse.redirect(new URL('/org/dashboard', request.url))
+  }
+
+  // Redirect student users trying to access org routes to student dashboard
+  if (isOrgProtectedRoute && !isOrgAccount && user) {
     return NextResponse.redirect(new URL('/dashboard', request.url))
+  }
+
+  // Redirect authenticated users away from auth pages (but not org setup)
+  if (user && (pathname === '/login' || pathname === '/register')) {
+    // Redirect to appropriate dashboard based on account type
+    const redirectUrl = isOrgAccount ? '/org/dashboard' : '/dashboard'
+    return NextResponse.redirect(new URL(redirectUrl, request.url))
   }
 
   return response

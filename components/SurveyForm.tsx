@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/contexts/AuthContext'
 import { createClientComponentClient } from '@/lib/supabase'
+import { RealtimeChannel } from '@supabase/supabase-js'
 import { useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import Link from 'next/link'
@@ -107,6 +108,16 @@ interface SurveyData {
   religionOther: string
 }
 
+/**
+ * SurveyForm Component
+ * 
+ * REAL-TIME FEATURES:
+ * - userQuery from AuthContext: Real-time subscription to user's saved survey interests
+ * - Organization search results: Real-time subscription to organizations table
+ *   - When an org rep updates their org info, students see changes immediately
+ * - Selected org modal: Real-time subscription to the specific org being viewed
+ *   - Live updates while viewing org details
+ */
 export default function SurveyForm() {
   // Use AuthContext for real-time auth state and session token
   // session.access_token is used for authenticated API calls
@@ -160,6 +171,79 @@ export default function SurveyForm() {
   const [selectedOrg, setSelectedOrg] = useState<any | null>(null)
   const [loadingProfile, setLoadingProfile] = useState(true)
   const [hasExistingProfile, setHasExistingProfile] = useState(false)
+
+  // Real-time subscription for selected organization
+  // When viewing an org's details, updates from org reps appear live
+  useEffect(() => {
+    if (!selectedOrg?.id) return
+
+    const channel = supabase
+      .channel(`org-detail-${selectedOrg.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'organizations',
+          filter: `id=eq.${selectedOrg.id}`
+        },
+        (payload) => {
+          console.log('Selected organization updated in real-time:', payload.new.name)
+          // Merge the updated fields with current selected org
+          setSelectedOrg((prev: any) => ({
+            ...prev,
+            ...payload.new
+          }))
+          // Also update in search results array
+          setAllSearchResults(prev => 
+            prev.map(org => org.id === selectedOrg.id ? { ...org, ...payload.new } : org)
+          )
+          setSearchResults(prev => 
+            prev.map(org => org.id === selectedOrg.id ? { ...org, ...payload.new } : org)
+          )
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [selectedOrg?.id, supabase])
+
+  // Real-time subscription for all search results (updates org info live)
+  useEffect(() => {
+    if (allSearchResults.length === 0) return
+
+    const channel = supabase
+      .channel('search-results-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'organizations'
+        },
+        (payload) => {
+          const updatedOrg = payload.new
+          // Check if this org is in our search results
+          const isInResults = allSearchResults.some(org => org.id === updatedOrg.id)
+          if (isInResults) {
+            console.log('Search result org updated:', updatedOrg.name)
+            setAllSearchResults(prev => 
+              prev.map(org => org.id === updatedOrg.id ? { ...org, ...updatedOrg } : org)
+            )
+            setSearchResults(prev => 
+              prev.map(org => org.id === updatedOrg.id ? { ...org, ...updatedOrg } : org)
+            )
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [allSearchResults.length, supabase])
 
   const steps = [
     'Contact Info',
@@ -1381,10 +1465,17 @@ export default function SurveyForm() {
               animate={{ opacity: 1, scale: 1 }}
               className="bg-white rounded-lg shadow-lg p-4 sm:p-6 md:p-8"
             >
-              <div className="flex justify-between items-center mb-6">
-                <h2 className="text-xl sm:text-2xl font-semibold text-tamu-maroon">
-                  Your Organization Matches
-                </h2>
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-6">
+                <div>
+                  <h2 className="text-xl sm:text-2xl font-semibold text-tamu-maroon">
+                    Your Organization Matches
+                  </h2>
+                  {/* Real-time indicator for search results */}
+                  <div className="flex items-center gap-1.5 mt-1">
+                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                    <span className="text-xs text-gray-500">Organization info updates in real-time</span>
+                  </div>
+                </div>
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
@@ -1742,9 +1833,16 @@ export default function SurveyForm() {
                         <div className="sticky top-0 bg-gradient-to-r from-tamu-maroon to-tamu-maroon-light p-3 sm:p-4 md:p-6 text-white flex justify-between items-start">
                           <div className="flex-1 pr-2">
                             <h2 className="text-xl sm:text-2xl md:text-3xl font-bold mb-2 break-words">{selectedOrg.name}</h2>
-                            <span className="px-2 py-1 sm:px-3 sm:py-1 bg-white/20 rounded-full text-xs sm:text-sm font-medium">
-                              Score: {selectedOrg.relevance_score}
-                            </span>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="px-2 py-1 sm:px-3 sm:py-1 bg-white/20 rounded-full text-xs sm:text-sm font-medium">
+                                Score: {selectedOrg.relevance_score}
+                              </span>
+                              {/* Real-time indicator */}
+                              <span className="flex items-center gap-1 px-2 py-1 bg-white/10 rounded-full text-xs">
+                                <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></span>
+                                Live
+                              </span>
+                            </div>
                           </div>
                           <button
                             onClick={() => setSelectedOrg(null)}
