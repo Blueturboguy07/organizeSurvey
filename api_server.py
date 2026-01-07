@@ -33,10 +33,11 @@ app = Flask(__name__)
 CORS(app)  # Enable CORS for all routes
 
 # Configuration
-USE_SUPABASE = os.getenv('USE_SUPABASE', 'false').lower() == 'true'
+# Default to Supabase since CSV has been removed from the repo
+USE_SUPABASE = os.getenv('USE_SUPABASE', 'true').lower() == 'true'
 SUPABASE_URL = os.getenv('SUPABASE_URL') or os.getenv('NEXT_PUBLIC_SUPABASE_URL')
 SUPABASE_SERVICE_KEY = os.getenv('SUPABASE_SERVICE_KEY') or os.getenv('SUPABASE_SERVICE_ROLE_KEY')
-CSV_PATH = os.getenv('CSV_PATH', os.path.join(os.path.dirname(__file__), 'final.csv'))
+CSV_PATH = os.getenv('CSV_PATH')  # Optional fallback, no default
 
 # Initialize Supabase client if configured
 supabase_client = None
