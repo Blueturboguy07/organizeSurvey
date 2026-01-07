@@ -1,4 +1,8 @@
 #!/usr/bin/env python3
+"""
+Weighted search for organizations.
+Supports both CSV file and Supabase database as data sources.
+"""
 import pandas as pd
 import sys
 import json
@@ -487,6 +491,160 @@ def search_clubs(query, user_data=None, csv_path='final.csv', top_n=10):
         })
     
     return results
+
+def load_data_from_supabase(supabase_client):
+    """Load organization data from Supabase into a DataFrame"""
+    try:
+        # Fetch all organizations from Supabase
+        result = supabase_client.table('organizations').select('*').execute()
+        
+        if not result.data:
+            return pd.DataFrame()
+        
+        # Convert to DataFrame
+        df = pd.DataFrame(result.data)
+        
+        # Fill NaN values with empty strings (matching CSV behavior)
+        for col in df.columns:
+            df[col] = df[col].fillna('').astype(str)
+        
+        return df
+    except Exception as e:
+        print(f"Error loading data from Supabase: {e}", file=sys.stderr)
+        return pd.DataFrame()
+
+
+def search_clubs_supabase(query, user_data=None, supabase_client=None, top_n=10):
+    """
+    Search organizations using Supabase as the data source.
+    Uses the same scoring logic as search_clubs but fetches data from Supabase.
+    """
+    if supabase_client is None:
+        raise ValueError("Supabase client is required")
+    
+    # Load data from Supabase
+    df = load_data_from_supabase(supabase_client)
+    
+    if len(df) == 0:
+        return []
+    
+    # Use the same search logic as CSV-based search
+    import re
+    
+    # Split query into keywords
+    sections = query.split('|')
+    query_keywords = []
+    for section in sections:
+        section = section.strip()
+        if not section:
+            continue
+        
+        words = re.split(r'[,\s/\-]+', section)
+        
+        for word in words:
+            word = word.strip()
+            if word and word not in ['', 'nan', 'none'] and len(word) > 1:
+                query_keywords.append(word)
+                
+                if ' ' in word:
+                    subwords = word.split()
+                    for subword in subwords:
+                        subword = subword.strip()
+                        if subword and len(subword) > 2:
+                            query_keywords.append(subword)
+    
+    # Remove duplicates
+    seen = set()
+    unique_keywords = []
+    for kw in query_keywords:
+        kw_lower = kw.lower()
+        if kw_lower not in seen and len(kw_lower) > 1:
+            seen.add(kw_lower)
+            unique_keywords.append(kw)
+    
+    query_keywords = unique_keywords
+    
+    if not query_keywords:
+        return []
+    
+    # Calculate relevance scores
+    df['relevance_score'] = df.apply(lambda row: calculate_relevance_score(row, query_keywords), axis=1)
+    
+    # Filter by eligibility if user_data provided
+    if user_data:
+        df['is_eligible'] = df.apply(lambda row: check_eligibility(row, user_data), axis=1)
+        df = df[df['is_eligible'] == True]
+    
+    # Sort by relevance score
+    df_sorted = df.sort_values(by='relevance_score', ascending=False)
+    
+    # Filter to only organizations with nonzero scores
+    df_with_scores = df_sorted[df_sorted['relevance_score'] > 0]
+    
+    # Get results
+    results = []
+    if top_n > 0:
+        max_results = min(len(df_with_scores), top_n)
+        df_to_process = df_with_scores.head(max_results)
+    else:
+        df_to_process = df_with_scores
+    
+    for idx, row in df_to_process.iterrows():
+        bio = str(row.get('bio', ''))
+        bio_snippet = bio[:200] + '...' if len(bio) > 200 else bio
+        
+        # Calculate score breakdown
+        score_breakdown = {
+            'name_matches': 0,
+            'majors_matches': 0,
+            'activities_matches': 0,
+            'culture_matches': 0,
+            'bio_matches': 0
+        }
+        
+        name_lower = str(row.get('name', '')).lower()
+        majors_lower = str(row.get('typical_majors', '')).lower()
+        activities_lower = str(row.get('typical_activities', '')).lower()
+        culture_lower = str(row.get('club_culture_style', '')).lower()
+        bio_lower = bio.lower()
+        
+        for keyword in query_keywords:
+            keyword_lower = keyword.lower().strip()
+            if keyword_lower in name_lower:
+                score_breakdown['name_matches'] += 10
+            if keyword_lower in majors_lower:
+                score_breakdown['majors_matches'] += 10
+            if keyword_lower in activities_lower:
+                score_breakdown['activities_matches'] += 5
+            if keyword_lower in culture_lower:
+                score_breakdown['culture_matches'] += 5
+            if keyword_lower in bio_lower:
+                score_breakdown['bio_matches'] += 1
+        
+        results.append({
+            'id': str(row.get('id', '')),  # Include Supabase UUID
+            'name': str(row.get('name', '')),
+            'relevance_score': int(row['relevance_score']),
+            'bio_snippet': bio_snippet,
+            'typical_majors': str(row.get('typical_majors', '')),
+            'typical_activities': str(row.get('typical_activities', '')),
+            'club_culture_style': str(row.get('club_culture_style', '')),
+            'score_breakdown': score_breakdown,
+            'full_bio': bio,
+            'website': str(row.get('website', '')),
+            'administrative_contact_info': str(row.get('administrative_contact_info', '')),
+            'meeting_frequency': str(row.get('meeting_frequency', '')),
+            'meeting_times': str(row.get('meeting_times', '')),
+            'meeting_locations': str(row.get('meeting_locations', '')),
+            'dues_required': str(row.get('dues_required', '')),
+            'dues_cost': str(row.get('dues_cost', '')),
+            'application_required': str(row.get('application_required', '')),
+            'time_commitment': str(row.get('time_commitment', '')),
+            'member_count': str(row.get('member_count', ''))
+        })
+    
+    return results
+
 
 def display_results(results):
     """Display search results in a formatted way"""
