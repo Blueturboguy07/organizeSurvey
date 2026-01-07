@@ -60,18 +60,40 @@ export default function LoginPage() {
 
   // Fetch organizations for search with REAL-TIME subscription
   // Organizations list updates automatically when org reps modify their org info
+  // Uses pagination to fetch ALL orgs (Supabase defaults to 1000 row limit)
   useEffect(() => {
     let channel: RealtimeChannel | null = null
 
     async function fetchOrganizations() {
-      const { data, error } = await supabase
-        .from('organizations')
-        .select('id, name, administrative_contact_info')
-        .order('name')
-      
-      if (data && !error) {
-        setOrganizations(data)
+      // Fetch all organizations with pagination (Supabase defaults to 1000 row limit)
+      const allOrgs: Organization[] = []
+      const PAGE_SIZE = 1000
+      let offset = 0
+      let hasMore = true
+
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('organizations')
+          .select('id, name, administrative_contact_info')
+          .order('name')
+          .range(offset, offset + PAGE_SIZE - 1)
+        
+        if (error) {
+          console.error('Error fetching organizations:', error)
+          break
+        }
+
+        if (data && data.length > 0) {
+          allOrgs.push(...data)
+          offset += PAGE_SIZE
+          hasMore = data.length === PAGE_SIZE
+        } else {
+          hasMore = false
+        }
       }
+
+      console.log(`Loaded ${allOrgs.length} organizations for search`)
+      setOrganizations(allOrgs)
 
       // Set up real-time subscription for organization updates
       channel = supabase
