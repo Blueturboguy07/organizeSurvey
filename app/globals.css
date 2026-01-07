@@ -18,30 +18,3 @@ body {
     rgb(var(--background-start-rgb));
 }
 
-/* Continuous scroll animations for organization names background */
-@keyframes scroll-left {
-  0% {
-    transform: translateX(0);
-  }
-  100% {
-    transform: translateX(-50%);
-  }
-}
-
-@keyframes scroll-right {
-  0% {
-    transform: translateX(-50%);
-  }
-  100% {
-    transform: translateX(0);
-  }
-}
-
-.animate-scroll-left {
-  animation: scroll-left linear infinite;
-}
-
-.animate-scroll-right {
-  animation: scroll-right linear infinite;
-}
-

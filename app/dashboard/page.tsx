@@ -4,52 +4,8 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/contexts/AuthContext'
-import { createClientComponentClient } from '@/lib/supabase'
 import Image from 'next/image'
 import Link from 'next/link'
-
-// Scrolling organization names background component
-function ScrollingOrgsBackground({ organizations }: { organizations: string[] }) {
-  if (organizations.length === 0) return null
-  
-  // Create multiple rows with different speeds and directions
-  const rows = [
-    { orgs: organizations.slice(0, Math.ceil(organizations.length / 3)), duration: 60, direction: 'left' },
-    { orgs: organizations.slice(Math.ceil(organizations.length / 3), Math.ceil(2 * organizations.length / 3)), duration: 45, direction: 'right' },
-    { orgs: organizations.slice(Math.ceil(2 * organizations.length / 3)), duration: 55, direction: 'left' },
-  ]
-  
-  return (
-    <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {/* Blur overlay */}
-      <div className="absolute inset-0 backdrop-blur-sm bg-white/60 z-10" />
-      
-      {/* Scrolling rows */}
-      <div className="absolute inset-0 flex flex-col justify-center gap-4 opacity-40">
-        {rows.map((row, rowIndex) => (
-          <div key={rowIndex} className="relative overflow-hidden whitespace-nowrap">
-            <div 
-              className={`inline-flex gap-8 ${row.direction === 'left' ? 'animate-scroll-left' : 'animate-scroll-right'}`}
-              style={{ 
-                animationDuration: `${row.duration}s`,
-              }}
-            >
-              {/* Duplicate the content for seamless loop */}
-              {[...row.orgs, ...row.orgs].map((org, index) => (
-                <span 
-                  key={`${rowIndex}-${index}`} 
-                  className="text-tamu-maroon/30 text-lg font-medium px-4"
-                >
-                  {org}
-                </span>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
 
 export default function DashboardPage() {
   // Use AuthContext for real-time auth state and user data
@@ -65,10 +21,8 @@ export default function DashboardPage() {
     userQueryLoading
   } = useAuth()
   const router = useRouter()
-  const supabase = createClientComponentClient()
   const [imageError, setImageError] = useState(false)
   const [showProfileDropdown, setShowProfileDropdown] = useState(false)
-  const [organizationNames, setOrganizationNames] = useState<string[]>([])
   const dropdownRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
@@ -76,33 +30,6 @@ export default function DashboardPage() {
       router.push('/login')
     }
   }, [user, authLoading, router])
-
-  // Fetch organization names for the scrolling background
-  useEffect(() => {
-    async function fetchOrganizations() {
-      try {
-        const { data, error } = await supabase
-          .from('organizations')
-          .select('name')
-          .limit(100)
-        
-        if (error) {
-          console.error('Error fetching organizations:', error)
-          return
-        }
-        
-        if (data) {
-          // Shuffle the names for variety
-          const names = data.map(org => org.name).sort(() => Math.random() - 0.5)
-          setOrganizationNames(names)
-        }
-      } catch (err) {
-        console.error('Failed to fetch organizations:', err)
-      }
-    }
-    
-    fetchOrganizations()
-  }, [supabase])
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -243,78 +170,72 @@ export default function DashboardPage() {
           </h2>
         </motion.div>
 
-        {/* My Orgs - Central Component with scrolling org names background */}
+        {/* My Orgs - Central Component */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
-          className="relative rounded-lg shadow-md overflow-hidden"
+          className="bg-white rounded-lg shadow-md p-6 sm:p-8"
         >
-          {/* Scrolling organizations background */}
-          <ScrollingOrgsBackground organizations={organizationNames} />
-          
-          {/* Main content */}
-          <div className="relative z-20 bg-white/90 backdrop-blur-sm p-6 sm:p-8">
-            <h3 className="text-2xl font-bold text-gray-800 mb-6">My Orgs</h3>
+          <h3 className="text-2xl font-bold text-gray-800 mb-6">My Orgs</h3>
 
-            {hasJoinedOrgs ? (
-              // TODO: Show joined orgs when implemented
-              <div className="text-center py-12">
-                <p className="text-gray-500">You haven&apos;t joined any organizations yet.</p>
-              </div>
-            ) : hasRecommendations ? (
-              // Show explore button for recommended orgs
-              <div className="text-center py-12">
-                <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-                <p className="text-gray-600 mb-6">We have organization recommendations for you!</p>
-                <Link href="/survey?showResults=true">
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="px-6 py-3 bg-tamu-maroon text-white rounded-lg font-semibold hover:bg-tamu-maroon-light"
-                  >
-                    Explore Recommended Orgs
-                  </motion.button>
-                </Link>
-              </div>
-            ) : hasQuery ? (
-              // Has query but no recommendations
-              <div className="text-center py-12">
-                <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-                <p className="text-gray-600 mb-4">No recommendations available yet.</p>
-                <Link href="/survey">
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="px-6 py-3 bg-tamu-maroon text-white rounded-lg font-semibold hover:bg-tamu-maroon-light"
-                  >
-                    Take Survey to Get Recommendations
-                  </motion.button>
-                </Link>
-              </div>
-            ) : (
-              // No query - prompt to take survey
-              <div className="text-center py-12">
-                <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                <p className="text-gray-600 mb-4">Complete the survey to discover organizations that match your interests!</p>
-                <Link href="/survey">
-                  <motion.button
-                    whileHover={{ scale: 1.05 }}
-                    whileTap={{ scale: 0.95 }}
-                    className="px-6 py-3 bg-tamu-maroon text-white rounded-lg font-semibold hover:bg-tamu-maroon-light"
-                  >
-                    Take Survey
-                  </motion.button>
-                </Link>
-              </div>
-            )}
-          </div>
+          {hasJoinedOrgs ? (
+            // TODO: Show joined orgs when implemented
+            <div className="text-center py-12">
+              <p className="text-gray-500">You haven&apos;t joined any organizations yet.</p>
+            </div>
+          ) : hasRecommendations ? (
+            // Show explore button for recommended orgs
+            <div className="text-center py-12">
+              <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              <p className="text-gray-600 mb-6">We have organization recommendations for you!</p>
+              <Link href="/survey?showResults=true">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="px-6 py-3 bg-tamu-maroon text-white rounded-lg font-semibold hover:bg-tamu-maroon-light"
+                >
+                  Explore Recommended Orgs
+                </motion.button>
+              </Link>
+            </div>
+          ) : hasQuery ? (
+            // Has query but no recommendations
+            <div className="text-center py-12">
+              <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              <p className="text-gray-600 mb-4">No recommendations available yet.</p>
+              <Link href="/survey">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="px-6 py-3 bg-tamu-maroon text-white rounded-lg font-semibold hover:bg-tamu-maroon-light"
+                >
+                  Take Survey to Get Recommendations
+                </motion.button>
+              </Link>
+            </div>
+          ) : (
+            // No query - prompt to take survey
+            <div className="text-center py-12">
+              <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              <p className="text-gray-600 mb-4">Complete the survey to discover organizations that match your interests!</p>
+              <Link href="/survey">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="px-6 py-3 bg-tamu-maroon text-white rounded-lg font-semibold hover:bg-tamu-maroon-light"
+                >
+                  Take Survey
+                </motion.button>
+              </Link>
+            </div>
+          )}
         </motion.div>
       </main>
     </div>
