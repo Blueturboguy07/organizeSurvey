@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { createClientComponentClient } from '@/lib/supabase'
 import Image from 'next/image'
 
-export default function OrgSetupPage() {
+function OrgSetupContent() {
   const [password, setPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
@@ -290,3 +290,23 @@ export default function OrgSetupPage() {
   )
 }
 
+// Loading fallback for Suspense
+function OrgSetupLoading() {
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-white to-gray-50 flex items-center justify-center">
+      <div className="text-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-tamu-maroon mx-auto mb-4"></div>
+        <p className="text-gray-600">Loading...</p>
+      </div>
+    </div>
+  )
+}
+
+// Main export wrapped in Suspense for useSearchParams
+export default function OrgSetupPage() {
+  return (
+    <Suspense fallback={<OrgSetupLoading />}>
+      <OrgSetupContent />
+    </Suspense>
+  )
+}
