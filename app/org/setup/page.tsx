@@ -120,10 +120,16 @@ function OrgSetupContent() {
 
       if (updateError) throw updateError
 
+      // Get the session token for API authorization
+      const { data: { session } } = await supabase.auth.getSession()
+      
       // Complete the org setup via API (uses admin client to bypass RLS)
       const response = await fetch('/api/org/complete-setup', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session?.access_token || ''}`,
+        },
       })
 
       const result = await response.json()
