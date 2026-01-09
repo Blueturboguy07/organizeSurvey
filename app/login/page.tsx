@@ -202,33 +202,29 @@ export default function LoginPage() {
     setLoading(true)
     
     try {
-      // Check if org account exists AND is verified
-      const { data: orgAccount, error: fetchError } = await supabase
-        .from('org_accounts')
-        .select('id, email, email_verified, user_id')
-        .eq('organization_id', org.id)
-        .single()
+      // Check if org account exists using API (bypasses RLS)
+      const checkResponse = await fetch('/api/org/check-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ organizationId: org.id })
+      })
       
-      if (fetchError && fetchError.code !== 'PGRST116') {
-        // PGRST116 = no rows returned (account doesn't exist)
-        throw fetchError
+      const accountStatus = await checkResponse.json()
+      
+      if (!checkResponse.ok) {
+        throw new Error(accountStatus.error || 'Failed to check account status')
       }
       
-      if (orgAccount && orgAccount.email_verified && orgAccount.user_id) {
+      if (accountStatus.exists && accountStatus.email_verified && accountStatus.has_user) {
         // Account exists AND is fully set up (email verified + user linked)
         setOrgStep('password')
-      } else if (orgAccount && !orgAccount.email_verified) {
+      } else if (accountStatus.exists && !accountStatus.email_verified) {
         // Account exists but not verified - they haven't clicked the email link yet
-        // Show a message and option to resend
-        const [localPart, domain] = orgAccount.email.split('@')
-        const maskedEmail = localPart.slice(0, 2) + '***@' + domain
-        setVerificationEmail(maskedEmail)
+        setVerificationEmail(accountStatus.email || 'your registered email')
         setOrgStep('verification-sent')
-      } else if (orgAccount && !orgAccount.user_id) {
-        // Account verified but user not linked (edge case - shouldn't happen normally)
-        const [localPart, domain] = orgAccount.email.split('@')
-        const maskedEmail = localPart.slice(0, 2) + '***@' + domain
-        setVerificationEmail(maskedEmail)
+      } else if (accountStatus.exists && !accountStatus.has_user) {
+        // Account verified but user not linked - they need to complete setup
+        setVerificationEmail(accountStatus.email || 'your registered email')
         setOrgStep('verification-sent')
       } else {
         // Account doesn't exist, send verification email
