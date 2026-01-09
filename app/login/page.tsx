@@ -215,13 +215,21 @@ export default function LoginPage() {
         throw new Error(accountStatus.error || 'Failed to check account status')
       }
       
-      if (accountStatus.exists && accountStatus.has_user) {
-        // Account exists AND is fully set up (password set)
+      if (accountStatus.exists && accountStatus.email_verified && accountStatus.has_user) {
+        // Account exists AND is fully set up (email verified + password set)
         setOrgStep('password')
-      } else if (accountStatus.exists && !accountStatus.has_user) {
-        // Account exists but they haven't set password yet
+      } else if (accountStatus.needs_password_setup) {
+        // They clicked the email link but haven't set password yet
         setVerificationEmail(accountStatus.email || 'your registered email')
         setOrgStep('needs-setup')
+      } else if (accountStatus.exists && !accountStatus.email_verified) {
+        // Account exists but not verified - they haven't clicked the email link yet
+        setVerificationEmail(accountStatus.email || 'your registered email')
+        setOrgStep('verification-sent')
+      } else if (accountStatus.exists && !accountStatus.has_user) {
+        // Account exists but setup not complete
+        setVerificationEmail(accountStatus.email || 'your registered email')
+        setOrgStep('verification-sent')
       } else {
         // Account doesn't exist, send verification email
         // Extract email from administrative_contact_info
