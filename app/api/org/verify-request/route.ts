@@ -52,80 +52,83 @@ export async function POST(request: Request) {
 
     // Build verification URL
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
-                    process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 
-                    'http://localhost:3000'
-    const verificationUrl = `${baseUrl}/org/verify?token=${verificationToken}`
+                    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
+    const verificationUrl = `${baseUrl}/org/setup?token=${verificationToken}`
 
-    // Send verification email via Supabase
-    // Using Supabase's built-in email function or a custom solution
-    // For now, we'll use Supabase Auth's magic link as a workaround
-    // Or you could integrate with SendGrid/Resend/etc.
-    
-    // Option: Use Supabase Auth to create a user and send magic link
-    const { error: authError } = await supabaseAdmin.auth.admin.createUser({
-      email: email.toLowerCase().trim(),
-      email_confirm: false,
-      user_metadata: {
-        is_org_account: true,
-        organization_id: organizationId,
-        organization_name: organizationName,
-        verification_token: verificationToken,
-      }
-    })
+    // Check if user already exists in auth
+    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers()
+    const existingUser = existingUsers?.users?.find(u => u.email === email.toLowerCase().trim())
 
-    if (authError && !authError.message.includes('already been registered')) {
-      console.error('Error creating auth user:', authError)
-      // Clean up the org account we just created
-      await supabaseAdmin
-        .from('org_accounts')
-        .delete()
-        .eq('organization_id', organizationId)
-      
-      return NextResponse.json(
-        { error: 'Failed to send verification email' },
-        { status: 500 }
-      )
-    }
-
-    // If user already exists, they may have registered as a student
-    // We need to handle this case
-    if (authError?.message.includes('already been registered')) {
-      // Check if this user is already an org account
-      const { data: existingUser } = await supabaseAdmin.auth.admin.listUsers()
-      const user = existingUser.users.find(u => u.email === email.toLowerCase().trim())
-      
-      if (user?.user_metadata?.is_org_account) {
+    if (existingUser) {
+      // User exists - check if already an org account
+      if (existingUser.user_metadata?.is_org_account) {
+        // Clean up the org account we just created
+        await supabaseAdmin
+          .from('org_accounts')
+          .delete()
+          .eq('organization_id', organizationId)
+        
         return NextResponse.json(
           { error: 'This email is already registered as an organization account' },
           { status: 400 }
         )
       }
       
-      // User exists but not as org - send password reset instead
-      const { error: resetError } = await supabaseAdmin.auth.admin.generateLink({
-        type: 'recovery',
-        email: email.toLowerCase().trim(),
-        options: {
-          redirectTo: `${baseUrl}/org/setup?token=${verificationToken}`,
+      // User exists as student - update their metadata and send magic link
+      await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
+        user_metadata: {
+          ...existingUser.user_metadata,
+          is_org_account: true,
+          organization_id: organizationId,
+          organization_name: organizationName,
+          verification_token: verificationToken,
         }
       })
-      
-      if (resetError) {
-        console.error('Error generating recovery link:', resetError)
-      }
-    }
 
-    // Generate and send invite link for new org users
-    const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'invite',
-      email: email.toLowerCase().trim(),
-      options: {
-        redirectTo: `${baseUrl}/org/setup?token=${verificationToken}`,
-      }
-    })
+      // Send magic link for existing user
+      const { error: magicLinkError } = await supabaseAdmin.auth.admin.generateLink({
+        type: 'magiclink',
+        email: email.toLowerCase().trim(),
+        options: {
+          redirectTo: verificationUrl,
+        }
+      })
 
-    if (inviteError && !inviteError.message.includes('already been registered')) {
-      console.error('Error generating invite link:', inviteError)
+      if (magicLinkError) {
+        console.error('Error sending magic link:', magicLinkError)
+        // Try recovery link as fallback
+        await supabaseAdmin.auth.resetPasswordForEmail(email.toLowerCase().trim(), {
+          redirectTo: verificationUrl,
+        })
+      }
+    } else {
+      // New user - send invite email (this actually sends the email!)
+      const { error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+        email.toLowerCase().trim(),
+        {
+          data: {
+            is_org_account: true,
+            organization_id: organizationId,
+            organization_name: organizationName,
+            verification_token: verificationToken,
+          },
+          redirectTo: verificationUrl,
+        }
+      )
+
+      if (inviteError) {
+        console.error('Error inviting user:', inviteError)
+        // Clean up the org account we just created
+        await supabaseAdmin
+          .from('org_accounts')
+          .delete()
+          .eq('organization_id', organizationId)
+        
+        return NextResponse.json(
+          { error: 'Failed to send verification email: ' + inviteError.message },
+          { status: 500 }
+        )
+      }
     }
 
     return NextResponse.json({
