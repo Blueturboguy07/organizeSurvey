@@ -120,71 +120,17 @@ function OrgSetupContent() {
 
       if (updateError) throw updateError
 
-      // Get the current user
-      const { data: { user } } = await supabase.auth.getUser()
-      
-      if (!user) throw new Error('User not found')
+      // Complete the org setup via API (uses admin client to bypass RLS)
+      const response = await fetch('/api/org/complete-setup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
 
-      // Get the verification token from user metadata
-      const verificationToken = user.user_metadata?.verification_token
-      const organizationId = user.user_metadata?.organization_id
+      const result = await response.json()
 
-      // Update the org_accounts table to link user_id and mark as verified
-      // Try multiple strategies to find and update the record
-      let updated = false
-
-      // Strategy 1: Update by verification_token
-      if (verificationToken) {
-        const { error: orgError, count } = await supabase
-          .from('org_accounts')
-          .update({
-            user_id: user.id,
-            email_verified: true,
-            verification_token: null,
-            verification_token_expires_at: null,
-          })
-          .eq('verification_token', verificationToken)
-          .select()
-
-        if (!orgError && count && count > 0) {
-          updated = true
-        }
-      }
-
-      // Strategy 2: Update by organization_id if Strategy 1 failed
-      if (!updated && organizationId) {
-        const { error: orgError2 } = await supabase
-          .from('org_accounts')
-          .update({
-            user_id: user.id,
-            email_verified: true,
-            verification_token: null,
-            verification_token_expires_at: null,
-          })
-          .eq('organization_id', organizationId)
-          .is('user_id', null)  // Only update if user_id not already set
-
-        if (!orgError2) {
-          updated = true
-        }
-      }
-
-      // Strategy 3: Update by email if other strategies failed
-      if (!updated && user.email) {
-        const { error: orgError3 } = await supabase
-          .from('org_accounts')
-          .update({
-            user_id: user.id,
-            email_verified: true,
-            verification_token: null,
-            verification_token_expires_at: null,
-          })
-          .eq('email', user.email.toLowerCase())
-          .is('user_id', null)
-
-        if (orgError3) {
-          console.error('Error updating org account by email:', orgError3)
-        }
+      if (!response.ok) {
+        console.error('Setup completion error:', result.error)
+        // Don't fail completely - password is set, they might still be able to log in
       }
 
       setSuccess(true)
