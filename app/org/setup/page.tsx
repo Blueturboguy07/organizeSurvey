@@ -24,22 +24,50 @@ function OrgSetupContent() {
 
   useEffect(() => {
     async function verifyToken() {
-      if (!token) {
-        setError('Invalid verification link')
-        setVerifying(false)
-        return
-      }
-
       try {
-        // Get session from Supabase (user clicked email link)
+        // First, check if we have a valid session from the invite link
+        // Supabase handles the invite auth and passes tokens in URL hash
         const { data: { session }, error: sessionError } = await supabase.auth.getSession()
         
-        if (sessionError || !session) {
-          // Try to exchange the token
-          const { data: { session: newSession }, error: exchangeError } = await supabase.auth.exchangeCodeForSession(token)
+        if (sessionError) {
+          console.error('Session error:', sessionError)
+          setError('Failed to authenticate. Please try clicking the link in your email again.')
+          setVerifying(false)
+          return
+        }
+        
+        if (!session) {
+          // No session yet - might need to wait for Supabase to process the invite
+          // Check URL hash for access token (Supabase invite flow puts it there)
+          const hashParams = new URLSearchParams(window.location.hash.substring(1))
+          const accessToken = hashParams.get('access_token')
+          const refreshToken = hashParams.get('refresh_token')
           
-          if (exchangeError || !newSession) {
-            setError('Verification link has expired or is invalid. Please request a new one.')
+          if (accessToken && refreshToken) {
+            // Set the session from hash params
+            const { error: setSessionError } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken,
+            })
+            
+            if (setSessionError) {
+              console.error('Set session error:', setSessionError)
+              setError('Failed to authenticate. Please try clicking the link in your email again.')
+              setVerifying(false)
+              return
+            }
+          } else if (token) {
+            // Try to exchange as PKCE code (in case Supabase is using that flow)
+            const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(token)
+            
+            if (exchangeError) {
+              console.error('Exchange error:', exchangeError)
+              setError('Verification link has expired or is invalid. Please return to the login page and try again.')
+              setVerifying(false)
+              return
+            }
+          } else {
+            setError('Invalid verification link. Please return to the login page and try again.')
             setVerifying(false)
             return
           }
@@ -51,8 +79,15 @@ function OrgSetupContent() {
           setOrgName(user.user_metadata.organization_name)
         }
 
+        if (!user) {
+          setError('Could not verify your identity. Please try again.')
+          setVerifying(false)
+          return
+        }
+
         setVerifying(false)
       } catch (err: any) {
+        console.error('Verify error:', err)
         setError(err.message || 'Failed to verify')
         setVerifying(false)
       }
@@ -90,22 +125,66 @@ function OrgSetupContent() {
       
       if (!user) throw new Error('User not found')
 
-      // Update the org_accounts table to link user_id and mark as verified
-      const verificationToken = user.user_metadata?.verification_token || token
-      
-      const { error: orgError } = await supabase
-        .from('org_accounts')
-        .update({
-          user_id: user.id,
-          email_verified: true,
-          verification_token: null,
-          verification_token_expires_at: null,
-        })
-        .eq('verification_token', verificationToken)
+      // Get the verification token from user metadata
+      const verificationToken = user.user_metadata?.verification_token
+      const organizationId = user.user_metadata?.organization_id
 
-      if (orgError) {
-        console.error('Error updating org account:', orgError)
-        // Don't fail - the password is set, they can still log in
+      // Update the org_accounts table to link user_id and mark as verified
+      // Try multiple strategies to find and update the record
+      let updated = false
+
+      // Strategy 1: Update by verification_token
+      if (verificationToken) {
+        const { error: orgError, count } = await supabase
+          .from('org_accounts')
+          .update({
+            user_id: user.id,
+            email_verified: true,
+            verification_token: null,
+            verification_token_expires_at: null,
+          })
+          .eq('verification_token', verificationToken)
+          .select()
+
+        if (!orgError && count && count > 0) {
+          updated = true
+        }
+      }
+
+      // Strategy 2: Update by organization_id if Strategy 1 failed
+      if (!updated && organizationId) {
+        const { error: orgError2 } = await supabase
+          .from('org_accounts')
+          .update({
+            user_id: user.id,
+            email_verified: true,
+            verification_token: null,
+            verification_token_expires_at: null,
+          })
+          .eq('organization_id', organizationId)
+          .is('user_id', null)  // Only update if user_id not already set
+
+        if (!orgError2) {
+          updated = true
+        }
+      }
+
+      // Strategy 3: Update by email if other strategies failed
+      if (!updated && user.email) {
+        const { error: orgError3 } = await supabase
+          .from('org_accounts')
+          .update({
+            user_id: user.id,
+            email_verified: true,
+            verification_token: null,
+            verification_token_expires_at: null,
+          })
+          .eq('email', user.email.toLowerCase())
+          .is('user_id', null)
+
+        if (orgError3) {
+          console.error('Error updating org account by email:', orgError3)
+        }
       }
 
       setSuccess(true)

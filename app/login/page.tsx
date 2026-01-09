@@ -202,10 +202,10 @@ export default function LoginPage() {
     setLoading(true)
     
     try {
-      // Check if org account exists
+      // Check if org account exists AND is verified
       const { data: orgAccount, error: fetchError } = await supabase
         .from('org_accounts')
-        .select('id, email')
+        .select('id, email, email_verified, user_id')
         .eq('organization_id', org.id)
         .single()
       
@@ -214,9 +214,22 @@ export default function LoginPage() {
         throw fetchError
       }
       
-      if (orgAccount) {
-        // Account exists, show password field
+      if (orgAccount && orgAccount.email_verified && orgAccount.user_id) {
+        // Account exists AND is fully set up (email verified + user linked)
         setOrgStep('password')
+      } else if (orgAccount && !orgAccount.email_verified) {
+        // Account exists but not verified - they haven't clicked the email link yet
+        // Show a message and option to resend
+        const [localPart, domain] = orgAccount.email.split('@')
+        const maskedEmail = localPart.slice(0, 2) + '***@' + domain
+        setVerificationEmail(maskedEmail)
+        setOrgStep('verification-sent')
+      } else if (orgAccount && !orgAccount.user_id) {
+        // Account verified but user not linked (edge case - shouldn't happen normally)
+        const [localPart, domain] = orgAccount.email.split('@')
+        const maskedEmail = localPart.slice(0, 2) + '***@' + domain
+        setVerificationEmail(maskedEmail)
+        setOrgStep('verification-sent')
       } else {
         // Account doesn't exist, send verification email
         // Extract email from administrative_contact_info
@@ -668,15 +681,19 @@ export default function LoginPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                     </svg>
                   </div>
-                  <h3 className="text-xl font-semibold text-gray-800 mb-2">Verification Email Sent!</h3>
+                  <h3 className="text-xl font-semibold text-gray-800 mb-2">Check Your Email!</h3>
                   <p className="text-gray-600 mb-4">
-                    We&apos;ve sent a verification email to
+                    A verification email was sent to
                   </p>
                   <p className="font-mono bg-gray-100 rounded-lg px-4 py-2 text-tamu-maroon font-medium mb-4">
                     {verificationEmail}
                   </p>
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm text-gray-500 mb-6">
                     Click the link in the email to set up your organization account password.
+                  </p>
+                  
+                  <p className="text-xs text-gray-400 mb-2">
+                    Didn&apos;t receive the email? Check your spam folder or contact support.
                   </p>
                   
                   <button
@@ -686,7 +703,7 @@ export default function LoginPage() {
                       setSelectedOrg(null)
                       setOrgSearch('')
                     }}
-                    className="mt-6 text-sm text-tamu-maroon hover:underline"
+                    className="mt-4 text-sm text-tamu-maroon hover:underline"
                   >
                     ← Back to organization search
                   </button>
