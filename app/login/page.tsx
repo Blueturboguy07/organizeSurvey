@@ -734,13 +734,41 @@ export default function LoginPage() {
                   </div>
                   
                   <motion.button
-                    onClick={() => router.push('/org/setup')}
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    className="w-full py-3 bg-tamu-maroon text-white rounded-lg font-semibold hover:bg-tamu-maroon-light transition-all mb-4"
+                    onClick={async () => {
+                      setLoading(true)
+                      setError('')
+                      try {
+                        // Send password reset link to their email
+                        const response = await fetch('/api/org/send-setup-link', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ organizationId: selectedOrg.id })
+                        })
+                        const result = await response.json()
+                        if (!response.ok) {
+                          throw new Error(result.error || 'Failed to send setup link')
+                        }
+                        setVerificationEmail(result.email || verificationEmail)
+                        setOrgStep('verification-sent')
+                      } catch (err: any) {
+                        setError(err.message || 'Failed to send setup link')
+                      } finally {
+                        setLoading(false)
+                      }
+                    }}
+                    disabled={loading}
+                    whileHover={{ scale: loading ? 1 : 1.02 }}
+                    whileTap={{ scale: loading ? 1 : 0.98 }}
+                    className={`w-full py-3 bg-tamu-maroon text-white rounded-lg font-semibold transition-all mb-4 ${
+                      loading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-tamu-maroon-light'
+                    }`}
                   >
-                    Complete Setup
+                    {loading ? 'Sending...' : 'Send Setup Link'}
                   </motion.button>
+                  
+                  <p className="text-sm text-gray-500 mb-4">
+                    We&apos;ll send a link to <span className="font-medium">{verificationEmail}</span> to set your password.
+                  </p>
                   
                   <button
                     type="button"
