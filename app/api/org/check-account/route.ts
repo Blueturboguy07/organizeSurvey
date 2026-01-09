@@ -38,43 +38,13 @@ export async function POST(request: Request) {
       })
     }
 
-    // Check if user exists in Supabase Auth
-    let authUserExists = false
-    let authUserConfirmed = false
-    
-    if (orgAccount.email) {
-      const { data: usersData } = await supabaseAdmin.auth.admin.listUsers()
-      const authUser = usersData?.users?.find(
-        u => u.email?.toLowerCase() === orgAccount.email.toLowerCase()
-      )
-      if (authUser) {
-        authUserExists = true
-        // Check if email is confirmed (they clicked the link)
-        authUserConfirmed = !!authUser.email_confirmed_at
-        
-        // ONLY sync email_verified status, NOT user_id
-        // user_id is set only when they complete the password setup form
-        if (authUserConfirmed && !orgAccount.email_verified) {
-          await supabaseAdmin
-            .from('org_accounts')
-            .update({
-              email_verified: true,
-            })
-            .eq('id', orgAccount.id)
-        }
-      }
-    }
-
     // has_user (user_id set) means they completed the setup form including password
-    // email_verified means they clicked the email link
-    // If email_verified but !has_user → they need to complete setup (set password)
+    // If !has_user → they need to complete setup (set password)
     return NextResponse.json({
       exists: true,
-      email_verified: orgAccount.email_verified || authUserConfirmed,
+      email_verified: orgAccount.email_verified || false,
       has_user: !!orgAccount.user_id,  // This is the key: only true after password setup
-      auth_user_exists: authUserExists,
-      auth_user_confirmed: authUserConfirmed,
-      needs_password_setup: authUserConfirmed && !orgAccount.user_id,
+      needs_password_setup: !orgAccount.user_id,  // No user_id means they need to set password
       email: maskEmail(orgAccount.email),
     })
 
