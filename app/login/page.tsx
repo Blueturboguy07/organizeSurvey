@@ -43,7 +43,7 @@ export default function LoginPage() {
   const [showDropdown, setShowDropdown] = useState(false)
   const [orgPassword, setOrgPassword] = useState('')
   const [showOrgPassword, setShowOrgPassword] = useState(false)
-  const [orgStep, setOrgStep] = useState<'search' | 'password' | 'verification-sent'>('search')
+  const [orgStep, setOrgStep] = useState<'search' | 'password' | 'verification-sent' | 'needs-setup'>('search')
   const [verificationEmail, setVerificationEmail] = useState('')
   
   const dropdownRef = useRef<HTMLDivElement>(null)
@@ -216,14 +216,18 @@ export default function LoginPage() {
       }
       
       if (accountStatus.exists && accountStatus.email_verified && accountStatus.has_user) {
-        // Account exists AND is fully set up (email verified + user linked)
+        // Account exists AND is fully set up (email verified + password set)
         setOrgStep('password')
+      } else if (accountStatus.needs_password_setup) {
+        // They clicked the email link but haven't set password yet
+        setVerificationEmail(accountStatus.email || 'your registered email')
+        setOrgStep('needs-setup')
       } else if (accountStatus.exists && !accountStatus.email_verified) {
         // Account exists but not verified - they haven't clicked the email link yet
         setVerificationEmail(accountStatus.email || 'your registered email')
         setOrgStep('verification-sent')
       } else if (accountStatus.exists && !accountStatus.has_user) {
-        // Account verified but user not linked - they need to complete setup
+        // Account exists but setup not complete
         setVerificationEmail(accountStatus.email || 'your registered email')
         setOrgStep('verification-sent')
       } else {
@@ -700,6 +704,52 @@ export default function LoginPage() {
                       setOrgSearch('')
                     }}
                     className="mt-4 text-sm text-tamu-maroon hover:underline"
+                  >
+                    ← Back to organization search
+                  </button>
+                </motion.div>
+              )}
+
+              {/* Step 4: Needs password setup - email verified but password not set */}
+              {orgStep === 'needs-setup' && selectedOrg && (
+                <motion.div
+                  key="needs-setup"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="text-center py-6"
+                >
+                  <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg className="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m0 0v2m0-2h2m-2 0H10m9.364-9.364a9 9 0 11-12.728 0M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-800 mb-2">Almost There!</h3>
+                  <p className="text-gray-600 mb-4">
+                    Your email is verified, but you need to set up a password.
+                  </p>
+                  <div className="bg-tamu-maroon/5 rounded-lg p-4 mb-6">
+                    <p className="text-sm text-gray-600">Organization</p>
+                    <p className="font-semibold text-tamu-maroon">{selectedOrg.name}</p>
+                  </div>
+                  
+                  <motion.button
+                    onClick={() => router.push('/org/setup')}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="w-full py-3 bg-tamu-maroon text-white rounded-lg font-semibold hover:bg-tamu-maroon-light transition-all mb-4"
+                  >
+                    Complete Setup
+                  </motion.button>
+                  
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOrgStep('search')
+                      setSelectedOrg(null)
+                      setOrgSearch('')
+                    }}
+                    className="text-sm text-gray-600 hover:text-tamu-maroon transition-colors"
                   >
                     ← Back to organization search
                   </button>

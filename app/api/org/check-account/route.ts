@@ -38,7 +38,7 @@ export async function POST(request: Request) {
       })
     }
 
-    // Check if user exists in Supabase Auth (they might have set up password already)
+    // Check if user exists in Supabase Auth
     let authUserExists = false
     let authUserConfirmed = false
     
@@ -52,36 +52,29 @@ export async function POST(request: Request) {
         // Check if email is confirmed (they clicked the link)
         authUserConfirmed = !!authUser.email_confirmed_at
         
-        // If auth user exists and is confirmed but org_accounts is out of sync, fix it
-        if (authUserConfirmed && (!orgAccount.email_verified || !orgAccount.user_id)) {
+        // ONLY sync email_verified status, NOT user_id
+        // user_id is set only when they complete the password setup form
+        if (authUserConfirmed && !orgAccount.email_verified) {
           await supabaseAdmin
             .from('org_accounts')
             .update({
-              user_id: authUser.id,
               email_verified: true,
-              verification_token: null,
-              verification_token_expires_at: null,
             })
             .eq('id', orgAccount.id)
-          
-          // Return updated status
-          return NextResponse.json({
-            exists: true,
-            email_verified: true,
-            has_user: true,
-            auth_user_exists: true,
-            email: maskEmail(orgAccount.email),
-          })
         }
       }
     }
 
+    // has_user (user_id set) means they completed the setup form including password
+    // email_verified means they clicked the email link
+    // If email_verified but !has_user → they need to complete setup (set password)
     return NextResponse.json({
       exists: true,
-      email_verified: orgAccount.email_verified || false,
-      has_user: !!orgAccount.user_id,
+      email_verified: orgAccount.email_verified || authUserConfirmed,
+      has_user: !!orgAccount.user_id,  // This is the key: only true after password setup
       auth_user_exists: authUserExists,
       auth_user_confirmed: authUserConfirmed,
+      needs_password_setup: authUserConfirmed && !orgAccount.user_id,
       email: maskEmail(orgAccount.email),
     })
 
