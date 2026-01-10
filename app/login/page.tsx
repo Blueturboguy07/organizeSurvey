@@ -43,8 +43,11 @@ export default function LoginPage() {
   const [showDropdown, setShowDropdown] = useState(false)
   const [orgPassword, setOrgPassword] = useState('')
   const [showOrgPassword, setShowOrgPassword] = useState(false)
-  const [orgStep, setOrgStep] = useState<'search' | 'password' | 'verification-sent' | 'needs-setup'>('search')
+  const [orgStep, setOrgStep] = useState<'search' | 'password' | 'signup' | 'verification-sent'>('search')
   const [verificationEmail, setVerificationEmail] = useState('')
+  const [orgConfirmPassword, setOrgConfirmPassword] = useState('')
+  const [showOrgConfirmPassword, setShowOrgConfirmPassword] = useState(false)
+  const [orgEmail, setOrgEmail] = useState('')
   
   const dropdownRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
@@ -215,55 +218,23 @@ export default function LoginPage() {
         throw new Error(accountStatus.error || 'Failed to check account status')
       }
       
-      if (accountStatus.exists && accountStatus.email_verified && accountStatus.has_user) {
-        // Account exists AND is fully set up (email verified + password set)
+      if (accountStatus.exists && accountStatus.has_user) {
+        // Account exists AND is fully set up - show password field
         setOrgStep('password')
-      } else if (accountStatus.needs_password_setup) {
-        // They clicked the email link but haven't set password yet
-        setVerificationEmail(accountStatus.email || 'your registered email')
-        setOrgStep('needs-setup')
-      } else if (accountStatus.exists && !accountStatus.email_verified) {
-        // Account exists but not verified - they haven't clicked the email link yet
-        setVerificationEmail(accountStatus.email || 'your registered email')
-        setOrgStep('verification-sent')
-      } else if (accountStatus.exists && !accountStatus.has_user) {
-        // Account exists but setup not complete
-        setVerificationEmail(accountStatus.email || 'your registered email')
-        setOrgStep('verification-sent')
       } else {
-        // Account doesn't exist, send verification email
+        // Account doesn't exist OR exists but not fully set up - show signup form
         // Extract email from administrative_contact_info
         const emailMatch = org.administrative_contact_info?.match(/([a-zA-Z0-9._-]+@[a-zA-Z0-9._-]+\.[a-zA-Z0-9_-]+)/i)
-        const orgEmail = emailMatch ? emailMatch[1] : null
+        const extractedEmail = emailMatch ? emailMatch[1] : null
         
-        if (!orgEmail) {
+        if (!extractedEmail) {
           setError('No email found on file for this organization. Please contact support.')
           setLoading(false)
           return
         }
         
-        // Send verification email via API
-        const response = await fetch('/api/org/verify-request', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ 
-            organizationId: org.id,
-            organizationName: org.name,
-            email: orgEmail 
-          })
-        })
-        
-        const result = await response.json()
-        
-        if (!response.ok) {
-          throw new Error(result.error || 'Failed to send verification email')
-        }
-        
-        // Mask the email for display
-        const [localPart, domain] = orgEmail.split('@')
-        const maskedEmail = localPart.slice(0, 2) + '***@' + domain
-        setVerificationEmail(maskedEmail)
-        setOrgStep('verification-sent')
+        setOrgEmail(extractedEmail)
+        setOrgStep('signup')
       }
     } catch (err: any) {
       setError(err.message || 'Failed to process organization')
@@ -681,15 +652,15 @@ export default function LoginPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
                     </svg>
                   </div>
-                  <h3 className="text-xl font-semibold text-gray-800 mb-2">Check Your Email!</h3>
+                  <h3 className="text-xl font-semibold text-gray-800 mb-2">Verify Your Email</h3>
                   <p className="text-gray-600 mb-4">
-                    A verification email was sent to
+                    We sent a verification link to
                   </p>
                   <p className="font-mono bg-gray-100 rounded-lg px-4 py-2 text-tamu-maroon font-medium mb-4">
                     {verificationEmail}
                   </p>
                   <p className="text-sm text-gray-500 mb-6">
-                    Click the link in the email to set up your organization account password.
+                    Click the link to verify your email. After that, you can sign in with your password.
                   </p>
                   
                   <p className="text-xs text-gray-400 mb-2">
@@ -702,6 +673,8 @@ export default function LoginPage() {
                       setOrgStep('search')
                       setSelectedOrg(null)
                       setOrgSearch('')
+                      setOrgPassword('')
+                      setOrgConfirmPassword('')
                     }}
                     className="mt-4 text-sm text-tamu-maroon hover:underline"
                   >
@@ -710,77 +683,185 @@ export default function LoginPage() {
                 </motion.div>
               )}
 
-              {/* Step 4: Needs password setup - email verified but password not set */}
-              {orgStep === 'needs-setup' && selectedOrg && (
+              {/* Step 4: Signup - create account with password */}
+              {orgStep === 'signup' && selectedOrg && (
                 <motion.div
-                  key="needs-setup"
+                  key="signup"
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: -20 }}
-                  className="text-center py-6"
                 >
-                  <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                    <svg className="w-8 h-8 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m0 0v2m0-2h2m-2 0H10m9.364-9.364a9 9 0 11-12.728 0M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
-                    </svg>
-                  </div>
-                  <h3 className="text-xl font-semibold text-gray-800 mb-2">Almost There!</h3>
-                  <p className="text-gray-600 mb-4">
-                    Your email is verified, but you need to set up a password.
-                  </p>
-                  <div className="bg-tamu-maroon/5 rounded-lg p-4 mb-6">
-                    <p className="text-sm text-gray-600">Organization</p>
-                    <p className="font-semibold text-tamu-maroon">{selectedOrg.name}</p>
-                  </div>
-                  
-                  <motion.button
-                    onClick={async () => {
-                      setLoading(true)
-                      setError('')
-                      try {
-                        // Send password reset link to their email
-                        const response = await fetch('/api/org/send-setup-link', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json' },
-                          body: JSON.stringify({ organizationId: selectedOrg.id })
+                  <form onSubmit={async (e) => {
+                    e.preventDefault()
+                    if (!selectedOrg) return
+                    
+                    setError('')
+                    
+                    if (orgPassword !== orgConfirmPassword) {
+                      setError('Passwords do not match')
+                      return
+                    }
+                    
+                    if (orgPassword.length < 8) {
+                      setError('Password must be at least 8 characters')
+                      return
+                    }
+                    
+                    setLoading(true)
+                    
+                    try {
+                      // Create org account with password via API
+                      const response = await fetch('/api/org/signup', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          organizationId: selectedOrg.id,
+                          organizationName: selectedOrg.name,
+                          email: orgEmail,
+                          password: orgPassword,
                         })
-                        const result = await response.json()
-                        if (!response.ok) {
-                          throw new Error(result.error || 'Failed to send setup link')
-                        }
-                        setVerificationEmail(result.email || verificationEmail)
-                        setOrgStep('verification-sent')
-                      } catch (err: any) {
-                        setError(err.message || 'Failed to send setup link')
-                      } finally {
-                        setLoading(false)
+                      })
+                      
+                      const result = await response.json()
+                      
+                      if (!response.ok) {
+                        throw new Error(result.error || 'Failed to create account')
                       }
-                    }}
-                    disabled={loading}
-                    whileHover={{ scale: loading ? 1 : 1.02 }}
-                    whileTap={{ scale: loading ? 1 : 0.98 }}
-                    className={`w-full py-3 bg-tamu-maroon text-white rounded-lg font-semibold transition-all mb-4 ${
-                      loading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-tamu-maroon-light'
-                    }`}
-                  >
-                    {loading ? 'Sending...' : 'Send Setup Link'}
-                  </motion.button>
-                  
-                  <p className="text-sm text-gray-500 mb-4">
-                    We&apos;ll send a link to <span className="font-medium">{verificationEmail}</span> to set your password.
-                  </p>
-                  
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setOrgStep('search')
-                      setSelectedOrg(null)
-                      setOrgSearch('')
-                    }}
-                    className="text-sm text-gray-600 hover:text-tamu-maroon transition-colors"
-                  >
-                    ← Back to organization search
-                  </button>
+                      
+                      // Show verification sent message
+                      const [localPart, domain] = orgEmail.split('@')
+                      const maskedEmail = localPart.slice(0, 2) + '***@' + domain
+                      setVerificationEmail(maskedEmail)
+                      setOrgStep('verification-sent')
+                    } catch (err: any) {
+                      setError(err.message || 'Failed to create account')
+                    } finally {
+                      setLoading(false)
+                    }
+                  }} className="space-y-6">
+                    <div className="bg-tamu-maroon/5 rounded-lg p-4 mb-4">
+                      <p className="text-sm text-gray-600">Creating account for</p>
+                      <p className="font-semibold text-tamu-maroon">{selectedOrg.name}</p>
+                    </div>
+                    
+                    {error && (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="bg-red-50 border-2 border-red-200 rounded-lg p-4"
+                      >
+                        <p className="text-red-800 text-sm">{error}</p>
+                      </motion.div>
+                    )}
+                    
+                    <div>
+                      <label className="block text-gray-700 font-medium mb-2">
+                        Email
+                      </label>
+                      <input
+                        type="email"
+                        value={orgEmail}
+                        disabled
+                        className="w-full p-3 border-2 border-gray-200 rounded-lg bg-gray-50 text-gray-600"
+                      />
+                      <p className="text-xs text-gray-500 mt-1">This is the email on file for your organization</p>
+                    </div>
+                    
+                    <div>
+                      <label htmlFor="orgSignupPassword" className="block text-gray-700 font-medium mb-2">
+                        Create Password
+                      </label>
+                      <div className="relative">
+                        <input
+                          id="orgSignupPassword"
+                          type={showOrgPassword ? 'text' : 'password'}
+                          value={orgPassword}
+                          onChange={(e) => setOrgPassword(e.target.value)}
+                          required
+                          minLength={8}
+                          className="w-full p-3 pr-10 border-2 border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none"
+                          placeholder="Create a strong password"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowOrgPassword(!showOrgPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                        >
+                          {showOrgPassword ? (
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                            </svg>
+                          ) : (
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                          )}
+                        </button>
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">Must be at least 8 characters</p>
+                    </div>
+                    
+                    <div>
+                      <label htmlFor="orgConfirmPassword" className="block text-gray-700 font-medium mb-2">
+                        Confirm Password
+                      </label>
+                      <div className="relative">
+                        <input
+                          id="orgConfirmPassword"
+                          type={showOrgConfirmPassword ? 'text' : 'password'}
+                          value={orgConfirmPassword}
+                          onChange={(e) => setOrgConfirmPassword(e.target.value)}
+                          required
+                          minLength={8}
+                          className="w-full p-3 pr-10 border-2 border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none"
+                          placeholder="Confirm your password"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowOrgConfirmPassword(!showOrgConfirmPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                        >
+                          {showOrgConfirmPassword ? (
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                            </svg>
+                          ) : (
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    <motion.button
+                      type="submit"
+                      disabled={loading}
+                      whileHover={{ scale: loading ? 1 : 1.02 }}
+                      whileTap={{ scale: loading ? 1 : 0.98 }}
+                      className={`w-full py-3 bg-tamu-maroon text-white rounded-lg font-semibold transition-all ${
+                        loading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-tamu-maroon-light'
+                      }`}
+                    >
+                      {loading ? 'Creating Account...' : 'Create Account'}
+                    </motion.button>
+                    
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setOrgStep('search')
+                        setSelectedOrg(null)
+                        setOrgSearch('')
+                        setOrgPassword('')
+                        setOrgConfirmPassword('')
+                      }}
+                      className="w-full text-center text-sm text-gray-600 hover:text-tamu-maroon transition-colors"
+                    >
+                      Choose a different organization
+                    </button>
+                  </form>
                 </motion.div>
               )}
             </AnimatePresence>
