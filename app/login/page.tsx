@@ -248,25 +248,13 @@ export default function LoginPage() {
     e.preventDefault()
     if (!selectedOrg) return
     
+    console.log('handleOrgLogin called for:', selectedOrg.name)
     setError('')
     setLoading(true)
     
     try {
-      // Get org account email via API (bypasses RLS)
-      const checkResponse = await fetch('/api/org/check-account', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ organizationId: selectedOrg.id })
-      })
-      
-      const accountStatus = await checkResponse.json()
-      
-      if (!checkResponse.ok || !accountStatus.email) {
-        throw new Error('Could not find organization account')
-      }
-      
-      // The email from check-account is masked, we need the full email
-      // Use login API instead
+      // Get org email via login API (bypasses RLS)
+      console.log('Calling /api/org/login...')
       const loginResponse = await fetch('/api/org/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -277,24 +265,31 @@ export default function LoginPage() {
       })
       
       const loginResult = await loginResponse.json()
+      console.log('Login API response:', loginResult)
       
       if (!loginResponse.ok) {
-        throw new Error(loginResult.error || 'Invalid password')
+        throw new Error(loginResult.error || 'Login failed')
       }
       
       // Sign in with the email we got back
+      console.log('Signing in with email:', loginResult.email)
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
         email: loginResult.email,
         password: orgPassword,
       })
 
-      if (signInError) throw signInError
+      if (signInError) {
+        console.error('Sign in error:', signInError)
+        throw signInError
+      }
 
+      console.log('Sign in successful:', data.user?.email)
       if (data.user) {
         router.push('/org/dashboard')
         router.refresh()
       }
     } catch (err: any) {
+      console.error('Login error:', err)
       setError(err.message || 'Invalid password')
     } finally {
       setLoading(false)
