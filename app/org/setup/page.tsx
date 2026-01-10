@@ -16,6 +16,7 @@ function OrgSetupContent() {
   const [loading, setLoading] = useState(false)
   const [verifying, setVerifying] = useState(true)
   const [orgName, setOrgName] = useState('')
+  const [isValidSession, setIsValidSession] = useState(false)
   
   const router = useRouter()
   const searchParams = useSearchParams()
@@ -23,77 +24,79 @@ function OrgSetupContent() {
   const token = searchParams.get('token')
 
   useEffect(() => {
-    async function verifyToken() {
+    async function verifyAndSetupSession() {
       try {
-        // First, check if we have a valid session from the invite link
-        // Supabase handles the invite auth and passes tokens in URL hash
-        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        // For password reset links, Supabase puts tokens in the URL hash
+        // Format: /org/setup#access_token=xxx&refresh_token=yyy&type=recovery
+        const hashParams = new URLSearchParams(window.location.hash.substring(1))
+        const accessToken = hashParams.get('access_token')
+        const refreshToken = hashParams.get('refresh_token')
+        const type = hashParams.get('type')
         
-        if (sessionError) {
-          console.error('Session error:', sessionError)
-          setError('Failed to authenticate. Please try clicking the link in your email again.')
-          setVerifying(false)
-          return
+        console.log('Setup page loaded, type:', type, 'has tokens:', !!accessToken)
+        
+        // If we have tokens in hash, set up the session
+        if (accessToken && refreshToken) {
+          const { error: setSessionError } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          })
+          
+          if (setSessionError) {
+            console.error('Set session error:', setSessionError)
+            setError('Your link has expired. Please request a new one from the login page.')
+            setVerifying(false)
+            return
+          }
+          
+          // Clear the hash from URL for cleaner look
+          window.history.replaceState(null, '', window.location.pathname)
         }
         
-        if (!session) {
-          // No session yet - might need to wait for Supabase to process the invite
-          // Check URL hash for access token (Supabase invite flow puts it there)
-          const hashParams = new URLSearchParams(window.location.hash.substring(1))
-          const accessToken = hashParams.get('access_token')
-          const refreshToken = hashParams.get('refresh_token')
-          
-          if (accessToken && refreshToken) {
-            // Set the session from hash params
-            const { error: setSessionError } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken,
-            })
-            
-            if (setSessionError) {
-              console.error('Set session error:', setSessionError)
-              setError('Failed to authenticate. Please try clicking the link in your email again.')
-              setVerifying(false)
-              return
-            }
-          } else if (token) {
-            // Try to exchange as PKCE code (in case Supabase is using that flow)
+        // Check if we now have a valid session
+        const { data: { session }, error: sessionError } = await supabase.auth.getSession()
+        
+        if (sessionError || !session) {
+          // No hash tokens and no existing session - try PKCE code exchange
+          if (token) {
             const { error: exchangeError } = await supabase.auth.exchangeCodeForSession(token)
-            
             if (exchangeError) {
               console.error('Exchange error:', exchangeError)
-              setError('Verification link has expired or is invalid. Please return to the login page and try again.')
+              setError('Your link has expired. Please request a new one from the login page.')
               setVerifying(false)
               return
             }
           } else {
-            setError('Invalid verification link. Please return to the login page and try again.')
+            setError('No valid session found. Please click the link in your email or request a new one.')
             setVerifying(false)
             return
           }
         }
 
-        // Get org name from user metadata
+        // Get the user and org info
         const { data: { user } } = await supabase.auth.getUser()
-        if (user?.user_metadata?.organization_name) {
-          setOrgName(user.user_metadata.organization_name)
-        }
-
+        
         if (!user) {
           setError('Could not verify your identity. Please try again.')
           setVerifying(false)
           return
         }
 
+        // Get org name from user metadata
+        if (user.user_metadata?.organization_name) {
+          setOrgName(user.user_metadata.organization_name)
+        }
+
+        setIsValidSession(true)
         setVerifying(false)
       } catch (err: any) {
-        console.error('Verify error:', err)
-        setError(err.message || 'Failed to verify')
+        console.error('Setup error:', err)
+        setError(err.message || 'Failed to set up session')
         setVerifying(false)
       }
     }
 
-    verifyToken()
+    verifyAndSetupSession()
   }, [token, supabase])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -210,7 +213,7 @@ function OrgSetupContent() {
           )}
         </div>
 
-        {error && !token ? (
+        {error && !isValidSession ? (
           <div className="text-center py-8">
             <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
               <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
