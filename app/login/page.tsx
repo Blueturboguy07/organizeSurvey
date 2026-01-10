@@ -252,18 +252,39 @@ export default function LoginPage() {
     setLoading(true)
     
     try {
-      // Get org account email
-      const { data: orgAccount, error: fetchError } = await supabase
-        .from('org_accounts')
-        .select('email')
-        .eq('organization_id', selectedOrg.id)
-        .single()
+      // Get org account email via API (bypasses RLS)
+      const checkResponse = await fetch('/api/org/check-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ organizationId: selectedOrg.id })
+      })
       
-      if (fetchError) throw fetchError
+      const accountStatus = await checkResponse.json()
       
-      // Sign in with org account credentials
+      if (!checkResponse.ok || !accountStatus.email) {
+        throw new Error('Could not find organization account')
+      }
+      
+      // The email from check-account is masked, we need the full email
+      // Use login API instead
+      const loginResponse = await fetch('/api/org/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          organizationId: selectedOrg.id,
+          password: orgPassword,
+        })
+      })
+      
+      const loginResult = await loginResponse.json()
+      
+      if (!loginResponse.ok) {
+        throw new Error(loginResult.error || 'Invalid password')
+      }
+      
+      // Sign in with the email we got back
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email: orgAccount.email,
+        email: loginResult.email,
         password: orgPassword,
       })
 
