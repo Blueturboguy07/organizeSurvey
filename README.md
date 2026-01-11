@@ -1,23 +1,46 @@
-# TAMU Survey - Next.js Project
+# ORGanize TAMU
 
-A survey application for Texas A&M University built with Next.js, TypeScript, Tailwind CSS, and Framer Motion. This application uses weighted text matching to match students with relevant organizations based on their survey responses.
+A full-stack web application that helps Texas A&M University students discover and connect with student organizations that match their interests. Built with Next.js, TypeScript, Tailwind CSS, Supabase, and Python.
 
 ## Features
 
-- Multi-step survey form with smooth animations
-- TAMU color theme (maroon and white)
-- Interactive form elements with Framer Motion animations
-- Weighted text matching for organization recommendations
-- Eligibility filtering based on demographics (gender, race, classification, sexuality)
-- Top 20 organization recommendations with similarity scores
-- Responsive design
+### For Students
+- **Multi-step Survey** - Interactive survey with smooth Framer Motion animations to capture interests, career goals, demographics, and preferences
+- **AI-Powered Matching** - Weighted text matching algorithm to recommend organizations based on survey responses
+- **Eligibility Filtering** - Automatic filtering based on demographics (gender, race, classification, sexuality)
+- **User Dashboard** - Personal dashboard showing recommendations and organization matches
+- **Profile Management** - Upload profile pictures, manage email preferences, and update personal info
+- **Real-time Updates** - Live data synchronization across sessions using Supabase real-time subscriptions
+
+### For Organization Representatives
+- **Organization Dashboard** - Dedicated dashboard to manage organization information
+- **Inline Editing** - Edit organization details (bio, contact info, meeting times, etc.) directly from the dashboard
+- **Real-time Sync** - Changes sync instantly across all connected clients
+
+### Authentication & Security
+- **Dual Login Flow** - Separate authentication flows for students and organization representatives
+- **Email Verification** - Email verification required for account activation
+- **Resend Verification** - Ability to resend verification emails if not received
+- **Password Reset** - Secure password reset flow
+- **Rate Limiting** - API rate limiting to prevent abuse
+- **Row Level Security (RLS)** - Supabase RLS policies for data protection
+
+## Tech Stack
+
+- **Frontend**: Next.js 14, React 18, TypeScript, Tailwind CSS
+- **Animations**: Framer Motion
+- **Backend**: Next.js API Routes, Python
+- **Database**: Supabase (PostgreSQL)
+- **Authentication**: Supabase Auth
+- **Storage**: Supabase Storage (profile pictures)
+- **Real-time**: Supabase Realtime subscriptions
 
 ## Prerequisites
 
 - Node.js 18+ and npm
 - Python 3.8+ with pip
-- `final.csv` file in the project root
-- Supabase project (for authentication and data storage)
+- Supabase project
+- Organization data CSV file (`final.csv`)
 
 ## Getting Started
 
@@ -29,22 +52,24 @@ npm install
 
 ### 2. Set Up Supabase
 
-1. Create a Supabase project at [Supabase Console](https://supabase.com/)
-2. Create a `.env.local` file in the project root with your Supabase configuration:
+1. Create a Supabase project at [supabase.com](https://supabase.com)
+2. Create a `.env.local` file in the project root:
 
 ```env
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
 SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
-You can find these values in your Supabase project settings under "API" > "Project API keys".
+3. Run the SQL setup scripts in your Supabase SQL Editor:
+   - `supabase_setup.sql` - User profiles table and policies
+   - `supabase_organizations.sql` - Organizations table and policies
+   - `supabase_org_accounts.sql` - Organization accounts table and policies
 
-3. Set up the `user_queries` table in your Supabase SQL Editor (create the table schema as needed for your application).
+4. Create a storage bucket named `profile-pictures` in Supabase Storage
 
 ### 3. Install Python Dependencies
-
-Create a virtual environment and install dependencies:
 
 ```bash
 python3 -m venv venv
@@ -52,11 +77,9 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-The API route will automatically use the virtual environment's Python if it exists.
+### 4. Add Organizations Data
 
-### 4. Add Organizations CSV
-
-Place your `final.csv` file in the project root directory.
+Place your `final.csv` file in the project root directory with organization data.
 
 ### 5. Run the Development Server
 
@@ -64,48 +87,7 @@ Place your `final.csv` file in the project root directory.
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the survey.
-
-## Survey Questions
-
-1. **Contact Information** - Name and email (required)
-2. Career fields of interest (multiple selection)
-3. On-campus housing status and hall name
-4. Classification (Freshman, Sophomore, Junior, Senior, Graduate)
-5. Demographics (Race, Sexuality, Gender, Hobbies)
-6. Activities and goals (Activity preferences, Religious organizations, Primary goal)
-
-## How It Works
-
-1. User enters their name and email (required)
-2. User completes the multi-step survey
-3. Survey responses are cleansed and combined into a query string
-4. The query is sent to the `/api/search` endpoint
-5. The API calls a Python script that:
-   - Loads and processes the organizations CSV
-   - Performs weighted text matching based on user preferences
-   - Filters organizations based on eligibility criteria (gender, race, classification, sexuality)
-   - Returns the top matching organizations
-6. Results are displayed to the user with similarity scores and organization details
-7. Submission data (name, email, survey responses, and top results) is automatically saved to Supabase
-
-## Eligibility Filtering
-
-The system automatically filters out organizations that the user is not eligible for based on:
-- **Gender**: Organizations with gender-specific requirements (e.g., "Women in Engineering", "Male-only" groups)
-- **Race**: Organizations with race-specific eligibility requirements
-- **Classification**: Organizations that require specific academic classifications
-- **Sexuality**: Organizations with sexuality-specific requirements
-
-## Tech Stack
-
-- Next.js 14
-- TypeScript
-- Tailwind CSS
-- Framer Motion
-- Supabase - for authentication and data storage
-- Python 3.8+
-- pandas
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## Project Structure
 
@@ -113,38 +95,124 @@ The system automatically filters out organizations that the user is not eligible
 organizeSurvey/
 ├── app/
 │   ├── api/
-│   │   ├── search/
-│   │   │   └── route.ts          # API endpoint for organization search
-│   │   ├── submit/
-│   │   │   └── route.ts           # API endpoint to save submissions to Supabase
-│   │   ├── profile/
-│   │   │   └── route.ts           # API endpoint for user profile
-│   │   └── reset-profile/
-│   │       └── route.ts           # API endpoint to reset user profile
-│   ├── globals.css
-│   ├── layout.tsx
-│   └── page.tsx
+│   │   ├── org/                    # Organization API endpoints
+│   │   │   ├── check-account/      # Check if org account exists
+│   │   │   ├── complete-setup/     # Complete org account setup
+│   │   │   ├── login/              # Org login helper
+│   │   │   ├── send-setup-link/    # Send setup link email
+│   │   │   ├── signup/             # Org signup
+│   │   │   └── verify-request/     # Verify org request
+│   │   ├── profile/                # User profile endpoints
+│   │   │   ├── route.ts            # GET/PUT profile
+│   │   │   └── upload/             # Profile picture upload
+│   │   ├── resend-verification/    # Resend verification email
+│   │   ├── reset-profile/          # Reset user interests
+│   │   ├── search/                 # Organization search
+│   │   └── submit/                 # Submit survey responses
+│   ├── auth/
+│   │   ├── callback/               # Auth callback handler
+│   │   └── verify/                 # Email verification page
+│   ├── dashboard/                  # Student dashboard
+│   ├── forgot-password/            # Password reset request
+│   ├── login/                      # Login page (student & org)
+│   ├── org/
+│   │   ├── dashboard/              # Organization dashboard
+│   │   └── setup/                  # Org account setup
+│   ├── profile/                    # User profile settings
+│   ├── register/                   # Student registration
+│   ├── reset-password/             # Password reset form
+│   ├── survey/                     # Survey form page
+│   ├── globals.css                 # Global styles
+│   ├── layout.tsx                  # Root layout
+│   └── page.tsx                    # Landing page
 ├── components/
-│   └── SurveyForm.tsx             # Main survey form component
+│   └── SurveyForm.tsx              # Multi-step survey component
+├── contexts/
+│   └── AuthContext.tsx             # Auth state & real-time subscriptions
 ├── lib/
-│   ├── supabase.ts                # Supabase configuration
-│   └── rateLimit.ts               # Rate limiting utility
+│   ├── rateLimit.ts                # API rate limiting
+│   └── supabase.ts                 # Supabase client configuration
 ├── scripts/
-│   └── weighted_search.py         # Python script for weighted search and filtering
-├── final.csv                      # Organizations data (add this file)
-├── .env.local                     # Supabase configuration (create this file)
-└── requirements.txt               # Python dependencies
+│   ├── migrate_csv_to_supabase.py  # Import CSV data to Supabase
+│   └── weighted_search.py          # Organization matching algorithm
+├── middleware.ts                   # Auth middleware
+├── supabase_setup.sql              # User profiles SQL
+├── supabase_organizations.sql      # Organizations SQL
+├── supabase_org_accounts.sql       # Org accounts SQL
+└── requirements.txt                # Python dependencies
 ```
 
-## Supabase Data Structure
+## Database Schema
 
-The application stores data in Supabase with the following tables:
+### Tables
 
-- **`user_queries`**: Stores user survey queries and demographics
-- **`profiles`**: User profile information (managed by Supabase Auth)
+- **`user_profiles`** - User profile data (name, picture, email preferences)
+- **`user_queries`** - Survey responses and demographics
+- **`organizations`** - Organization information and eligibility criteria
+- **`org_accounts`** - Links Supabase auth users to organizations
 
-## Notes
+## How It Works
 
-- Make sure `final.csv` is in the project root directory
-- Make sure `.env.local` is configured with your Supabase credentials
-- The search uses weighted text matching for organization recommendations
+### Student Flow
+1. Student registers with TAMU email → receives verification email
+2. After verification, completes multi-step survey
+3. Survey responses are processed by weighted matching algorithm
+4. Top 20 matching organizations displayed with similarity scores
+5. Student can view recommendations from dashboard
+
+### Organization Flow
+1. Org representative selects their organization from search
+2. If no account exists, creates one with org's contact email
+3. Receives verification email → clicks link to set password
+4. Accesses org dashboard to update organization information
+
+### Matching Algorithm
+The Python script (`weighted_search.py`):
+1. Loads organization data from Supabase
+2. Combines user responses into a query string
+3. Performs weighted text matching based on preferences
+4. Filters organizations by eligibility criteria
+5. Returns top matching organizations with scores
+
+## Real-time Features
+
+The application uses Supabase Realtime for live updates:
+
+- **Auth State** - Instant login/logout synchronization
+- **User Profiles** - Profile changes reflect immediately
+- **Survey Data** - Survey responses sync in real-time
+- **Organizations** - Org updates propagate to all clients
+- **Login Search** - Organization list updates live
+
+## Deployment
+
+### Vercel (Frontend)
+```bash
+npm run build
+```
+
+Deploy to Vercel with environment variables configured.
+
+### Render (Python API)
+Use `Procfile` and `render.yaml` for Render deployment.
+
+## Environment Variables
+
+| Variable | Description |
+|----------|-------------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase project URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase anonymous key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key |
+| `NEXT_PUBLIC_APP_URL` | Application URL for email redirects |
+
+## Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Test thoroughly
+5. Submit a pull request
+
+## License
+
+This project is private and intended for Texas A&M University use.
