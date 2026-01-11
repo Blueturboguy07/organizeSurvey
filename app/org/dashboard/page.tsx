@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClientComponentClient } from '@/lib/supabase'
@@ -42,46 +42,60 @@ interface Organization {
   updated_at: string
 }
 
-// Editable fields configuration
-const editableFields: { key: keyof Organization; label: string; type: 'text' | 'textarea' }[] = [
-  { key: 'bio', label: 'Organization Bio', type: 'textarea' },
-  { key: 'website', label: 'Website', type: 'text' },
-  { key: 'administrative_contact_info', label: 'Contact Info', type: 'text' },
-  { key: 'typical_majors', label: 'Typical Majors', type: 'textarea' },
-  { key: 'typical_classifications', label: 'Typical Classifications', type: 'text' },
-  { key: 'meeting_frequency', label: 'Meeting Frequency', type: 'text' },
-  { key: 'meeting_times', label: 'Meeting Times', type: 'text' },
-  { key: 'meeting_locations', label: 'Meeting Locations', type: 'text' },
-  { key: 'dues_required', label: 'Dues Required', type: 'text' },
-  { key: 'dues_cost', label: 'Dues Cost', type: 'text' },
-  { key: 'application_required', label: 'Application Required', type: 'text' },
-  { key: 'time_commitment', label: 'Time Commitment', type: 'text' },
-  { key: 'member_count', label: 'Member Count', type: 'text' },
-  { key: 'club_type', label: 'Club Type', type: 'text' },
-  { key: 'typical_activities', label: 'Typical Activities', type: 'textarea' },
-  { key: 'offered_skills_or_benefits', label: 'Skills & Benefits Offered', type: 'textarea' },
-  { key: 'club_culture_style', label: 'Club Culture', type: 'textarea' },
-  { key: 'inclusivity_focus', label: 'Inclusivity Focus', type: 'textarea' },
-  { key: 'new_member_onboarding_process', label: 'Onboarding Process', type: 'textarea' },
+// Common majors for dropdown suggestions
+const COMMON_MAJORS = [
+  'Aerospace Engineering', 'Agricultural Economics', 'Agricultural Engineering',
+  'Animal Science', 'Anthropology', 'Architecture', 'Biochemistry', 'Biology',
+  'Biomedical Engineering', 'Business Administration', 'Chemical Engineering',
+  'Chemistry', 'Civil Engineering', 'Communication', 'Computer Engineering',
+  'Computer Science', 'Construction Science', 'Economics', 'Electrical Engineering',
+  'English', 'Environmental Engineering', 'Finance', 'History', 'Industrial Engineering',
+  'Information Technology', 'International Studies', 'Journalism', 'Kinesiology',
+  'Management', 'Marketing', 'Mathematics', 'Mechanical Engineering', 'Nursing',
+  'Nutrition', 'Petroleum Engineering', 'Philosophy', 'Physics', 'Political Science',
+  'Psychology', 'Public Health', 'Sociology', 'Statistics', 'Veterinary Medicine'
 ]
+
+const CLASSIFICATIONS = ['Freshman', 'Sophomore', 'Junior', 'Senior', 'Graduate', 'All']
+
+type ActiveTab = 'about' | 'details' | 'membership'
 
 export default function OrgDashboardPage() {
   const [loading, setLoading] = useState(true)
   const [organization, setOrganization] = useState<Organization | null>(null)
-  const [editingField, setEditingField] = useState<keyof Organization | null>(null)
-  const [editValue, setEditValue] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
-  const [saveSuccess, setSaveSuccess] = useState(false)
+  const [saveSuccess, setSaveSuccess] = useState('')
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<ActiveTab>('about')
   
+  // Editing states
+  const [editingField, setEditingField] = useState<string | null>(null)
+  const [editValues, setEditValues] = useState<Record<string, string>>({})
+  
+  // Tag input states
+  const [majorInput, setMajorInput] = useState('')
+  const [showMajorDropdown, setShowMajorDropdown] = useState(false)
+  const [activityInput, setActivityInput] = useState('')
+  
+  const majorInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const supabase = createClientComponentClient()
+
+  // Parse comma-separated string to array
+  const parseToArray = (value: string | null): string[] => {
+    if (!value || value === 'nan') return []
+    return value.split(',').map(s => s.trim()).filter(s => s.length > 0)
+  }
+
+  // Join array to comma-separated string
+  const arrayToString = (arr: string[]): string => {
+    return arr.join(', ')
+  }
 
   // Fetch organization data
   const fetchOrganization = useCallback(async () => {
     try {
-      // Get current user
       const { data: { user }, error: userError } = await supabase.auth.getUser()
       
       if (userError || !user) {
@@ -89,14 +103,11 @@ export default function OrgDashboardPage() {
         return
       }
 
-      // Check if user is an org account
       if (!user.user_metadata?.is_org_account) {
-        // Not an org account, redirect to student dashboard
         router.push('/dashboard')
         return
       }
 
-      // Get org account to find organization_id
       const { data: orgAccount, error: orgAccountError } = await supabase
         .from('org_accounts')
         .select('organization_id')
@@ -109,7 +120,6 @@ export default function OrgDashboardPage() {
         return
       }
 
-      // Fetch organization data
       const { data: orgData, error: orgError } = await supabase
         .from('organizations')
         .select('*')
@@ -149,7 +159,6 @@ export default function OrgDashboardPage() {
 
       if (!orgAccount) return
 
-      // Subscribe to changes on this specific organization
       channel = supabase
         .channel(`org-${orgAccount.organization_id}`)
         .on(
@@ -161,7 +170,6 @@ export default function OrgDashboardPage() {
             filter: `id=eq.${orgAccount.organization_id}`
           },
           (payload) => {
-            console.log('Organization updated in real-time:', payload)
             setOrganization(payload.new as Organization)
             setLastUpdated(payload.new.updated_at)
           }
@@ -178,23 +186,9 @@ export default function OrgDashboardPage() {
     }
   }, [fetchOrganization, supabase])
 
-  // Start editing a field
-  const startEditing = (field: keyof Organization) => {
-    setEditingField(field)
-    setEditValue(organization?.[field] as string || '')
-    setError('')
-    setSaveSuccess(false)
-  }
-
-  // Cancel editing
-  const cancelEditing = () => {
-    setEditingField(null)
-    setEditValue('')
-  }
-
-  // Save field changes
-  const saveField = async () => {
-    if (!organization || !editingField) return
+  // Save a single field
+  const saveField = async (field: keyof Organization, value: string | null) => {
+    if (!organization) return
 
     setSaving(true)
     setError('')
@@ -202,18 +196,16 @@ export default function OrgDashboardPage() {
     try {
       const { error: updateError } = await supabase
         .from('organizations')
-        .update({ [editingField]: editValue || null })
+        .update({ [field]: value || null })
         .eq('id', organization.id)
 
       if (updateError) throw updateError
 
-      // Update local state (real-time subscription will also update it)
-      setOrganization(prev => prev ? { ...prev, [editingField]: editValue || null } : null)
-      setSaveSuccess(true)
+      setOrganization(prev => prev ? { ...prev, [field]: value || null } : null)
+      setSaveSuccess(`${field} updated!`)
       setEditingField(null)
-      setEditValue('')
       
-      setTimeout(() => setSaveSuccess(false), 3000)
+      setTimeout(() => setSaveSuccess(''), 2000)
     } catch (err: any) {
       setError(err.message || 'Failed to save changes')
     } finally {
@@ -221,7 +213,70 @@ export default function OrgDashboardPage() {
     }
   }
 
-  // Sign out handler
+  // Handle adding a major tag
+  const addMajor = (major: string) => {
+    if (!organization) return
+    const currentMajors = parseToArray(organization.typical_majors)
+    if (!currentMajors.includes(major)) {
+      const newMajors = [...currentMajors, major]
+      saveField('typical_majors', arrayToString(newMajors))
+    }
+    setMajorInput('')
+    setShowMajorDropdown(false)
+  }
+
+  // Handle removing a major tag
+  const removeMajor = (major: string) => {
+    if (!organization) return
+    const currentMajors = parseToArray(organization.typical_majors)
+    const newMajors = currentMajors.filter(m => m !== major)
+    saveField('typical_majors', newMajors.length > 0 ? arrayToString(newMajors) : null)
+  }
+
+  // Handle adding an activity tag
+  const addActivity = (activity: string) => {
+    if (!organization || !activity.trim()) return
+    const currentActivities = parseToArray(organization.typical_activities)
+    if (!currentActivities.includes(activity.trim())) {
+      const newActivities = [...currentActivities, activity.trim()]
+      saveField('typical_activities', arrayToString(newActivities))
+    }
+    setActivityInput('')
+  }
+
+  // Handle removing an activity tag
+  const removeActivity = (activity: string) => {
+    if (!organization) return
+    const currentActivities = parseToArray(organization.typical_activities)
+    const newActivities = currentActivities.filter(a => a !== activity)
+    saveField('typical_activities', newActivities.length > 0 ? arrayToString(newActivities) : null)
+  }
+
+  // Filter majors for dropdown
+  const filteredMajors = COMMON_MAJORS.filter(m => 
+    m.toLowerCase().includes(majorInput.toLowerCase()) &&
+    !parseToArray(organization?.typical_majors || '').includes(m)
+  )
+
+  // Handle classification toggle
+  const toggleClassification = (classification: string) => {
+    if (!organization) return
+    const current = parseToArray(organization.typical_classifications)
+    let newClassifications: string[]
+    
+    if (classification === 'All') {
+      newClassifications = current.includes('All') ? [] : ['All']
+    } else {
+      if (current.includes(classification)) {
+        newClassifications = current.filter(c => c !== classification && c !== 'All')
+      } else {
+        newClassifications = [...current.filter(c => c !== 'All'), classification]
+      }
+    }
+    
+    saveField('typical_classifications', newClassifications.length > 0 ? arrayToString(newClassifications) : null)
+  }
+
   const handleSignOut = async () => {
     await supabase.auth.signOut()
     router.push('/login')
@@ -240,10 +295,7 @@ export default function OrgDashboardPage() {
       <div className="min-h-screen bg-gradient-to-b from-white to-gray-50 flex items-center justify-center">
         <div className="text-center">
           <p className="text-red-600 mb-4">{error || 'Organization not found'}</p>
-          <button
-            onClick={() => router.push('/login')}
-            className="text-tamu-maroon hover:underline"
-          >
+          <button onClick={() => router.push('/login')} className="text-tamu-maroon hover:underline">
             Return to login
           </button>
         </div>
@@ -251,39 +303,122 @@ export default function OrgDashboardPage() {
     )
   }
 
+  // Inline editable field component
+  const EditableField = ({ 
+    field, 
+    label, 
+    value, 
+    type = 'text',
+    placeholder 
+  }: { 
+    field: keyof Organization
+    label: string
+    value: string | null
+    type?: 'text' | 'textarea'
+    placeholder?: string
+  }) => {
+    const isEditing = editingField === field
+    const displayValue = value && value !== 'nan' ? value : ''
+    
+    return (
+      <div className="group">
+        <div className="flex items-center justify-between mb-1">
+          <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</label>
+          {!isEditing && (
+            <button
+              onClick={() => {
+                setEditingField(field)
+                setEditValues({ ...editValues, [field]: displayValue })
+              }}
+              className="opacity-0 group-hover:opacity-100 text-xs text-tamu-maroon hover:underline transition-opacity"
+            >
+              Edit
+            </button>
+          )}
+        </div>
+        
+        {isEditing ? (
+          <div className="space-y-2">
+            {type === 'textarea' ? (
+              <textarea
+                value={editValues[field] || ''}
+                onChange={(e) => setEditValues({ ...editValues, [field]: e.target.value })}
+                rows={3}
+                className="w-full p-2 text-sm border border-tamu-maroon rounded-lg focus:outline-none focus:ring-2 focus:ring-tamu-maroon/20 resize-none"
+                placeholder={placeholder || `Enter ${label.toLowerCase()}...`}
+                autoFocus
+              />
+            ) : (
+              <input
+                type="text"
+                value={editValues[field] || ''}
+                onChange={(e) => setEditValues({ ...editValues, [field]: e.target.value })}
+                className="w-full p-2 text-sm border border-tamu-maroon rounded-lg focus:outline-none focus:ring-2 focus:ring-tamu-maroon/20"
+                placeholder={placeholder || `Enter ${label.toLowerCase()}...`}
+                autoFocus
+              />
+            )}
+            <div className="flex gap-2">
+              <button
+                onClick={() => saveField(field, editValues[field] || null)}
+                disabled={saving}
+                className="px-3 py-1 text-xs bg-tamu-maroon text-white rounded-md hover:bg-tamu-maroon-light disabled:opacity-50"
+              >
+                {saving ? '...' : 'Save'}
+              </button>
+              <button
+                onClick={() => setEditingField(null)}
+                className="px-3 py-1 text-xs text-gray-600 hover:text-gray-800"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <p className="text-gray-800 text-sm">
+            {displayValue || <span className="text-gray-400 italic">Not set</span>}
+          </p>
+        )}
+      </div>
+    )
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-b from-white to-gray-50">
+    <div className="min-h-screen bg-gray-50">
       {/* Header */}
-      <header className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+      <header className="bg-white shadow-sm border-b border-gray-200 sticky top-0 z-40">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <Image 
                 src="/logo.png" 
                 alt="ORGanize TAMU Logo" 
-                width={40}
-                height={40}
+                width={36}
+                height={36}
                 className="flex-shrink-0 object-contain"
               />
               <div>
-                <h1 className="text-2xl font-bold text-tamu-maroon">Organization Dashboard</h1>
-                <p className="text-sm text-gray-600">{organization.name}</p>
+                <h1 className="text-lg font-bold text-tamu-maroon">ORGanize TAMU</h1>
+                <p className="text-xs text-gray-500">Organization Dashboard</p>
               </div>
             </div>
-            <motion.button
-              onClick={handleSignOut}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              className="px-4 py-2 text-gray-700 hover:text-tamu-maroon border border-gray-300 rounded-lg font-medium hover:border-tamu-maroon transition-colors"
-            >
-              Sign Out
-            </motion.button>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1.5">
+                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                <span className="text-xs text-gray-500 hidden sm:inline">Live</span>
+              </div>
+              <button
+                onClick={handleSignOut}
+                className="px-3 py-1.5 text-sm text-gray-600 hover:text-tamu-maroon border border-gray-300 rounded-lg hover:border-tamu-maroon transition-colors"
+              >
+                Sign Out
+              </button>
+            </div>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 py-6">
         {/* Success/Error Messages */}
         <AnimatePresence>
           {saveSuccess && (
@@ -291,9 +426,9 @@ export default function OrgDashboardPage() {
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="mb-6 bg-green-50 border-2 border-green-200 rounded-lg p-4"
+              className="mb-4 bg-green-50 border border-green-200 rounded-lg px-4 py-2 text-sm text-green-800"
             >
-              <p className="text-green-800">Changes saved successfully!</p>
+              {saveSuccess}
             </motion.div>
           )}
           {error && (
@@ -301,149 +436,330 @@ export default function OrgDashboardPage() {
               initial={{ opacity: 0, y: -10 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
-              className="mb-6 bg-red-50 border-2 border-red-200 rounded-lg p-4"
+              className="mb-4 bg-red-50 border border-red-200 rounded-lg px-4 py-2 text-sm text-red-800"
             >
-              <p className="text-red-800">{error}</p>
+              {error}
             </motion.div>
           )}
         </AnimatePresence>
 
-        {/* Real-time indicator */}
-        <div className="mb-6 flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-            <span className="text-sm text-gray-600">Real-time updates enabled</span>
-          </div>
-          {lastUpdated && (
-            <span className="text-sm text-gray-500">
-              Last updated: {new Date(lastUpdated).toLocaleString()}
-            </span>
-          )}
-        </div>
-
-        {/* Organization Name Header */}
+        {/* Organization Card Header - Similar to student view */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="bg-white rounded-lg shadow-md p-6 mb-6"
+          className="bg-gradient-to-r from-tamu-maroon to-tamu-maroon-light rounded-xl shadow-lg overflow-hidden mb-6"
         >
-          <h2 className="text-3xl font-bold text-gray-800">{organization.name}</h2>
-          {organization.club_type && (
-            <span className="inline-block mt-2 px-3 py-1 bg-tamu-maroon/10 text-tamu-maroon rounded-full text-sm font-medium">
-              {organization.club_type}
-            </span>
-          )}
+          <div className="p-6 text-white">
+            <h2 className="text-2xl sm:text-3xl font-bold mb-2">{organization.name}</h2>
+            <div className="flex flex-wrap items-center gap-2">
+              {organization.club_type && (
+                <span className="px-3 py-1 bg-white/20 rounded-full text-sm font-medium">
+                  {organization.club_type}
+                </span>
+              )}
+              {lastUpdated && (
+                <span className="text-xs text-white/70">
+                  Last updated: {new Date(lastUpdated).toLocaleDateString()}
+                </span>
+              )}
+            </div>
+          </div>
         </motion.div>
 
-        {/* Editable Fields */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="bg-white rounded-lg shadow-md p-6"
-        >
-          <h3 className="text-xl font-semibold text-gray-800 mb-6">Organization Details</h3>
-          <p className="text-sm text-gray-500 mb-6">
-            Click on any field to edit. Changes are saved to the database and synced in real-time.
-          </p>
+        {/* Tab Navigation */}
+        <div className="flex gap-1 mb-6 bg-white rounded-lg p-1 shadow-sm border border-gray-200">
+          {(['about', 'details', 'membership'] as ActiveTab[]).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
+                activeTab === tab
+                  ? 'bg-tamu-maroon text-white'
+                  : 'text-gray-600 hover:bg-gray-100'
+              }`}
+            >
+              {tab === 'about' && 'About'}
+              {tab === 'details' && 'Details'}
+              {tab === 'membership' && 'Membership'}
+            </button>
+          ))}
+        </div>
 
-          <div className="space-y-6">
-            {editableFields.map((field) => (
-              <div key={field.key} className="border-b border-gray-100 pb-6 last:border-b-0 last:pb-0">
-                <div className="flex items-start justify-between mb-2">
-                  <label className="text-sm font-medium text-gray-600">{field.label}</label>
-                  {editingField !== field.key && (
-                    <button
-                      onClick={() => startEditing(field.key)}
-                      className="text-sm text-tamu-maroon hover:underline"
+        {/* Tab Content */}
+        <AnimatePresence mode="wait">
+          {/* About Tab */}
+          {activeTab === 'about' && (
+            <motion.div
+              key="about"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-4"
+            >
+              {/* Bio Card */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+                <EditableField
+                  field="bio"
+                  label="Organization Bio"
+                  value={organization.bio}
+                  type="textarea"
+                  placeholder="Describe your organization..."
+                />
+              </div>
+
+              {/* Contact Card */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+                <h3 className="text-sm font-semibold text-gray-800 mb-4">Contact Information</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <EditableField
+                    field="website"
+                    label="Website"
+                    value={organization.website}
+                    placeholder="https://..."
+                  />
+                  <EditableField
+                    field="administrative_contact_info"
+                    label="Contact Email"
+                    value={organization.administrative_contact_info}
+                    placeholder="contact@example.com"
+                  />
+                </div>
+              </div>
+
+              {/* Typical Majors - Tag Input */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+                <h3 className="text-sm font-semibold text-gray-800 mb-3">Typical Majors</h3>
+                <p className="text-xs text-gray-500 mb-3">Add majors that typically join your organization</p>
+                
+                {/* Current Tags */}
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {parseToArray(organization.typical_majors).map((major) => (
+                    <motion.span
+                      key={major}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="inline-flex items-center gap-1 px-3 py-1 bg-tamu-maroon/10 text-tamu-maroon rounded-full text-sm"
                     >
-                      Edit
-                    </button>
+                      {major}
+                      <button
+                        onClick={() => removeMajor(major)}
+                        className="ml-1 hover:text-red-600 font-bold"
+                      >
+                        ×
+                      </button>
+                    </motion.span>
+                  ))}
+                  {parseToArray(organization.typical_majors).length === 0 && (
+                    <span className="text-gray-400 text-sm italic">No majors added</span>
                   )}
                 </div>
 
-                {editingField === field.key ? (
-                  <div className="space-y-3">
-                    {field.type === 'textarea' ? (
-                      <textarea
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        rows={4}
-                        className="w-full p-3 border-2 border-tamu-maroon rounded-lg focus:outline-none resize-none"
-                        placeholder={`Enter ${field.label.toLowerCase()}...`}
-                        autoFocus
-                      />
-                    ) : (
-                      <input
-                        type="text"
-                        value={editValue}
-                        onChange={(e) => setEditValue(e.target.value)}
-                        className="w-full p-3 border-2 border-tamu-maroon rounded-lg focus:outline-none"
-                        placeholder={`Enter ${field.label.toLowerCase()}...`}
-                        autoFocus
-                      />
-                    )}
-                    <div className="flex gap-2">
-                      <motion.button
-                        onClick={saveField}
-                        disabled={saving}
-                        whileHover={{ scale: saving ? 1 : 1.02 }}
-                        whileTap={{ scale: saving ? 1 : 0.98 }}
-                        className={`px-4 py-2 bg-tamu-maroon text-white rounded-lg font-medium text-sm ${
-                          saving ? 'opacity-50 cursor-not-allowed' : 'hover:bg-tamu-maroon-light'
-                        }`}
-                      >
-                        {saving ? 'Saving...' : 'Save'}
-                      </motion.button>
-                      <button
-                        onClick={cancelEditing}
-                        className="px-4 py-2 text-gray-600 hover:text-gray-800 font-medium text-sm"
-                      >
-                        Cancel
-                      </button>
+                {/* Add Major Input */}
+                <div className="relative">
+                  <input
+                    ref={majorInputRef}
+                    type="text"
+                    value={majorInput}
+                    onChange={(e) => {
+                      setMajorInput(e.target.value)
+                      setShowMajorDropdown(true)
+                    }}
+                    onFocus={() => setShowMajorDropdown(true)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && majorInput.trim()) {
+                        e.preventDefault()
+                        addMajor(majorInput.trim())
+                      }
+                    }}
+                    placeholder="Type a major and press Enter..."
+                    className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none"
+                  />
+                  
+                  {/* Dropdown */}
+                  {showMajorDropdown && majorInput && filteredMajors.length > 0 && (
+                    <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                      {filteredMajors.slice(0, 8).map((major) => (
+                        <button
+                          key={major}
+                          type="button"
+                          onClick={() => addMajor(major)}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-tamu-maroon hover:text-white transition-colors"
+                        >
+                          {major}
+                        </button>
+                      ))}
                     </div>
-                  </div>
-                ) : (
-                  <p className="text-gray-800 whitespace-pre-wrap">
-                    {organization[field.key] || (
-                      <span className="text-gray-400 italic">Not set</span>
-                    )}
-                  </p>
-                )}
+                  )}
+                </div>
               </div>
-            ))}
-          </div>
-        </motion.div>
 
-        {/* Demographics Section (Read-only) */}
-        <motion.div
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="bg-white rounded-lg shadow-md p-6 mt-6"
-        >
-          <h3 className="text-xl font-semibold text-gray-800 mb-6">Membership Demographics</h3>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="text-sm font-medium text-gray-600">Eligible Classifications</label>
-              <p className="text-gray-800 mt-1">{organization.all_eligible_classifications || 'All'}</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-600">Eligible Races</label>
-              <p className="text-gray-800 mt-1">{organization.eligible_races || 'All'}</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-600">Eligible Gender</label>
-              <p className="text-gray-800 mt-1">{organization.eligible_gender || 'All'}</p>
-            </div>
-            <div>
-              <label className="text-sm font-medium text-gray-600">Competitive/Non-Competitive</label>
-              <p className="text-gray-800 mt-1">{organization.competitive_or_non_competitive || 'Not specified'}</p>
-            </div>
-          </div>
-        </motion.div>
+              {/* Typical Activities - Tag Input */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+                <h3 className="text-sm font-semibold text-gray-800 mb-3">Typical Activities</h3>
+                <p className="text-xs text-gray-500 mb-3">Add activities your organization typically does</p>
+                
+                {/* Current Tags */}
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {parseToArray(organization.typical_activities).map((activity) => (
+                    <motion.span
+                      key={activity}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm"
+                    >
+                      {activity}
+                      <button
+                        onClick={() => removeActivity(activity)}
+                        className="ml-1 hover:text-red-600 font-bold"
+                      >
+                        ×
+                      </button>
+                    </motion.span>
+                  ))}
+                  {parseToArray(organization.typical_activities).length === 0 && (
+                    <span className="text-gray-400 text-sm italic">No activities added</span>
+                  )}
+                </div>
+
+                {/* Add Activity Input */}
+                <input
+                  type="text"
+                  value={activityInput}
+                  onChange={(e) => setActivityInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && activityInput.trim()) {
+                      e.preventDefault()
+                      addActivity(activityInput.trim())
+                    }
+                  }}
+                  placeholder="Type an activity and press Enter..."
+                  className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none"
+                />
+              </div>
+            </motion.div>
+          )}
+
+          {/* Details Tab */}
+          {activeTab === 'details' && (
+            <motion.div
+              key="details"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-4"
+            >
+              {/* Meeting Info Card */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+                <h3 className="text-sm font-semibold text-gray-800 mb-4">Meeting Information</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  <EditableField field="meeting_frequency" label="Frequency" value={organization.meeting_frequency} />
+                  <EditableField field="meeting_times" label="Times" value={organization.meeting_times} />
+                  <EditableField field="meeting_locations" label="Locations" value={organization.meeting_locations} />
+                </div>
+              </div>
+
+              {/* Dues & Requirements Card */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+                <h3 className="text-sm font-semibold text-gray-800 mb-4">Dues & Requirements</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <EditableField field="dues_required" label="Dues Required" value={organization.dues_required} placeholder="Yes/No" />
+                  <EditableField field="dues_cost" label="Dues Amount" value={organization.dues_cost} placeholder="$XX per semester" />
+                  <EditableField field="application_required" label="Application Required" value={organization.application_required} placeholder="Yes/No" />
+                  <EditableField field="time_commitment" label="Time Commitment" value={organization.time_commitment} placeholder="X hours/week" />
+                </div>
+              </div>
+
+              {/* Organization Info Card */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+                <h3 className="text-sm font-semibold text-gray-800 mb-4">Organization Info</h3>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <EditableField field="member_count" label="Member Count" value={organization.member_count} />
+                  <EditableField field="club_type" label="Club Type" value={organization.club_type} />
+                </div>
+              </div>
+
+              {/* Culture Card */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+                <h3 className="text-sm font-semibold text-gray-800 mb-4">Culture & Benefits</h3>
+                <div className="space-y-4">
+                  <EditableField field="club_culture_style" label="Club Culture" value={organization.club_culture_style} type="textarea" />
+                  <EditableField field="offered_skills_or_benefits" label="Skills & Benefits" value={organization.offered_skills_or_benefits} type="textarea" />
+                  <EditableField field="new_member_onboarding_process" label="Onboarding Process" value={organization.new_member_onboarding_process} type="textarea" />
+                </div>
+              </div>
+            </motion.div>
+          )}
+
+          {/* Membership Tab */}
+          {activeTab === 'membership' && (
+            <motion.div
+              key="membership"
+              initial={{ opacity: 0, x: 20 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -20 }}
+              className="space-y-4"
+            >
+              {/* Classifications Multi-Select */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+                <h3 className="text-sm font-semibold text-gray-800 mb-3">Typical Classifications</h3>
+                <p className="text-xs text-gray-500 mb-3">Select classifications that typically join your organization</p>
+                
+                <div className="flex flex-wrap gap-2">
+                  {CLASSIFICATIONS.map((classification) => {
+                    const isSelected = parseToArray(organization.typical_classifications).includes(classification)
+                    return (
+                      <button
+                        key={classification}
+                        onClick={() => toggleClassification(classification)}
+                        disabled={saving}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                          isSelected
+                            ? 'bg-tamu-maroon text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        } ${saving ? 'opacity-50' : ''}`}
+                      >
+                        {classification}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Demographics Info (Read-only with explanation) */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+                <h3 className="text-sm font-semibold text-gray-800 mb-3">Eligibility Criteria</h3>
+                <p className="text-xs text-gray-500 mb-4">
+                  These fields are used to filter which students see your organization. Contact support to update.
+                </p>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Eligible Classifications</label>
+                    <p className="text-sm text-gray-800 mt-1">{organization.all_eligible_classifications || 'All'}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Eligible Races</label>
+                    <p className="text-sm text-gray-800 mt-1">{organization.eligible_races || 'All'}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Eligible Gender</label>
+                    <p className="text-sm text-gray-800 mt-1">{organization.eligible_gender || 'All'}</p>
+                  </div>
+                  <div>
+                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Competitive</label>
+                    <p className="text-sm text-gray-800 mt-1">{organization.competitive_or_non_competitive || 'Not specified'}</p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Inclusivity */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+                <EditableField field="inclusivity_focus" label="Inclusivity Focus" value={organization.inclusivity_focus} type="textarea" placeholder="Describe your organization's inclusivity initiatives..." />
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
     </div>
   )
 }
-
