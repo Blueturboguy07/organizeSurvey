@@ -34,6 +34,10 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [studentStep, setStudentStep] = useState<'login' | 'resend' | 'verification-sent'>('login')
+  const [studentResending, setStudentResending] = useState(false)
+  const [studentResendMessage, setStudentResendMessage] = useState('')
+  const [studentVerificationEmail, setStudentVerificationEmail] = useState('')
   
   // Org login state
   const [orgSearch, setOrgSearch] = useState('')
@@ -48,6 +52,8 @@ export default function LoginPage() {
   const [orgConfirmPassword, setOrgConfirmPassword] = useState('')
   const [showOrgConfirmPassword, setShowOrgConfirmPassword] = useState(false)
   const [orgEmail, setOrgEmail] = useState('')
+  const [resending, setResending] = useState(false)
+  const [resendMessage, setResendMessage] = useState('')
   
   const dropdownRef = useRef<HTMLDivElement>(null)
   const router = useRouter()
@@ -373,6 +379,8 @@ export default function LoginPage() {
             setOrgStep('search')
             setSelectedOrg(null)
             setOrgSearch('')
+            setStudentStep('login')
+            setStudentResendMessage('')
           }}
           className="flex items-center gap-2 text-gray-600 hover:text-tamu-maroon mb-6 transition-colors"
         >
@@ -403,98 +411,309 @@ export default function LoginPage() {
 
         {/* Student Login Form */}
         {userType === 'student' && (
-          <>
-            <form onSubmit={handleStudentSubmit} className="space-y-6">
-              {error && (
+          <div className="space-y-6">
+            {error && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="bg-red-50 border-2 border-red-200 rounded-lg p-4"
+              >
+                <p className="text-red-800 text-sm">{error}</p>
+              </motion.div>
+            )}
+
+            <AnimatePresence mode="wait">
+              {/* Step 1: Login form */}
+              {studentStep === 'login' && (
                 <motion.div
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  className="bg-red-50 border-2 border-red-200 rounded-lg p-4"
+                  key="login"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
                 >
-                  <p className="text-red-800 text-sm">{error}</p>
+                  <form onSubmit={handleStudentSubmit} className="space-y-6">
+                    <div>
+                      <label htmlFor="email" className="block text-gray-700 font-medium mb-2">
+                        Email
+                      </label>
+                      <input
+                        id="email"
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                        className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none"
+                        placeholder="your.email@tamu.edu"
+                      />
+                    </div>
+
+                    <div>
+                      <label htmlFor="password" className="block text-gray-700 font-medium mb-2">
+                        Password
+                      </label>
+                      <div className="relative">
+                        <input
+                          id="password"
+                          type={showPassword ? 'text' : 'password'}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          required
+                          className="w-full p-3 pr-10 border-2 border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none"
+                          placeholder="Enter your password"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowPassword(!showPassword)}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
+                          aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        >
+                          {showPassword ? (
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
+                            </svg>
+                          ) : (
+                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                            </svg>
+                          )}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="text-right">
+                      <Link
+                        href="/forgot-password"
+                        className="text-sm text-tamu-maroon hover:underline"
+                      >
+                        Forgot password?
+                      </Link>
+                    </div>
+
+                    <motion.button
+                      type="submit"
+                      disabled={loading}
+                      whileHover={{ scale: loading ? 1 : 1.02 }}
+                      whileTap={{ scale: loading ? 1 : 0.98 }}
+                      className={`w-full py-3 bg-tamu-maroon text-white rounded-lg font-semibold transition-all ${
+                        loading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-tamu-maroon-light'
+                      }`}
+                    >
+                      {loading ? 'Signing in...' : 'Sign In'}
+                    </motion.button>
+                  </form>
+
+                  <div className="mt-6 text-center space-y-3">
+                    <p className="text-gray-600">
+                      Don&apos;t have an account?{' '}
+                      <Link href="/register" className="text-tamu-maroon font-semibold hover:underline">
+                        Sign up
+                      </Link>
+                    </p>
+                    
+                    <button
+                      type="button"
+                      onClick={() => setStudentStep('resend')}
+                      className="text-sm text-gray-500 hover:text-tamu-maroon transition-colors"
+                    >
+                      Didn&apos;t verify your email?
+                    </button>
+                  </div>
                 </motion.div>
               )}
 
-              <div>
-                <label htmlFor="email" className="block text-gray-700 font-medium mb-2">
-                  Email
-                </label>
-                <input
-                  id="email"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                  className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none"
-                  placeholder="your.email@tamu.edu"
-                />
-              </div>
+              {/* Step 2: Resend verification form */}
+              {studentStep === 'resend' && (
+                <motion.div
+                  key="resend"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                >
+                  <div className="text-center mb-6">
+                    <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                      <svg className="w-8 h-8 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                    </div>
+                    <h3 className="text-xl font-semibold text-gray-800 mb-2">Resend Verification</h3>
+                    <p className="text-gray-600 text-sm">
+                      Enter your email address and we&apos;ll send you a new verification link.
+                    </p>
+                  </div>
 
-              <div>
-                <label htmlFor="password" className="block text-gray-700 font-medium mb-2">
-                  Password
-                </label>
-                <div className="relative">
-                  <input
-                    id="password"
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                    className="w-full p-3 pr-10 border-2 border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none"
-                    placeholder="Enter your password"
-                  />
+                  <form onSubmit={async (e) => {
+                    e.preventDefault()
+                    if (!email) return
+                    setStudentResending(true)
+                    setStudentResendMessage('')
+                    
+                    try {
+                      const response = await fetch('/api/resend-verification', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ email, type: 'user' })
+                      })
+                      
+                      const result = await response.json()
+                      
+                      if (!response.ok) {
+                        setStudentResendMessage(result.error || 'Failed to resend verification email')
+                      } else {
+                        // Mask email for display
+                        const [localPart, domain] = email.split('@')
+                        const maskedEmail = localPart.slice(0, 2) + '***@' + domain
+                        setStudentVerificationEmail(maskedEmail)
+                        setStudentStep('verification-sent')
+                      }
+                    } catch (err: any) {
+                      setStudentResendMessage('Failed to resend. Please try again.')
+                    } finally {
+                      setStudentResending(false)
+                    }
+                  }} className="space-y-6">
+                    <div>
+                      <label htmlFor="resendEmail" className="block text-gray-700 font-medium mb-2">
+                        Email
+                      </label>
+                      <input
+                        id="resendEmail"
+                        type="email"
+                        value={email}
+                        onChange={(e) => setEmail(e.target.value)}
+                        required
+                        className="w-full p-3 border-2 border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none"
+                        placeholder="your.email@tamu.edu"
+                      />
+                    </div>
+
+                    {studentResendMessage && (
+                      <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        className="bg-red-50 border border-red-200 rounded-lg p-3"
+                      >
+                        <p className="text-red-800 text-sm">{studentResendMessage}</p>
+                      </motion.div>
+                    )}
+
+                    <motion.button
+                      type="submit"
+                      disabled={studentResending || !email}
+                      whileHover={{ scale: studentResending ? 1 : 1.02 }}
+                      whileTap={{ scale: studentResending ? 1 : 0.98 }}
+                      className={`w-full py-3 bg-tamu-maroon text-white rounded-lg font-semibold transition-all ${
+                        studentResending || !email ? 'opacity-50 cursor-not-allowed' : 'hover:bg-tamu-maroon-light'
+                      }`}
+                    >
+                      {studentResending ? 'Sending...' : 'Send Verification Email'}
+                    </motion.button>
+                    
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setStudentStep('login')
+                        setStudentResendMessage('')
+                      }}
+                      className="w-full text-center text-sm text-gray-600 hover:text-tamu-maroon transition-colors"
+                    >
+                      ← Back to login
+                    </button>
+                  </form>
+                </motion.div>
+              )}
+
+              {/* Step 3: Verification email sent */}
+              {studentStep === 'verification-sent' && (
+                <motion.div
+                  key="verification"
+                  initial={{ opacity: 0, x: 20 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  exit={{ opacity: 0, x: -20 }}
+                  className="text-center py-6"
+                >
+                  <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-800 mb-2">Check Your Email</h3>
+                  <p className="text-gray-600 mb-4">
+                    We sent a verification link to
+                  </p>
+                  <p className="font-mono bg-gray-100 rounded-lg px-4 py-2 text-tamu-maroon font-medium mb-4">
+                    {studentVerificationEmail}
+                  </p>
+                  <p className="text-sm text-gray-500 mb-4">
+                    Click the link to verify your email. After that, you can sign in.
+                  </p>
+                  
+                  {studentResendMessage && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className={`mb-4 p-3 rounded-lg text-sm ${
+                        studentResendMessage.includes('sent') 
+                          ? 'bg-green-50 text-green-800 border border-green-200' 
+                          : 'bg-red-50 text-red-800 border border-red-200'
+                      }`}
+                    >
+                      {studentResendMessage}
+                    </motion.div>
+                  )}
+                  
                   <button
                     type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 hover:text-gray-700"
-                    aria-label={showPassword ? 'Hide password' : 'Show password'}
+                    onClick={async () => {
+                      setStudentResending(true)
+                      setStudentResendMessage('')
+                      
+                      try {
+                        const response = await fetch('/api/resend-verification', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ email, type: 'user' })
+                        })
+                        
+                        const result = await response.json()
+                        
+                        if (!response.ok) {
+                          setStudentResendMessage(result.error || 'Failed to resend verification email')
+                        } else {
+                          setStudentResendMessage('Verification email sent! Check your inbox.')
+                        }
+                      } catch (err: any) {
+                        setStudentResendMessage('Failed to resend. Please try again.')
+                      } finally {
+                        setStudentResending(false)
+                      }
+                    }}
+                    disabled={studentResending}
+                    className={`w-full px-4 py-2 mb-4 text-sm border-2 border-tamu-maroon text-tamu-maroon rounded-lg hover:bg-tamu-maroon/5 transition-all ${
+                      studentResending ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
                   >
-                    {showPassword ? (
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21" />
-                      </svg>
-                    ) : (
-                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                      </svg>
-                    )}
+                    {studentResending ? 'Sending...' : "Didn't receive the email? Resend verification"}
                   </button>
-                </div>
-              </div>
-
-              <div className="text-right">
-                <Link
-                  href="/forgot-password"
-                  className="text-sm text-tamu-maroon hover:underline"
-                >
-                  Forgot password?
-                </Link>
-              </div>
-
-              <motion.button
-                type="submit"
-                disabled={loading}
-                whileHover={{ scale: loading ? 1 : 1.02 }}
-                whileTap={{ scale: loading ? 1 : 0.98 }}
-                className={`w-full py-3 bg-tamu-maroon text-white rounded-lg font-semibold transition-all ${
-                  loading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-tamu-maroon-light'
-                }`}
-              >
-                {loading ? 'Signing in...' : 'Sign In'}
-              </motion.button>
-            </form>
-
-            <div className="mt-6 text-center">
-              <p className="text-gray-600">
-                Don&apos;t have an account?{' '}
-                <Link href="/register" className="text-tamu-maroon font-semibold hover:underline">
-                  Sign up
-                </Link>
-              </p>
-            </div>
-          </>
+                  
+                  <p className="text-xs text-gray-400 mb-2">
+                    Check your spam folder if you don&apos;t see it in your inbox.
+                  </p>
+                  
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setStudentStep('login')
+                      setStudentResendMessage('')
+                    }}
+                    className="mt-4 text-sm text-tamu-maroon hover:underline"
+                  >
+                    ← Back to login
+                  </button>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         )}
 
         {/* Organization Login Form */}
@@ -675,12 +894,60 @@ export default function LoginPage() {
                   <p className="font-mono bg-gray-100 rounded-lg px-4 py-2 text-tamu-maroon font-medium mb-4">
                     {verificationEmail}
                   </p>
-                  <p className="text-sm text-gray-500 mb-6">
+                  <p className="text-sm text-gray-500 mb-4">
                     Click the link to verify your email. After that, you can sign in with your password.
                   </p>
                   
+                  {resendMessage && (
+                    <motion.div
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      className={`mb-4 p-3 rounded-lg text-sm ${
+                        resendMessage.includes('sent') 
+                          ? 'bg-green-50 text-green-800 border border-green-200' 
+                          : 'bg-red-50 text-red-800 border border-red-200'
+                      }`}
+                    >
+                      {resendMessage}
+                    </motion.div>
+                  )}
+                  
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      setResending(true)
+                      setResendMessage('')
+                      
+                      try {
+                        const response = await fetch('/api/resend-verification', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ email: orgEmail, type: 'org' })
+                        })
+                        
+                        const result = await response.json()
+                        
+                        if (!response.ok) {
+                          setResendMessage(result.error || 'Failed to resend verification email')
+                        } else {
+                          setResendMessage('Verification email sent! Check your inbox.')
+                        }
+                      } catch (err: any) {
+                        setResendMessage('Failed to resend verification email. Please try again.')
+                      } finally {
+                        setResending(false)
+                      }
+                    }}
+                    disabled={resending}
+                    className={`w-full px-4 py-2 mb-4 text-sm border-2 border-tamu-maroon text-tamu-maroon rounded-lg hover:bg-tamu-maroon/5 transition-all ${
+                      resending ? 'opacity-50 cursor-not-allowed' : ''
+                    }`}
+                  >
+                    {resending ? 'Sending...' : "Didn't receive the email? Resend verification"}
+                  </button>
+                  
                   <p className="text-xs text-gray-400 mb-2">
-                    Didn&apos;t receive the email? Check your spam folder or contact support.
+                    Check your spam folder if you don&apos;t see it in your inbox.
                   </p>
                   
                   <button
@@ -691,6 +958,7 @@ export default function LoginPage() {
                       setOrgSearch('')
                       setOrgPassword('')
                       setOrgConfirmPassword('')
+                      setResendMessage('')
                     }}
                     className="mt-4 text-sm text-tamu-maroon hover:underline"
                   >

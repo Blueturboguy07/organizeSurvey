@@ -18,6 +18,8 @@ export default function RegisterPage() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
   const [success, setSuccess] = useState(false)
+  const [resending, setResending] = useState(false)
+  const [resendMessage, setResendMessage] = useState('')
   const router = useRouter()
   const supabase = createClientComponentClient()
   // Use AuthContext for real-time auth state (redirect if already logged in)
@@ -107,6 +109,31 @@ export default function RegisterPage() {
     )
   }
 
+  const handleResendVerification = async () => {
+    setResending(true)
+    setResendMessage('')
+    
+    try {
+      const response = await fetch('/api/resend-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, type: 'user' })
+      })
+      
+      const result = await response.json()
+      
+      if (!response.ok) {
+        setResendMessage(result.error || 'Failed to resend verification email')
+      } else {
+        setResendMessage('Verification email sent! Check your inbox.')
+      }
+    } catch (err: any) {
+      setResendMessage('Failed to resend verification email. Please try again.')
+    } finally {
+      setResending(false)
+    }
+  }
+
   if (success) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-white to-gray-50 flex items-center justify-center px-4">
@@ -131,12 +158,39 @@ export default function RegisterPage() {
               Please click the link in the email to verify your account before signing in.
             </p>
           </div>
-          <Link
-            href="/login"
-            className="inline-block px-6 py-3 bg-tamu-maroon text-white rounded-lg font-semibold hover:bg-tamu-maroon-light transition-all"
-          >
-            Go to Login
-          </Link>
+          
+          {resendMessage && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className={`mb-4 p-3 rounded-lg text-sm ${
+                resendMessage.includes('sent') 
+                  ? 'bg-green-50 text-green-800 border border-green-200' 
+                  : 'bg-red-50 text-red-800 border border-red-200'
+              }`}
+            >
+              {resendMessage}
+            </motion.div>
+          )}
+          
+          <div className="space-y-3">
+            <Link
+              href="/login"
+              className="inline-block w-full px-6 py-3 bg-tamu-maroon text-white rounded-lg font-semibold hover:bg-tamu-maroon-light transition-all"
+            >
+              Go to Login
+            </Link>
+            
+            <button
+              onClick={handleResendVerification}
+              disabled={resending}
+              className={`w-full px-4 py-2 text-sm text-tamu-maroon hover:underline transition-all ${
+                resending ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+            >
+              {resending ? 'Sending...' : "Didn't receive the email? Resend verification"}
+            </button>
+          </div>
         </motion.div>
       </div>
     )
