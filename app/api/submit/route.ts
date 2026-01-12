@@ -132,6 +132,7 @@ export async function POST(request: NextRequest) {
       sexuality: body.sexuality || body.sexualityOther || '',
       careerFields: body.careerFields || [],
       engineeringTypes: body.engineeringTypes || [],
+      major: body.major || '',
       religion: body.religion === 'Other' ? body.religionOther : (body.religion || '')
     }
 
