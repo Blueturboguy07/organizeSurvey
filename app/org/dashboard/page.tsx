@@ -446,6 +446,28 @@ export default function OrgDashboardPage() {
     saveField('all_eligible_classifications', newClassifications.length > 0 ? arrayToString(newClassifications) : null)
   }
 
+  // Handle eligible race toggle
+  const toggleEligibleRace = (race: string) => {
+    if (!organization) return
+    
+    if (race === 'All') {
+      // If "All" is selected, clear all races (null = all eligible)
+      saveField('eligible_races', null)
+      return
+    }
+    
+    const currentRaces = parseToArray(organization.eligible_races)
+    let newRaces: string[]
+    
+    if (currentRaces.includes(race)) {
+      newRaces = currentRaces.filter(r => r !== race)
+    } else {
+      newRaces = [...currentRaces, race]
+    }
+    
+    saveField('eligible_races', newRaces.length > 0 ? arrayToString(newRaces) : null)
+  }
+
   const handleSignOut = async () => {
     await supabase.auth.signOut()
     router.push('/login')
@@ -1201,17 +1223,17 @@ export default function OrgDashboardPage() {
               {/* Eligible Races */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
                 <h3 className="text-sm font-semibold text-gray-800 mb-3">Eligible Races/Ethnicities</h3>
-                <p className="text-xs text-gray-500 mb-3">Leave as &quot;All&quot; unless your org has specific eligibility requirements</p>
+                <p className="text-xs text-gray-500 mb-3">Select multiple races that are eligible to join. Leave as &quot;All&quot; for no restrictions.</p>
                 
                 <div className="flex flex-wrap gap-2">
                   {RACES.map((race) => {
-                    const currentRaces = organization.eligible_races || 'All'
+                    const currentRaces = parseToArray(organization.eligible_races)
                     const isAll = race === 'All' && (!organization.eligible_races || organization.eligible_races === 'nan' || organization.eligible_races.toLowerCase() === 'all')
-                    const isSelected = isAll || (currentRaces.toLowerCase().includes(race.toLowerCase()) && race !== 'All')
+                    const isSelected = isAll || (race !== 'All' && currentRaces.includes(race))
                     return (
                       <button
                         key={race}
-                        onClick={() => saveField('eligible_races', race === 'All' ? null : race)}
+                        onClick={() => toggleEligibleRace(race)}
                         disabled={saving}
                         className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                           isSelected
@@ -1224,6 +1246,9 @@ export default function OrgDashboardPage() {
                     )
                   })}
                 </div>
+                {parseToArray(organization.eligible_races).length === 0 && (
+                  <p className="text-xs text-green-600 mt-2">✓ All races/ethnicities are eligible</p>
+                )}
               </div>
 
               {/* Inclusivity */}
