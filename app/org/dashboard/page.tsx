@@ -60,6 +60,32 @@ const CAREER_FIELDS = [
   'Hospitality/Tourism'
 ]
 
+// Engineering types from survey
+const ENGINEERING_TYPES = [
+  'Aerospace engineering',
+  'Architectural engineering',
+  'Biological and agricultural engineering',
+  'Biomedical engineering',
+  'Chemical engineering',
+  'Civil engineering',
+  'Computer engineering',
+  'Electrical engineering',
+  'Environmental engineering',
+  'Industrial engineering',
+  'Interdisciplinary engineering',
+  'Materials science and engineering',
+  'Mechanical engineering',
+  'Nuclear engineering',
+  'Ocean engineering',
+  'Petroleum engineering',
+  'Engineering technology and related programs',
+  'Electronic systems engineering technology',
+  'Manufacturing and mechanical engineering technology',
+  'Multidisciplinary engineering technology',
+  'Industrial distribution',
+  'Computer science'
+]
+
 // Activities from survey
 const ACTIVITIES = [
   'Volunteering',
@@ -103,9 +129,12 @@ export default function OrgDashboardPage() {
   const [showCareerFieldDropdown, setShowCareerFieldDropdown] = useState(false)
   const [activityInput, setActivityInput] = useState('')
   const [showActivityDropdown, setShowActivityDropdown] = useState(false)
+  const [engineeringTypeInput, setEngineeringTypeInput] = useState('')
+  const [showEngineeringTypeDropdown, setShowEngineeringTypeDropdown] = useState(false)
   
   const careerFieldInputRef = useRef<HTMLInputElement>(null)
   const activityInputRef = useRef<HTMLInputElement>(null)
+  const engineeringTypeInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const supabase = createClientComponentClient()
 
@@ -221,14 +250,27 @@ export default function OrgDashboardPage() {
     setError('')
 
     try {
+      let finalValue = value || null
+      
+      // Special handling for typical_majors: preserve career fields and engineering types when editing typical majors text
+      if (field === 'typical_majors' && editingField === 'typical_majors') {
+        // When editing typical majors text, preserve career fields and engineering types
+        const careerFields = getCareerFields()
+        const engineeringTypes = getEngineeringTypes()
+        const typicalMajorsText = value ? parseToArray(value) : []
+        // Combine: career fields + engineering types + typical majors text
+        const allFields = [...careerFields, ...engineeringTypes, ...typicalMajorsText]
+        finalValue = allFields.length > 0 ? arrayToString(allFields) : null
+      }
+
       const { error: updateError } = await supabase
         .from('organizations')
-        .update({ [field]: value || null })
+        .update({ [field]: finalValue })
         .eq('id', organization.id)
 
       if (updateError) throw updateError
 
-      setOrganization(prev => prev ? { ...prev, [field]: value || null } : null)
+      setOrganization(prev => prev ? { ...prev, [field]: finalValue } : null)
       setSaveSuccess(`Updated!`)
       setEditingField(null)
       
@@ -240,12 +282,32 @@ export default function OrgDashboardPage() {
     }
   }
 
+  // Get career fields (excluding engineering types)
+  const getCareerFields = (): string[] => {
+    if (!organization) return []
+    const allFields = parseToArray(organization.typical_majors)
+    return allFields.filter(f => !ENGINEERING_TYPES.includes(f))
+  }
+
+  // Get engineering types
+  const getEngineeringTypes = (): string[] => {
+    if (!organization) return []
+    const allFields = parseToArray(organization.typical_majors)
+    return allFields.filter(f => ENGINEERING_TYPES.includes(f))
+  }
+
+  // Check if Engineering is selected as a career field
+  const hasEngineeringCareerField = (): boolean => {
+    return getCareerFields().includes('Engineering')
+  }
+
   // Handle adding a career field tag
   const addCareerField = (field: string) => {
     if (!organization) return
-    const currentFields = parseToArray(organization.typical_majors)
+    const currentFields = getCareerFields()
     if (!currentFields.includes(field)) {
-      const newFields = [...currentFields, field]
+      const engineeringTypes = getEngineeringTypes()
+      const newFields = [...currentFields, field, ...engineeringTypes]
       saveField('typical_majors', arrayToString(newFields))
     }
     setCareerFieldInput('')
@@ -255,9 +317,41 @@ export default function OrgDashboardPage() {
   // Handle removing a career field tag
   const removeCareerField = (field: string) => {
     if (!organization) return
-    const currentFields = parseToArray(organization.typical_majors)
+    const currentFields = getCareerFields()
     const newFields = currentFields.filter(f => f !== field)
-    saveField('typical_majors', newFields.length > 0 ? arrayToString(newFields) : null)
+    const engineeringTypes = getEngineeringTypes()
+    const allFields = [...newFields, ...engineeringTypes]
+    
+    // If removing Engineering, also remove all engineering types
+    if (field === 'Engineering') {
+      saveField('typical_majors', newFields.length > 0 ? arrayToString(newFields) : null)
+    } else {
+      saveField('typical_majors', allFields.length > 0 ? arrayToString(allFields) : null)
+    }
+  }
+
+  // Handle adding an engineering type
+  const addEngineeringType = (type: string) => {
+    if (!organization) return
+    const currentFields = getCareerFields()
+    const currentTypes = getEngineeringTypes()
+    if (!currentTypes.includes(type)) {
+      const newTypes = [...currentTypes, type]
+      const allFields = [...currentFields, ...newTypes]
+      saveField('typical_majors', arrayToString(allFields))
+    }
+    setEngineeringTypeInput('')
+    setShowEngineeringTypeDropdown(false)
+  }
+
+  // Handle removing an engineering type
+  const removeEngineeringType = (type: string) => {
+    if (!organization) return
+    const currentFields = getCareerFields()
+    const currentTypes = getEngineeringTypes()
+    const newTypes = currentTypes.filter(t => t !== type)
+    const allFields = [...currentFields, ...newTypes]
+    saveField('typical_majors', allFields.length > 0 ? arrayToString(allFields) : null)
   }
 
   // Handle adding an activity tag (only from predefined list)
@@ -285,7 +379,13 @@ export default function OrgDashboardPage() {
   // Filter career fields for dropdown
   const filteredCareerFields = CAREER_FIELDS.filter(f => 
     f.toLowerCase().includes(careerFieldInput.toLowerCase()) &&
-    !parseToArray(organization?.typical_majors || '').includes(f)
+    !getCareerFields().includes(f)
+  )
+
+  // Filter engineering types for dropdown
+  const filteredEngineeringTypes = ENGINEERING_TYPES.filter(t => 
+    t.toLowerCase().includes(engineeringTypeInput.toLowerCase()) &&
+    !getEngineeringTypes().includes(t)
   )
 
   // Filter activities for dropdown
@@ -580,7 +680,7 @@ export default function OrgDashboardPage() {
                 
                 {/* Current Tags */}
                 <div className="flex flex-wrap gap-2 mb-3">
-                  {parseToArray(organization.typical_majors).map((field) => (
+                  {getCareerFields().map((field) => (
                     <motion.span
                       key={field}
                       initial={{ opacity: 0, scale: 0.9 }}
@@ -596,7 +696,7 @@ export default function OrgDashboardPage() {
                       </button>
                     </motion.span>
                   ))}
-                  {parseToArray(organization.typical_majors).length === 0 && (
+                  {getCareerFields().length === 0 && (
                     <span className="text-gray-400 text-sm italic">No career fields selected</span>
                   )}
                 </div>
@@ -633,6 +733,94 @@ export default function OrgDashboardPage() {
                     </div>
                   )}
                 </div>
+
+                {/* Engineering Types - Show when Engineering is selected */}
+                {hasEngineeringCareerField() && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: 'auto' }}
+                    className="mt-4 pt-4 border-t border-gray-200"
+                  >
+                    <h4 className="text-sm font-semibold text-gray-800 mb-3">Engineering Types</h4>
+                    <p className="text-xs text-gray-500 mb-3">Select specific engineering types relevant to your organization</p>
+                    
+                    {/* Current Engineering Type Tags */}
+                    <div className="flex flex-wrap gap-2 mb-3">
+                      {getEngineeringTypes().map((type) => (
+                        <motion.span
+                          key={type}
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          className="inline-flex items-center gap-1 px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-sm"
+                        >
+                          {type}
+                          <button
+                            onClick={() => removeEngineeringType(type)}
+                            className="ml-1 hover:text-red-600 font-bold"
+                          >
+                            ×
+                          </button>
+                        </motion.span>
+                      ))}
+                      {getEngineeringTypes().length === 0 && (
+                        <span className="text-gray-400 text-sm italic">No engineering types selected</span>
+                      )}
+                    </div>
+
+                    {/* Add Engineering Type Input */}
+                    <div className="relative">
+                      <input
+                        ref={engineeringTypeInputRef}
+                        type="text"
+                        value={engineeringTypeInput}
+                        onChange={(e) => {
+                          setEngineeringTypeInput(e.target.value)
+                          setShowEngineeringTypeDropdown(true)
+                        }}
+                        onFocus={() => setShowEngineeringTypeDropdown(true)}
+                        onBlur={() => setTimeout(() => setShowEngineeringTypeDropdown(false), 200)}
+                        placeholder="Search engineering types..."
+                        className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:border-orange-500 focus:outline-none"
+                      />
+                      
+                      {/* Dropdown */}
+                      {showEngineeringTypeDropdown && filteredEngineeringTypes.length > 0 && (
+                        <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                          {filteredEngineeringTypes.map((type) => (
+                            <button
+                              key={type}
+                              type="button"
+                              onClick={() => addEngineeringType(type)}
+                              className="w-full text-left px-3 py-2 text-sm hover:bg-orange-600 hover:text-white transition-colors"
+                            >
+                              {type}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </motion.div>
+                )}
+              </div>
+
+              {/* Typical Majors - Separate editable field for actual majors */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+                <h3 className="text-sm font-semibold text-gray-800 mb-3">Typical Majors</h3>
+                <p className="text-xs text-gray-500 mb-3">Enter actual majors that typically join your organization (separate from career fields above)</p>
+                <EditableField
+                  field="typical_majors"
+                  label=""
+                  value={(() => {
+                    // Extract only non-career-field, non-engineering-type values from typical_majors
+                    const allFields = parseToArray(organization.typical_majors)
+                    const careerFieldsSet = new Set([...CAREER_FIELDS, ...ENGINEERING_TYPES])
+                    const typicalMajorsOnly = allFields.filter(f => !careerFieldsSet.has(f))
+                    return typicalMajorsOnly.length > 0 ? arrayToString(typicalMajorsOnly) : null
+                  })()}
+                  type="textarea"
+                  placeholder="e.g., Computer Science, Mechanical Engineering, Business Administration..."
+                />
+                <p className="text-xs text-gray-400 mt-2 italic">Note: Career fields and engineering types are managed separately above.</p>
               </div>
 
               {/* Typical Activities - Tag Input with Autocomplete */}
