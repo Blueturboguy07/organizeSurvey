@@ -120,6 +120,7 @@ export default function OrgDashboardPage() {
   const [saveSuccess, setSaveSuccess] = useState('')
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<ActiveTab>('about')
+  const [isContentExpanded, setIsContentExpanded] = useState(false)
   
   // Editing states
   const [editingField, setEditingField] = useState<string | null>(null)
@@ -641,43 +642,115 @@ export default function OrgDashboardPage() {
           className="bg-gradient-to-r from-tamu-maroon to-tamu-maroon-light rounded-xl shadow-lg overflow-hidden mb-6"
         >
           <div className="p-6 text-white">
-            <h2 className="text-2xl sm:text-3xl font-bold mb-2">{organization.name}</h2>
-            <div className="flex flex-wrap items-center gap-2">
-              {organization.club_type && (
-                <span className="px-3 py-1 bg-white/20 rounded-full text-sm font-medium">
-                  {organization.club_type}
-                </span>
-              )}
-              {lastUpdated && (
-                <span className="text-xs text-white/70">
-                  Last updated: {new Date(lastUpdated).toLocaleDateString()}
-                </span>
-              )}
+            <div className="flex items-start justify-between">
+              <div className="flex-1">
+                <h2 className="text-2xl sm:text-3xl font-bold mb-2">{organization.name}</h2>
+                <div className="flex flex-wrap items-center gap-2">
+                  {organization.club_type && (
+                    <span className="px-3 py-1 bg-white/20 rounded-full text-sm font-medium">
+                      {organization.club_type}
+                    </span>
+                  )}
+                  {lastUpdated && (
+                    <span className="text-xs text-white/70">
+                      Last updated: {new Date(lastUpdated).toLocaleDateString()}
+                    </span>
+                  )}
+                </div>
+              </div>
+              <motion.button
+                onClick={() => setIsContentExpanded(!isContentExpanded)}
+                whileHover={{ scale: 1.05, y: -2 }}
+                whileTap={{ scale: 0.95 }}
+                className="ml-4 px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition-all backdrop-blur-sm flex items-center gap-2 shadow-lg"
+              >
+                <motion.span
+                  animate={{ opacity: isContentExpanded ? 0.8 : 1 }}
+                  transition={{ duration: 0.2 }}
+                >
+                  {isContentExpanded ? 'Hide Info' : 'Edit Info'}
+                </motion.span>
+                <motion.svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  animate={{ rotate: isContentExpanded ? 180 : 0 }}
+                  transition={{ 
+                    duration: 0.4,
+                    ease: [0.34, 1.56, 0.64, 1]
+                  }}
+                >
+                  <path
+                    d="M4 6L8 10L12 6"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </motion.svg>
+              </motion.button>
             </div>
           </div>
         </motion.div>
 
-        {/* Tab Navigation */}
-        <div className="flex gap-1 mb-6 bg-white rounded-lg p-1 shadow-sm border border-gray-200">
-          {(['about', 'details', 'membership'] as ActiveTab[]).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
-                activeTab === tab
-                  ? 'bg-tamu-maroon text-white'
-                  : 'text-gray-600 hover:bg-gray-100'
-              }`}
+        {/* Collapsible Content */}
+        <AnimatePresence>
+          {isContentExpanded && (
+            <motion.div
+              initial={{ opacity: 0, height: 0, y: -20 }}
+              animate={{ opacity: 1, height: 'auto', y: 0 }}
+              exit={{ opacity: 0, height: 0, y: -20 }}
+              transition={{ 
+                height: {
+                  duration: 0.5,
+                  ease: [0.4, 0, 0.2, 1]
+                },
+                opacity: {
+                  duration: 0.3,
+                  ease: "easeOut"
+                },
+                y: {
+                  duration: 0.4,
+                  ease: [0.34, 1.56, 0.64, 1]
+                }
+              }}
+              className="overflow-hidden"
             >
-              {tab === 'about' && 'About'}
-              {tab === 'details' && 'Details'}
-              {tab === 'membership' && 'Membership'}
-            </button>
-          ))}
-        </div>
+              {/* Tab Navigation */}
+              <motion.div
+                initial={{ opacity: 0, y: -10, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ 
+                  delay: 0.15,
+                  type: "spring",
+                  stiffness: 300,
+                  damping: 25
+                }}
+                className="flex gap-1 mb-6 bg-white rounded-lg p-1 shadow-sm border border-gray-200"
+              >
+                {(['about', 'details', 'membership'] as ActiveTab[]).map((tab) => (
+                  <motion.button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className={`flex-1 py-2 px-4 rounded-md text-sm font-medium transition-all ${
+                      activeTab === tab
+                        ? 'bg-tamu-maroon text-white'
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }`}
+                  >
+                    {tab === 'about' && 'About'}
+                    {tab === 'details' && 'Details'}
+                    {tab === 'membership' && 'Membership'}
+                  </motion.button>
+                ))}
+              </motion.div>
 
-        {/* Tab Content */}
-        <AnimatePresence mode="wait">
+              {/* Tab Content */}
+              <AnimatePresence mode="wait">
           {/* About Tab */}
           {activeTab === 'about' && (
             <motion.div
@@ -1255,6 +1328,9 @@ export default function OrgDashboardPage() {
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
                 <EditableField field="inclusivity_focus" label="Inclusivity Focus" value={organization.inclusivity_focus} type="textarea" placeholder="Describe your organization's inclusivity initiatives..." />
               </div>
+            </motion.div>
+          )}
+              </AnimatePresence>
             </motion.div>
           )}
         </AnimatePresence>
