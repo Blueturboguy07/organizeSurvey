@@ -156,13 +156,14 @@ def check_eligibility(org_row, user_data):
                     # Org is of a major religion, user has different religion -> filter out
                     return False
     
-    # Major/career field filtering
+    # Career field filtering - check if org's career fields match user's interests
     if typical_majors and typical_majors not in ['nan', 'none', ''] and user_career_fields:
-        career_to_major_map = {
+        # Mapping from user's career field selections to possible org field values
+        career_field_keywords = {
             'engineering': ['engineering', 'engineer', 'tech'],
-            'technology/computer science': ['computer', 'technology', 'tech', 'cs', 'programming', 'software', 'coding'],
+            'technology/computer science': ['computer', 'technology', 'tech', 'cs', 'programming', 'software', 'coding', 'science'],
             'business/finance': ['business', 'finance', 'mays', 'accounting', 'economics'],
-            'medicine/healthcare': ['medicine', 'medical', 'health', 'pre-med', 'premed', 'bims', 'biology'],
+            'medicine/healthcare': ['medicine', 'medical', 'health', 'healthcare', 'pre-med', 'premed', 'bims', 'biology'],
             'law': ['law', 'legal', 'pre-law', 'prelaw'],
             'education': ['education', 'teaching', 'teach'],
             'arts/design': ['art', 'arts', 'design', 'graphic'],
@@ -170,22 +171,24 @@ def check_eligibility(org_row, user_data):
             'agriculture': ['agriculture', 'ag', 'agri'],
             'communication/media': ['communication', 'media', 'journalism', 'journal'],
             'social work': ['social work', 'social'],
-            'government/public service': ['government', 'public', 'political', 'politics'],
-            'sports/fitness': ['sports', 'fitness', 'athletic', 'athletics'],
+            'government/public service': ['government', 'public', 'public service', 'political', 'politics'],
+            'sports/fitness': ['sports', 'fitness', 'athletic', 'athletics', 'recreation'],
             'hospitality/tourism': ['hospitality', 'tourism', 'hotel', 'restaurant']
         }
         
-        org_majors_lower = typical_majors.lower()
+        org_career_fields_lower = typical_majors.lower()
         matches_any_career = False
         
         for career_field in user_career_fields:
             career_lower = career_field.lower()
-            if career_lower in org_majors_lower:
+            # Direct match
+            if career_lower in org_career_fields_lower:
                 matches_any_career = True
                 break
-            if career_lower in career_to_major_map:
-                for keyword in career_to_major_map[career_lower]:
-                    if keyword in org_majors_lower:
+            # Keyword match
+            if career_lower in career_field_keywords:
+                for keyword in career_field_keywords[career_lower]:
+                    if keyword in org_career_fields_lower:
                         matches_any_career = True
                         break
                 if matches_any_career:
@@ -196,7 +199,7 @@ def check_eligibility(org_row, user_data):
     
     return True
 
-def calculate_relevance_score(org_row, query_keywords):
+def calculate_relevance_score(org_row, query_keywords, user_data=None):
     """Calculate relevance score with refined weightings"""
     score = 0
     
@@ -206,6 +209,15 @@ def calculate_relevance_score(org_row, query_keywords):
     typical_activities = str(org_row.get('typical_activities', '')).lower()
     club_culture_style = str(org_row.get('club_culture_style', '')).lower()
     bio = str(org_row.get('bio', '')).lower()
+    
+    # Extract user career fields if available
+    user_career_fields = []
+    if user_data and user_data.get('careerFields'):
+        career_fields = user_data.get('careerFields', [])
+        if isinstance(career_fields, list):
+            user_career_fields = [str(f).lower() for f in career_fields if f]
+        elif isinstance(career_fields, str):
+            user_career_fields = [f.strip().lower() for f in career_fields.split(',') if f.strip()]
     
     # Categorize keywords by importance
     career_keywords = ['engineering', 'business', 'finance', 'medicine', 'healthcare', 
@@ -243,6 +255,29 @@ def calculate_relevance_score(org_row, query_keywords):
         'bio_phrase': 6,      # New: phrase matches in bio are valuable
     }
     
+    # Direct career field matching: Match user's career fields directly to org's typical_majors (which contains career fields)
+    # This happens BEFORE keyword matching to prioritize direct form-to-form matching
+    career_matches = 0
+    if user_career_fields and typical_majors and typical_majors != 'nan':
+        # Parse org's career fields from typical_majors (comma-separated)
+        org_career_fields = [f.strip().lower() for f in typical_majors.split(',') if f.strip()]
+        
+        # Match each user career field to org career fields
+        for user_career in user_career_fields:
+            user_career_lower = user_career.lower()
+            # Direct exact match
+            if user_career_lower in org_career_fields:
+                score += FIELD_WEIGHTS['typical_majors'] * 1.5  # High weight for direct match
+                career_matches += 1
+            # Partial match (e.g., "Engineering" matches "Engineering, Business/Finance" or vice versa)
+            elif any(user_career_lower in org_field or org_field in user_career_lower for org_field in org_career_fields):
+                score += FIELD_WEIGHTS['typical_majors'] * 1.2  # Slightly lower for partial match
+                career_matches += 1
+            # Check if user career field keywords appear in org career fields
+            elif any(keyword in typical_majors for keyword in user_career_lower.split()):
+                score += FIELD_WEIGHTS['typical_majors'] * 1.0  # Lower for keyword match
+                career_matches += 1
+    
     # Extract organization name words for better matching
     import re
     name_words = []
@@ -255,7 +290,6 @@ def calculate_relevance_score(org_row, query_keywords):
     
     # Check each keyword with category weighting
     matches_count = 0
-    career_matches = 0
     activity_matches = 0
     
     for keyword in query_keywords:
@@ -271,7 +305,7 @@ def calculate_relevance_score(org_row, query_keywords):
             score += FIELD_WEIGHTS['name'] * weight
             keyword_matched = True
         
-        # Majors match (weighted) - highest priority
+        # Typical majors match (weighted) - highest priority
         if typical_majors and typical_majors != 'nan' and keyword_lower in typical_majors:
             score += FIELD_WEIGHTS['typical_majors'] * weight
             keyword_matched = True
@@ -311,7 +345,7 @@ def calculate_relevance_score(org_row, query_keywords):
             matches_count += 1
     
     # Refined bonuses
-    # Career field match bonus (very important)
+    # Career field match bonus (very important) - only if we haven't already matched via direct matching above
     if career_matches >= 2:
         score += 15  # Strong career alignment
     elif career_matches >= 1:
@@ -414,7 +448,7 @@ def search_clubs(query, user_data=None, csv_path='final.csv', top_n=10):
         return []
     
     # Calculate relevance scores
-    df['relevance_score'] = df.apply(lambda row: calculate_relevance_score(row, query_keywords), axis=1)
+    df['relevance_score'] = df.apply(lambda row: calculate_relevance_score(row, query_keywords, user_data), axis=1)
     
     # Filter by eligibility if user_data provided
     if user_data:
@@ -591,7 +625,7 @@ def search_clubs_supabase(query, user_data=None, supabase_client=None, top_n=10)
         return []
     
     # Calculate relevance scores
-    df['relevance_score'] = df.apply(lambda row: calculate_relevance_score(row, query_keywords), axis=1)
+    df['relevance_score'] = df.apply(lambda row: calculate_relevance_score(row, query_keywords, user_data), axis=1)
     
     # Filter by eligibility if user_data provided
     if user_data:

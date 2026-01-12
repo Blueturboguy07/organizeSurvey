@@ -42,21 +42,46 @@ interface Organization {
   updated_at: string
 }
 
-// Common majors for dropdown suggestions
-const COMMON_MAJORS = [
-  'Aerospace Engineering', 'Agricultural Economics', 'Agricultural Engineering',
-  'Animal Science', 'Anthropology', 'Architecture', 'Biochemistry', 'Biology',
-  'Biomedical Engineering', 'Business Administration', 'Chemical Engineering',
-  'Chemistry', 'Civil Engineering', 'Communication', 'Computer Engineering',
-  'Computer Science', 'Construction Science', 'Economics', 'Electrical Engineering',
-  'English', 'Environmental Engineering', 'Finance', 'History', 'Industrial Engineering',
-  'Information Technology', 'International Studies', 'Journalism', 'Kinesiology',
-  'Management', 'Marketing', 'Mathematics', 'Mechanical Engineering', 'Nursing',
-  'Nutrition', 'Petroleum Engineering', 'Philosophy', 'Physics', 'Political Science',
-  'Psychology', 'Public Health', 'Sociology', 'Statistics', 'Veterinary Medicine'
+// Career fields from survey
+const CAREER_FIELDS = [
+  'Engineering',
+  'Business/Finance',
+  'Medicine/Healthcare',
+  'Law',
+  'Education',
+  'Arts/Design',
+  'Technology/Computer Science',
+  'Science/Research',
+  'Agriculture',
+  'Communication/Media',
+  'Social Work',
+  'Government/Public Service',
+  'Sports/Fitness',
+  'Hospitality/Tourism'
 ]
 
-const CLASSIFICATIONS = ['Freshman', 'Sophomore', 'Junior', 'Senior', 'Graduate', 'All']
+// Activities from survey
+const ACTIVITIES = [
+  'Volunteering',
+  'Social Events',
+  'Projects',
+  'Competitions',
+  'Workshops',
+  'Trips',
+  'Networking',
+  'Community Service',
+  'Professional Development',
+  'Research',
+  'Mentorship',
+  'Fundraising',
+  'Sports/Recreation',
+  'Cultural Events',
+  'Academic Support'
+]
+
+const CLASSIFICATIONS = ['Freshman', 'Sophomore', 'Junior', 'Senior', 'Graduate']
+const GENDERS = ['All', 'Male', 'Female']
+const RACES = ['All', 'Asian', 'Black', 'Hispanic', 'White', 'South Asian', 'Pacific Islander', 'Other']
 
 type ActiveTab = 'about' | 'details' | 'membership'
 
@@ -74,11 +99,13 @@ export default function OrgDashboardPage() {
   const [editValues, setEditValues] = useState<Record<string, string>>({})
   
   // Tag input states
-  const [majorInput, setMajorInput] = useState('')
-  const [showMajorDropdown, setShowMajorDropdown] = useState(false)
+  const [careerFieldInput, setCareerFieldInput] = useState('')
+  const [showCareerFieldDropdown, setShowCareerFieldDropdown] = useState(false)
   const [activityInput, setActivityInput] = useState('')
+  const [showActivityDropdown, setShowActivityDropdown] = useState(false)
   
-  const majorInputRef = useRef<HTMLInputElement>(null)
+  const careerFieldInputRef = useRef<HTMLInputElement>(null)
+  const activityInputRef = useRef<HTMLInputElement>(null)
   const router = useRouter()
   const supabase = createClientComponentClient()
 
@@ -202,7 +229,7 @@ export default function OrgDashboardPage() {
       if (updateError) throw updateError
 
       setOrganization(prev => prev ? { ...prev, [field]: value || null } : null)
-      setSaveSuccess(`${field} updated!`)
+      setSaveSuccess(`Updated!`)
       setEditingField(null)
       
       setTimeout(() => setSaveSuccess(''), 2000)
@@ -213,35 +240,38 @@ export default function OrgDashboardPage() {
     }
   }
 
-  // Handle adding a major tag
-  const addMajor = (major: string) => {
+  // Handle adding a career field tag
+  const addCareerField = (field: string) => {
     if (!organization) return
-    const currentMajors = parseToArray(organization.typical_majors)
-    if (!currentMajors.includes(major)) {
-      const newMajors = [...currentMajors, major]
-      saveField('typical_majors', arrayToString(newMajors))
+    const currentFields = parseToArray(organization.typical_majors)
+    if (!currentFields.includes(field)) {
+      const newFields = [...currentFields, field]
+      saveField('typical_majors', arrayToString(newFields))
     }
-    setMajorInput('')
-    setShowMajorDropdown(false)
+    setCareerFieldInput('')
+    setShowCareerFieldDropdown(false)
   }
 
-  // Handle removing a major tag
-  const removeMajor = (major: string) => {
+  // Handle removing a career field tag
+  const removeCareerField = (field: string) => {
     if (!organization) return
-    const currentMajors = parseToArray(organization.typical_majors)
-    const newMajors = currentMajors.filter(m => m !== major)
-    saveField('typical_majors', newMajors.length > 0 ? arrayToString(newMajors) : null)
+    const currentFields = parseToArray(organization.typical_majors)
+    const newFields = currentFields.filter(f => f !== field)
+    saveField('typical_majors', newFields.length > 0 ? arrayToString(newFields) : null)
   }
 
-  // Handle adding an activity tag
+  // Handle adding an activity tag (only from predefined list)
   const addActivity = (activity: string) => {
     if (!organization || !activity.trim()) return
+    // Only allow activities from the predefined list
+    if (!ACTIVITIES.includes(activity.trim())) return
     const currentActivities = parseToArray(organization.typical_activities)
     if (!currentActivities.includes(activity.trim())) {
       const newActivities = [...currentActivities, activity.trim()]
       saveField('typical_activities', arrayToString(newActivities))
     }
     setActivityInput('')
+    setShowActivityDropdown(false)
   }
 
   // Handle removing an activity tag
@@ -252,10 +282,16 @@ export default function OrgDashboardPage() {
     saveField('typical_activities', newActivities.length > 0 ? arrayToString(newActivities) : null)
   }
 
-  // Filter majors for dropdown
-  const filteredMajors = COMMON_MAJORS.filter(m => 
-    m.toLowerCase().includes(majorInput.toLowerCase()) &&
-    !parseToArray(organization?.typical_majors || '').includes(m)
+  // Filter career fields for dropdown
+  const filteredCareerFields = CAREER_FIELDS.filter(f => 
+    f.toLowerCase().includes(careerFieldInput.toLowerCase()) &&
+    !parseToArray(organization?.typical_majors || '').includes(f)
+  )
+
+  // Filter activities for dropdown
+  const filteredActivities = ACTIVITIES.filter(a => 
+    a.toLowerCase().includes(activityInput.toLowerCase()) &&
+    !parseToArray(organization?.typical_activities || '').includes(a)
   )
 
   // Handle classification toggle
@@ -264,17 +300,28 @@ export default function OrgDashboardPage() {
     const current = parseToArray(organization.typical_classifications)
     let newClassifications: string[]
     
-    if (classification === 'All') {
-      newClassifications = current.includes('All') ? [] : ['All']
+    if (current.includes(classification)) {
+      newClassifications = current.filter(c => c !== classification)
     } else {
-      if (current.includes(classification)) {
-        newClassifications = current.filter(c => c !== classification && c !== 'All')
-      } else {
-        newClassifications = [...current.filter(c => c !== 'All'), classification]
-      }
+      newClassifications = [...current, classification]
     }
     
     saveField('typical_classifications', newClassifications.length > 0 ? arrayToString(newClassifications) : null)
+  }
+
+  // Handle eligible classification toggle
+  const toggleEligibleClassification = (classification: string) => {
+    if (!organization) return
+    const current = parseToArray(organization.all_eligible_classifications)
+    let newClassifications: string[]
+    
+    if (current.includes(classification)) {
+      newClassifications = current.filter(c => c !== classification)
+    } else {
+      newClassifications = [...current, classification]
+    }
+    
+    saveField('all_eligible_classifications', newClassifications.length > 0 ? arrayToString(newClassifications) : null)
   }
 
   const handleSignOut = async () => {
@@ -443,7 +490,7 @@ export default function OrgDashboardPage() {
           )}
         </AnimatePresence>
 
-        {/* Organization Card Header - Similar to student view */}
+        {/* Organization Card Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -526,23 +573,23 @@ export default function OrgDashboardPage() {
                 </div>
               </div>
 
-              {/* Typical Majors - Tag Input */}
+              {/* Career Fields - Tag Input with Dropdown */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-                <h3 className="text-sm font-semibold text-gray-800 mb-3">Typical Majors</h3>
-                <p className="text-xs text-gray-500 mb-3">Add majors that typically join your organization</p>
+                <h3 className="text-sm font-semibold text-gray-800 mb-3">Career Fields</h3>
+                <p className="text-xs text-gray-500 mb-3">Select career fields that your organization is relevant to</p>
                 
                 {/* Current Tags */}
                 <div className="flex flex-wrap gap-2 mb-3">
-                  {parseToArray(organization.typical_majors).map((major) => (
+                  {parseToArray(organization.typical_majors).map((field) => (
                     <motion.span
-                      key={major}
+                      key={field}
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
                       className="inline-flex items-center gap-1 px-3 py-1 bg-tamu-maroon/10 text-tamu-maroon rounded-full text-sm"
                     >
-                      {major}
+                      {field}
                       <button
-                        onClick={() => removeMajor(major)}
+                        onClick={() => removeCareerField(field)}
                         className="ml-1 hover:text-red-600 font-bold"
                       >
                         ×
@@ -550,42 +597,37 @@ export default function OrgDashboardPage() {
                     </motion.span>
                   ))}
                   {parseToArray(organization.typical_majors).length === 0 && (
-                    <span className="text-gray-400 text-sm italic">No majors added</span>
+                    <span className="text-gray-400 text-sm italic">No career fields selected</span>
                   )}
                 </div>
 
-                {/* Add Major Input */}
+                {/* Add Career Field Input */}
                 <div className="relative">
                   <input
-                    ref={majorInputRef}
+                    ref={careerFieldInputRef}
                     type="text"
-                    value={majorInput}
+                    value={careerFieldInput}
                     onChange={(e) => {
-                      setMajorInput(e.target.value)
-                      setShowMajorDropdown(true)
+                      setCareerFieldInput(e.target.value)
+                      setShowCareerFieldDropdown(true)
                     }}
-                    onFocus={() => setShowMajorDropdown(true)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' && majorInput.trim()) {
-                        e.preventDefault()
-                        addMajor(majorInput.trim())
-                      }
-                    }}
-                    placeholder="Type a major and press Enter..."
+                    onFocus={() => setShowCareerFieldDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowCareerFieldDropdown(false), 200)}
+                    placeholder="Search career fields..."
                     className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none"
                   />
                   
                   {/* Dropdown */}
-                  {showMajorDropdown && majorInput && filteredMajors.length > 0 && (
+                  {showCareerFieldDropdown && filteredCareerFields.length > 0 && (
                     <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
-                      {filteredMajors.slice(0, 8).map((major) => (
+                      {filteredCareerFields.map((field) => (
                         <button
-                          key={major}
+                          key={field}
                           type="button"
-                          onClick={() => addMajor(major)}
+                          onClick={() => addCareerField(field)}
                           className="w-full text-left px-3 py-2 text-sm hover:bg-tamu-maroon hover:text-white transition-colors"
                         >
-                          {major}
+                          {field}
                         </button>
                       ))}
                     </div>
@@ -593,7 +635,7 @@ export default function OrgDashboardPage() {
                 </div>
               </div>
 
-              {/* Typical Activities - Tag Input */}
+              {/* Typical Activities - Tag Input with Autocomplete */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
                 <h3 className="text-sm font-semibold text-gray-800 mb-3">Typical Activities</h3>
                 <p className="text-xs text-gray-500 mb-3">Add activities your organization typically does</p>
@@ -621,20 +663,43 @@ export default function OrgDashboardPage() {
                   )}
                 </div>
 
-                {/* Add Activity Input */}
-                <input
-                  type="text"
-                  value={activityInput}
-                  onChange={(e) => setActivityInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && activityInput.trim()) {
-                      e.preventDefault()
-                      addActivity(activityInput.trim())
-                    }
-                  }}
-                  placeholder="Type an activity and press Enter..."
-                  className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none"
-                />
+                {/* Add Activity Input with Autocomplete - Only from predefined list */}
+                <div className="relative">
+                  <input
+                    ref={activityInputRef}
+                    type="text"
+                    value={activityInput}
+                    onChange={(e) => {
+                      setActivityInput(e.target.value)
+                      setShowActivityDropdown(true)
+                    }}
+                    onFocus={() => setShowActivityDropdown(true)}
+                    onBlur={() => setTimeout(() => setShowActivityDropdown(false), 200)}
+                    placeholder="Search and select activities from the list..."
+                    className="w-full p-2 text-sm border border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none"
+                  />
+                  
+                  {/* Dropdown */}
+                  {showActivityDropdown && filteredActivities.length > 0 && (
+                    <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                      {filteredActivities.map((activity) => (
+                        <button
+                          key={activity}
+                          type="button"
+                          onClick={() => addActivity(activity)}
+                          className="w-full text-left px-3 py-2 text-sm hover:bg-blue-600 hover:text-white transition-colors"
+                        >
+                          {activity}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  {showActivityDropdown && filteredActivities.length === 0 && activityInput && (
+                    <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-3 text-sm text-gray-500">
+                      No matching activities found. Please select from the predefined list.
+                    </div>
+                  )}
+                </div>
               </div>
             </motion.div>
           )}
@@ -699,7 +764,7 @@ export default function OrgDashboardPage() {
               exit={{ opacity: 0, x: -20 }}
               className="space-y-4"
             >
-              {/* Classifications Multi-Select */}
+              {/* Typical Classifications */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
                 <h3 className="text-sm font-semibold text-gray-800 mb-3">Typical Classifications</h3>
                 <p className="text-xs text-gray-500 mb-3">Select classifications that typically join your organization</p>
@@ -725,30 +790,88 @@ export default function OrgDashboardPage() {
                 </div>
               </div>
 
-              {/* Demographics Info (Read-only with explanation) */}
+              {/* Eligible Classifications */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-                <h3 className="text-sm font-semibold text-gray-800 mb-3">Eligibility Criteria</h3>
-                <p className="text-xs text-gray-500 mb-4">
-                  These fields are used to filter which students see your organization. Contact support to update.
-                </p>
+                <h3 className="text-sm font-semibold text-gray-800 mb-3">Eligible Classifications</h3>
+                <p className="text-xs text-gray-500 mb-3">Who is allowed to join? Leave empty for all classifications.</p>
                 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Eligible Classifications</label>
-                    <p className="text-sm text-gray-800 mt-1">{organization.all_eligible_classifications || 'All'}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Eligible Races</label>
-                    <p className="text-sm text-gray-800 mt-1">{organization.eligible_races || 'All'}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Eligible Gender</label>
-                    <p className="text-sm text-gray-800 mt-1">{organization.eligible_gender || 'All'}</p>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">Competitive</label>
-                    <p className="text-sm text-gray-800 mt-1">{organization.competitive_or_non_competitive || 'Not specified'}</p>
-                  </div>
+                <div className="flex flex-wrap gap-2">
+                  {CLASSIFICATIONS.map((classification) => {
+                    const isSelected = parseToArray(organization.all_eligible_classifications).includes(classification)
+                    return (
+                      <button
+                        key={classification}
+                        onClick={() => toggleEligibleClassification(classification)}
+                        disabled={saving}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                          isSelected
+                            ? 'bg-green-600 text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        } ${saving ? 'opacity-50' : ''}`}
+                      >
+                        {classification}
+                      </button>
+                    )
+                  })}
+                </div>
+                {parseToArray(organization.all_eligible_classifications).length === 0 && (
+                  <p className="text-xs text-green-600 mt-2">✓ All classifications are eligible</p>
+                )}
+              </div>
+
+              {/* Eligible Gender */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+                <h3 className="text-sm font-semibold text-gray-800 mb-3">Eligible Gender</h3>
+                <p className="text-xs text-gray-500 mb-3">Who is allowed to join based on gender?</p>
+                
+                <div className="flex flex-wrap gap-2">
+                  {GENDERS.map((gender) => {
+                    const currentGender = organization.eligible_gender || 'All'
+                    const isSelected = currentGender.toLowerCase().includes(gender.toLowerCase()) || 
+                                       (gender === 'All' && (!organization.eligible_gender || organization.eligible_gender === 'nan'))
+                    return (
+                      <button
+                        key={gender}
+                        onClick={() => saveField('eligible_gender', gender === 'All' ? null : gender)}
+                        disabled={saving}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                          isSelected
+                            ? 'bg-purple-600 text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        } ${saving ? 'opacity-50' : ''}`}
+                      >
+                        {gender}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+
+              {/* Eligible Races */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+                <h3 className="text-sm font-semibold text-gray-800 mb-3">Eligible Races/Ethnicities</h3>
+                <p className="text-xs text-gray-500 mb-3">Leave as &quot;All&quot; unless your org has specific eligibility requirements</p>
+                
+                <div className="flex flex-wrap gap-2">
+                  {RACES.map((race) => {
+                    const currentRaces = organization.eligible_races || 'All'
+                    const isAll = race === 'All' && (!organization.eligible_races || organization.eligible_races === 'nan' || organization.eligible_races.toLowerCase() === 'all')
+                    const isSelected = isAll || (currentRaces.toLowerCase().includes(race.toLowerCase()) && race !== 'All')
+                    return (
+                      <button
+                        key={race}
+                        onClick={() => saveField('eligible_races', race === 'All' ? null : race)}
+                        disabled={saving}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                          isSelected
+                            ? 'bg-orange-600 text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        } ${saving ? 'opacity-50' : ''}`}
+                      >
+                        {race}
+                      </button>
+                    )
+                  })}
                 </div>
               </div>
 

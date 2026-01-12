@@ -1705,7 +1705,7 @@ export default function SurveyForm() {
                       
                       {org.typical_majors && org.typical_majors !== 'nan' && (
                         <p className="text-sm text-gray-600 mb-2">
-                          <span className="font-semibold">Majors:</span> {org.typical_majors}
+                          <span className="font-semibold">Career Fields:</span> {org.typical_majors}
                         </p>
                       )}
                       
@@ -1894,7 +1894,7 @@ export default function SurveyForm() {
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 border-t pt-4">
                             {selectedOrg.typical_majors && selectedOrg.typical_majors !== 'nan' && (
                               <div>
-                                <h4 className="font-semibold text-gray-700 mb-1">Typical Majors</h4>
+                                <h4 className="font-semibold text-gray-700 mb-1">Career Fields</h4>
                                 <p className="text-gray-600">{selectedOrg.typical_majors}</p>
                               </div>
                             )}
