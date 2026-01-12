@@ -91,7 +91,6 @@ interface SurveyData {
   email: string
   careerFields: string[]
   engineeringTypes: string[]
-  major: string
   livesOnCampus: string
   hall: string
   classification: string
@@ -133,7 +132,6 @@ export default function SurveyForm() {
     email: user?.email || '',
     careerFields: [],
     engineeringTypes: [],
-    major: '',
     livesOnCampus: '',
     hall: '',
     classification: '',
@@ -363,7 +361,6 @@ export default function SurveyForm() {
       sexuality: (userDataForSearch?.sexuality || '').trim(),
       careerFields: Array.isArray(userDataForSearch?.careerFields) ? userDataForSearch.careerFields : [],
       engineeringTypes: Array.isArray(userDataForSearch?.engineeringTypes) ? userDataForSearch.engineeringTypes : [],
-      major: (userDataForSearch?.major || '').trim(),
       religion: (userDataForSearch?.religion || '').trim()
     }
 
@@ -428,7 +425,6 @@ export default function SurveyForm() {
             sexuality: (savedDemographics.sexuality as string) || '',
             careerFields: Array.isArray(savedDemographics.careerFields) ? savedDemographics.careerFields : [],
             engineeringTypes: Array.isArray(savedDemographics.engineeringTypes) ? savedDemographics.engineeringTypes : [],
-            major: (savedDemographics.major as string) || '',
             religion: (savedDemographics.religion as string) || ''
           }
           
@@ -444,7 +440,6 @@ export default function SurveyForm() {
             sexualityOther: (savedDemographics.sexualityOther as string) || prev.sexualityOther || '',
             careerFields: Array.isArray(savedDemographics.careerFields) ? savedDemographics.careerFields : prev.careerFields || [],
             engineeringTypes: Array.isArray(savedDemographics.engineeringTypes) ? savedDemographics.engineeringTypes : prev.engineeringTypes || [],
-            major: (savedDemographics.major as string) || prev.major || '',
             religion: (savedDemographics.religion as string) || prev.religion || '',
             religionOther: (savedDemographics.religionOther as string) || prev.religionOther || ''
           }))
@@ -457,7 +452,6 @@ export default function SurveyForm() {
             sexuality: formData.sexuality || formData.sexualityOther || '',
             careerFields: formData.careerFields || [],
             engineeringTypes: formData.engineeringTypes || [],
-            major: formData.major || '',
             religion: formData.religion === 'Other' ? formData.religionOther : formData.religion || ''
           }
         }
@@ -539,11 +533,6 @@ export default function SurveyForm() {
       cleansed.push(engineeringTypesStr) // Repeat for emphasis
     }
     
-    // Major - add to query for matching (high priority)
-    if (formData.major && formData.major.trim()) {
-      cleansed.push(formData.major.trim())
-      cleansed.push(formData.major.trim()) // Repeat for emphasis
-    }
     
     // Activities - repeat 2 times for emphasis (important)
     if (formData.activities.length > 0) {
@@ -639,7 +628,6 @@ export default function SurveyForm() {
           sexualityOther: formData.sexualityOther,
           careerFields: formData.careerFields,
           engineeringTypes: formData.engineeringTypes,
-          major: formData.major,
           religion: formData.religion,
           religionOther: formData.religionOther,
           website: honeypot // Honeypot field
@@ -667,7 +655,6 @@ export default function SurveyForm() {
       sexuality: formData.sexuality || formData.sexualityOther || '',
       careerFields: formData.careerFields || [],
       engineeringTypes: formData.engineeringTypes || [],
-      major: formData.major || '',
       religion: formData.religion === 'Other' ? formData.religionOther : formData.religion || ''
     }
     
@@ -1080,21 +1067,6 @@ export default function SurveyForm() {
                       )}
                     </motion.div>
                   )}
-
-                  {/* Major Input */}
-                  <div className="mt-4 sm:mt-6 pt-4 sm:pt-6 border-t border-gray-200">
-                    <label className="block text-gray-700 font-medium mb-2 sm:mb-3 text-sm sm:text-base">
-                      What is your major? (Optional but recommended)
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.major}
-                      onChange={(e) => setFormData(prev => ({ ...prev, major: e.target.value }))}
-                      className="w-full p-2.5 sm:p-3 text-sm sm:text-base border-2 border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none"
-                      placeholder="e.g., Computer Science, Mechanical Engineering, Business Administration..."
-                    />
-                    <p className="text-xs text-gray-500 mt-1">This helps match you with organizations relevant to your major</p>
-                  </div>
                 </div>
               )}
 
@@ -2011,7 +1983,6 @@ export default function SurveyForm() {
                           sexuality: formData.sexuality || formData.sexualityOther || '',
                           careerFields: formData.careerFields || [],
                           engineeringTypes: formData.engineeringTypes || [],
-                          major: formData.major || '',
                           religion: formData.religion === 'Other' ? formData.religionOther : formData.religion || ''
                         }
 

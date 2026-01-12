@@ -250,11 +250,6 @@ def calculate_relevance_score(org_row, query_keywords, user_data=None):
         elif isinstance(career_fields, str):
             user_career_fields = [f.strip().lower() for f in career_fields.split(',') if f.strip()]
     
-    # Extract user major if available
-    user_major = ''
-    if user_data and user_data.get('major'):
-        user_major = str(user_data.get('major', '')).strip().lower()
-    
     # Categorize keywords by importance
     career_keywords = ['engineering', 'business', 'finance', 'medicine', 'healthcare', 
                       'law', 'education', 'arts', 'design', 'technology', 'computer', 
@@ -274,44 +269,25 @@ def calculate_relevance_score(org_row, query_keywords, user_data=None):
     def get_keyword_weight(keyword):
         kw_lower = keyword.lower()
         if any(career in kw_lower for career in career_keywords):
-            return 1.2  # Career fields are important but not overly weighted
+            return 1.5  # Career fields are most important
         elif any(activity in kw_lower for activity in activity_keywords):
-            return 1.2  # Activities are equally important
+            return 1.2  # Activities are important
         elif any(demo in kw_lower for demo in demographic_keywords):
             return 0.3  # Demographics are for filtering, not ranking
         return 1.0  # Default weight
     
     # Refined field weights
     FIELD_WEIGHTS = {
-        'name': 12,           # Name matches are very strong signals
-        'typical_majors': 10,  # Reduced - majors are important but not everything
-        'typical_activities': 8, # Activities matter a lot
-        'club_culture_style': 4, # Less important
-        'bio': 2,             # Bio can be informative
-        'bio_phrase': 6,      # Phrase matches in bio are valuable
+        'name': 12,           # Increased from 10 - name matches are very strong signals
+        'typical_majors': 15,  # Increased from 10 - majors are critical
+        'typical_activities': 8, # Increased from 5 - activities matter a lot
+        'club_culture_style': 4, # Decreased from 5 - less important
+        'bio': 2,             # Increased from 1 - bio can be informative
+        'bio_phrase': 6,      # New: phrase matches in bio are valuable
     }
     
-    # Major matching: HIGH PRIORITY - Match user's major directly to org's typical_majors
-    # This is very important for accurate matching
-    major_match_bonus = 0
-    if user_major and typical_majors and typical_majors != 'nan':
-        typical_majors_lower = typical_majors.lower()
-        user_major_lower = user_major.lower()
-        
-        # Exact match (highest priority)
-        if user_major_lower in typical_majors_lower:
-            major_match_bonus = FIELD_WEIGHTS['typical_majors'] * 1.8  # High weight for exact major match
-        # Partial match - check if major words appear in typical_majors
-        elif any(word in typical_majors_lower for word in user_major_lower.split() if len(word) > 3):
-            major_match_bonus = FIELD_WEIGHTS['typical_majors'] * 1.3  # Good weight for partial match
-        # Reverse check - if org major appears in user major
-        elif any(word in user_major_lower for word in typical_majors_lower.split(',') if len(word.strip()) > 3):
-            major_match_bonus = FIELD_WEIGHTS['typical_majors'] * 1.1  # Moderate weight for reverse match
-    
-    score += major_match_bonus
-    
     # Direct career field matching: Match user's career fields directly to org's typical_majors (which contains career fields)
-    # Reduced weight - career fields are less important than actual major
+    # This happens BEFORE keyword matching to prioritize direct form-to-form matching
     career_matches = 0
     if user_career_fields and typical_majors and typical_majors != 'nan':
         # Parse org's career fields from typical_majors (comma-separated)
@@ -322,15 +298,15 @@ def calculate_relevance_score(org_row, query_keywords, user_data=None):
             user_career_lower = user_career.lower()
             # Direct exact match
             if user_career_lower in org_career_fields:
-                score += FIELD_WEIGHTS['typical_majors'] * 0.8  # Reduced weight for direct match
+                score += FIELD_WEIGHTS['typical_majors'] * 1.5  # High weight for direct match
                 career_matches += 1
             # Partial match (e.g., "Engineering" matches "Engineering, Business/Finance" or vice versa)
             elif any(user_career_lower in org_field or org_field in user_career_lower for org_field in org_career_fields):
-                score += FIELD_WEIGHTS['typical_majors'] * 0.6  # Reduced weight for partial match
+                score += FIELD_WEIGHTS['typical_majors'] * 1.2  # Slightly lower for partial match
                 career_matches += 1
             # Check if user career field keywords appear in org career fields
             elif any(keyword in typical_majors for keyword in user_career_lower.split()):
-                score += FIELD_WEIGHTS['typical_majors'] * 0.4  # Lower weight for keyword match
+                score += FIELD_WEIGHTS['typical_majors'] * 1.0  # Lower for keyword match
                 career_matches += 1
     
     # Extract organization name words for better matching
@@ -360,11 +336,11 @@ def calculate_relevance_score(org_row, query_keywords, user_data=None):
             score += FIELD_WEIGHTS['name'] * weight
             keyword_matched = True
         
-        # Typical majors match (weighted)
+        # Typical majors match (weighted) - highest priority
         if typical_majors and typical_majors != 'nan' and keyword_lower in typical_majors:
             score += FIELD_WEIGHTS['typical_majors'] * weight
             keyword_matched = True
-            if weight >= 1.2:  # Career field match
+            if weight >= 1.5:  # Career field match
                 career_matches += 1
         
         # Activities match (weighted)
@@ -400,11 +376,11 @@ def calculate_relevance_score(org_row, query_keywords, user_data=None):
             matches_count += 1
     
     # Refined bonuses
-    # Career field match bonus (reduced weight)
+    # Career field match bonus (very important) - only if we haven't already matched via direct matching above
     if career_matches >= 2:
-        score += 8  # Reduced from 15 - moderate career alignment bonus
+        score += 15  # Strong career alignment
     elif career_matches >= 1:
-        score += 4  # Reduced from 8
+        score += 8
     
     # Activity match bonus
     if activity_matches >= 3:
