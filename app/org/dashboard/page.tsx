@@ -106,7 +106,8 @@ const ACTIVITIES = [
 ]
 
 const CLASSIFICATIONS = ['Freshman', 'Sophomore', 'Junior', 'Senior', 'Graduate']
-const GENDERS = ['All', 'Male', 'Female']
+const GENDERS = ['All', 'Male', 'Female', 'Other']
+const SEXUALITIES = ['All', 'Straight', 'Gay', 'Lesbian', 'Other']
 const RACES = ['All', 'Asian', 'Black', 'Hispanic', 'White', 'South Asian', 'Pacific Islander', 'Other']
 
 type ActiveTab = 'about' | 'details' | 'membership'
@@ -131,6 +132,12 @@ export default function OrgDashboardPage() {
   const [showActivityDropdown, setShowActivityDropdown] = useState(false)
   const [engineeringTypeInput, setEngineeringTypeInput] = useState('')
   const [showEngineeringTypeDropdown, setShowEngineeringTypeDropdown] = useState(false)
+  
+  // Gender and sexuality "Other" text inputs
+  const [genderOther, setGenderOther] = useState('')
+  const [sexualityOther, setSexualityOther] = useState('')
+  const [showGenderOtherInput, setShowGenderOtherInput] = useState(false)
+  const [showSexualityOtherInput, setShowSexualityOtherInput] = useState(false)
   
   const careerFieldInputRef = useRef<HTMLInputElement>(null)
   const activityInputRef = useRef<HTMLInputElement>(null)
@@ -190,6 +197,21 @@ export default function OrgDashboardPage() {
 
       setOrganization(orgData)
       setLastUpdated(orgData.updated_at)
+      
+      // Initialize "Other" input visibility based on existing data
+      const standardGenders = ['all', 'male', 'female', 'nan']
+      const standardSexualities = ['all', 'straight', 'gay', 'lesbian', 'nan']
+      
+      if (orgData.eligible_gender && !standardGenders.includes(orgData.eligible_gender.toLowerCase())) {
+        setShowGenderOtherInput(true)
+        setGenderOther(orgData.eligible_gender)
+      }
+      
+      if (orgData.eligible_sexuality && !standardSexualities.includes(orgData.eligible_sexuality.toLowerCase())) {
+        setShowSexualityOtherInput(true)
+        setSexualityOther(orgData.eligible_sexuality)
+      }
+      
       setLoading(false)
     } catch (err: any) {
       setError(err.message || 'Failed to load organization')
@@ -1012,15 +1034,37 @@ export default function OrgDashboardPage() {
                 <h3 className="text-sm font-semibold text-gray-800 mb-3">Eligible Gender</h3>
                 <p className="text-xs text-gray-500 mb-3">Who is allowed to join based on gender?</p>
                 
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-wrap gap-2 mb-3">
                   {GENDERS.map((gender) => {
-                    const currentGender = organization.eligible_gender || 'All'
-                    const isSelected = currentGender.toLowerCase().includes(gender.toLowerCase()) || 
-                                       (gender === 'All' && (!organization.eligible_gender || organization.eligible_gender === 'nan'))
+                    const currentGender = organization.eligible_gender || ''
+                    const standardGenders = ['all', 'male', 'female', 'nan']
+                    const isOther = currentGender && !standardGenders.includes(currentGender.toLowerCase())
+                    const isSelected = (gender === 'All' && (!organization.eligible_gender || organization.eligible_gender === 'nan')) ||
+                                       (gender === 'Male' && currentGender.toLowerCase() === 'male') ||
+                                       (gender === 'Female' && currentGender.toLowerCase() === 'female') ||
+                                       (gender === 'Other' && isOther)
                     return (
                       <button
                         key={gender}
-                        onClick={() => saveField('eligible_gender', gender === 'All' ? null : gender)}
+                        onClick={() => {
+                          if (gender === 'All') {
+                            saveField('eligible_gender', null)
+                            setGenderOther('')
+                            setShowGenderOtherInput(false)
+                          } else if (gender === 'Other') {
+                            // Show input field for "Other"
+                            setShowGenderOtherInput(true)
+                            if (isOther) {
+                              setGenderOther(currentGender)
+                            } else {
+                              setGenderOther('')
+                            }
+                          } else {
+                            saveField('eligible_gender', gender)
+                            setGenderOther('')
+                            setShowGenderOtherInput(false)
+                          }
+                        }}
                         disabled={saving}
                         className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
                           isSelected
@@ -1033,6 +1077,125 @@ export default function OrgDashboardPage() {
                     )
                   })}
                 </div>
+                
+                {/* Other gender text input */}
+                {(() => {
+                  const currentGender = organization.eligible_gender || ''
+                  const standardGenders = ['all', 'male', 'female', 'nan']
+                  const isOther = currentGender && !standardGenders.includes(currentGender.toLowerCase())
+                  const showInput = isOther || showGenderOtherInput
+                  
+                  return showInput ? (
+                    <div className="mt-3">
+                      <input
+                        type="text"
+                        value={genderOther || (isOther ? currentGender : '')}
+                        onChange={(e) => {
+                          const value = e.target.value
+                          setGenderOther(value)
+                          if (value.trim()) {
+                            saveField('eligible_gender', value.trim())
+                          }
+                        }}
+                        onBlur={() => {
+                          if (genderOther.trim()) {
+                            saveField('eligible_gender', genderOther.trim())
+                          } else if (!genderOther.trim() && isOther) {
+                            saveField('eligible_gender', null)
+                            setGenderOther('')
+                          }
+                        }}
+                        placeholder="Specify gender..."
+                        className="w-full p-2 text-sm border border-purple-300 rounded-lg focus:border-purple-500 focus:outline-none"
+                      />
+                    </div>
+                  ) : null
+                })()}
+              </div>
+
+              {/* Eligible Sexuality */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+                <h3 className="text-sm font-semibold text-gray-800 mb-3">Eligible Sexuality</h3>
+                <p className="text-xs text-gray-500 mb-3">Who is allowed to join based on sexuality?</p>
+                
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {SEXUALITIES.map((sexuality) => {
+                    const currentSexuality = organization.eligible_sexuality || ''
+                    const standardSexualities = ['all', 'straight', 'gay', 'lesbian', 'nan']
+                    const isOther = currentSexuality && !standardSexualities.includes(currentSexuality.toLowerCase())
+                    const isSelected = (sexuality === 'All' && (!organization.eligible_sexuality || organization.eligible_sexuality === 'nan')) ||
+                                       (sexuality === 'Straight' && currentSexuality.toLowerCase() === 'straight') ||
+                                       (sexuality === 'Gay' && currentSexuality.toLowerCase() === 'gay') ||
+                                       (sexuality === 'Lesbian' && currentSexuality.toLowerCase() === 'lesbian') ||
+                                       (sexuality === 'Other' && isOther)
+                    return (
+                      <button
+                        key={sexuality}
+                        onClick={() => {
+                          if (sexuality === 'All') {
+                            saveField('eligible_sexuality', null)
+                            setSexualityOther('')
+                            setShowSexualityOtherInput(false)
+                          } else if (sexuality === 'Other') {
+                            // Show input field for "Other"
+                            setShowSexualityOtherInput(true)
+                            if (isOther) {
+                              setSexualityOther(currentSexuality)
+                            } else {
+                              setSexualityOther('')
+                            }
+                          } else {
+                            saveField('eligible_sexuality', sexuality)
+                            setSexualityOther('')
+                            setShowSexualityOtherInput(false)
+                          }
+                        }}
+                        disabled={saving}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium transition-all ${
+                          isSelected
+                            ? 'bg-indigo-600 text-white'
+                            : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                        } ${saving ? 'opacity-50' : ''}`}
+                      >
+                        {sexuality}
+                      </button>
+                    )
+                  })}
+                </div>
+                
+                {/* Other sexuality text input */}
+                {(() => {
+                  const currentSexuality = organization.eligible_sexuality || ''
+                  const standardSexualities = ['all', 'straight', 'gay', 'lesbian', 'nan']
+                  const isOther = currentSexuality && !standardSexualities.includes(currentSexuality.toLowerCase())
+                  const showInput = isOther || showSexualityOtherInput
+                  
+                  return showInput ? (
+                    <div className="mt-3">
+                      <input
+                        type="text"
+                        value={sexualityOther || (isOther ? currentSexuality : '')}
+                        onChange={(e) => {
+                          const value = e.target.value
+                          setSexualityOther(value)
+                          if (value.trim()) {
+                            saveField('eligible_sexuality', value.trim())
+                          }
+                        }}
+                        onBlur={() => {
+                          if (sexualityOther.trim()) {
+                            saveField('eligible_sexuality', sexualityOther.trim())
+                          } else if (!sexualityOther.trim() && isOther) {
+                            saveField('eligible_sexuality', null)
+                            setSexualityOther('')
+                          }
+                        }}
+                        placeholder="Specify sexuality..."
+                        className="w-full p-2 text-sm border border-indigo-300 rounded-lg focus:border-indigo-500 focus:outline-none"
+                      />
+                    </div>
+                  ) : null
+                })()}
               </div>
 
               {/* Eligible Races */}

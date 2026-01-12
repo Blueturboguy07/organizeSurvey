@@ -42,6 +42,7 @@ def check_eligibility(org_row, user_data):
     
     # Gender filtering
     if user_gender:
+        # Check org name for gender-specific keywords
         if 'female' in org_name or 'women' in org_name or 'woman' in org_name:
             if user_gender not in ['female', 'woman']:
                 return False
@@ -49,13 +50,26 @@ def check_eligibility(org_row, user_data):
             if user_gender not in ['male', 'man']:
                 return False
         
+        # Check eligible_gender field
         if eligible_gender and eligible_gender not in ['nan', 'none', '']:
-            if 'female' in eligible_gender or 'women' in eligible_gender or 'woman' in eligible_gender:
+            eligible_gender_lower = eligible_gender.lower()
+            
+            # If "all" is set, allow everyone
+            if eligible_gender_lower == 'all':
+                pass  # Allow all genders
+            elif 'female' in eligible_gender_lower or 'women' in eligible_gender_lower or 'woman' in eligible_gender_lower:
                 if user_gender not in ['female', 'woman']:
                     return False
-            if 'male' in eligible_gender or 'men' in eligible_gender or 'man' in eligible_gender:
+            elif 'male' in eligible_gender_lower or 'men' in eligible_gender_lower or 'man' in eligible_gender_lower:
                 if user_gender not in ['male', 'man']:
                     return False
+            else:
+                # Custom "Other" value - check if user gender matches (case-insensitive)
+                user_gender_lower = user_gender.lower()
+                if user_gender_lower not in eligible_gender_lower and eligible_gender_lower not in user_gender_lower:
+                    # Try partial match for custom values
+                    if not any(word in eligible_gender_lower for word in user_gender_lower.split()):
+                        return False
     
     # Race filtering
     if user_race and eligible_races and eligible_races not in ['nan', 'none', '']:
@@ -114,9 +128,26 @@ def check_eligibility(org_row, user_data):
             # don't filter out - typical_classifications just indicates what's common, not required
     
     # Sexuality filtering
-    if user_sexuality and user_sexuality != 'straight':
+    if user_sexuality:
         if eligible_sexuality and eligible_sexuality not in ['nan', 'none', '']:
-            if user_sexuality not in eligible_sexuality:
+            eligible_sexuality_lower = eligible_sexuality.lower()
+            user_sexuality_lower = user_sexuality.lower()
+            
+            # If "all" is set, allow everyone
+            if eligible_sexuality_lower == 'all':
+                pass  # Allow all sexualities
+            # Check for standard sexuality matches
+            elif user_sexuality_lower == 'straight' and 'straight' in eligible_sexuality_lower:
+                pass  # Match
+            elif user_sexuality_lower == 'gay' and 'gay' in eligible_sexuality_lower:
+                pass  # Match
+            elif user_sexuality_lower == 'lesbian' and 'lesbian' in eligible_sexuality_lower:
+                pass  # Match
+            # Check if user sexuality is in the eligible string (for custom values)
+            elif user_sexuality_lower in eligible_sexuality_lower or eligible_sexuality_lower in user_sexuality_lower:
+                pass  # Match (handles custom "Other" values)
+            else:
+                # No match found - filter out
                 return False
     
     # Religion filtering
