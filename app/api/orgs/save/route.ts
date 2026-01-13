@@ -32,7 +32,7 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json()
-    const { organization_name, organization_bio, organization_website, organization_contact_info, organization_id } = body
+    const { organization_name, organization_bio, organization_website, organization_contact_info } = body
 
     if (!organization_name || !organization_name.trim()) {
       return NextResponse.json(
@@ -41,109 +41,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // If organization_id is provided, verify it exists
-    let orgId = organization_id || null
-    if (orgId) {
-      const { data: org, error: orgError } = await supabaseAdmin
-        .from('organizations')
-        .select('id, name, application_required')
-        .eq('id', orgId)
-        .single()
-
-      if (orgError || !org) {
-        orgId = null // Reset if org doesn't exist
-      } else {
-        // If org exists and doesn't require applications, auto-join instead of saving
-        const appRequired = org.application_required?.toLowerCase().trim()
-        if (!appRequired || appRequired === 'no' || appRequired === 'none' || appRequired === '') {
-          // Check if already joined
-          const { data: existingJoin } = await supabaseAdmin
-            .from('user_joined_organizations')
-            .select('id')
-            .eq('user_id', user.id)
-            .eq('organization_id', orgId)
-            .single()
-
-          if (!existingJoin) {
-            // Auto-join
-            const { data: joinData, error: joinError } = await supabaseAdmin
-              .from('user_joined_organizations')
-              .insert({
-                user_id: user.id,
-                organization_id: orgId
-              })
-              .select()
-              .single()
-
-            if (!joinError) {
-              return NextResponse.json({ 
-                success: true, 
-                auto_joined: true,
-                data: joinData 
-              })
-            }
-          } else {
-            return NextResponse.json(
-              { error: 'Already joined this organization' },
-              { status: 400 }
-            )
-          }
-        }
-      }
-    } else {
-      // Try to find organization by name (case-insensitive)
-      const { data: matchingOrg } = await supabaseAdmin
-        .from('organizations')
-        .select('id, name, application_required')
-        .ilike('name', organization_name.trim())
-        .limit(1)
-        .single()
-
-      if (matchingOrg) {
-        orgId = matchingOrg.id
-        // If found and doesn't require applications, auto-join
-        const appRequired = matchingOrg.application_required?.toLowerCase().trim()
-        if (!appRequired || appRequired === 'no' || appRequired === 'none' || appRequired === '') {
-          const { data: existingJoin } = await supabaseAdmin
-            .from('user_joined_organizations')
-            .select('id')
-            .eq('user_id', user.id)
-            .eq('organization_id', orgId)
-            .single()
-
-          if (!existingJoin) {
-            const { data: joinData, error: joinError } = await supabaseAdmin
-              .from('user_joined_organizations')
-              .insert({
-                user_id: user.id,
-                organization_id: orgId
-              })
-              .select()
-              .single()
-
-            if (!joinError) {
-              return NextResponse.json({ 
-                success: true, 
-                auto_joined: true,
-                data: joinData 
-              })
-            }
-          } else {
-            return NextResponse.json(
-              { error: 'Already joined this organization' },
-              { status: 400 }
-            )
-          }
-        }
-      }
-    }
-
-    // Check if already saved (by name or org_id)
+    // Check if already saved
     const { data: existing } = await supabaseAdmin
       .from('saved_organizations')
       .select('id')
       .eq('user_id', user.id)
-      .or(`organization_name.eq.${organization_name.trim()},organization_id.eq.${orgId || 'null'}`)
+      .eq('organization_name', organization_name.trim())
       .single()
 
     if (existing) {
@@ -153,12 +56,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Save the organization (with org_id if found)
+    // Save the organization
+    // The database trigger will automatically link organization_id when the org joins the platform
     const { data, error } = await supabaseAdmin
       .from('saved_organizations')
       .insert({
         user_id: user.id,
-        organization_id: orgId,
         organization_name: organization_name.trim(),
         organization_bio: organization_bio || null,
         organization_website: organization_website || null,
@@ -187,4 +90,3 @@ export async function POST(request: NextRequest) {
     )
   }
 }
-
