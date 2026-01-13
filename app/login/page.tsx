@@ -189,14 +189,29 @@ export default function LoginPage() {
         password,
       })
 
-      if (signInError) throw signInError
+      if (signInError) {
+        console.error('Login error:', signInError)
+        throw signInError
+      }
 
       if (data.user) {
+        // Small delay to ensure AuthContext has processed the login
+        await new Promise(resolve => setTimeout(resolve, 100))
         router.push('/dashboard')
         router.refresh()
       }
     } catch (err: any) {
-      setError(err.message || 'Invalid email or password')
+      console.error('Login failed:', err)
+      // Provide more specific error messages
+      if (err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError')) {
+        setError('Network error. Please check your internet connection and try again.')
+      } else if (err.message?.includes('Invalid login credentials')) {
+        setError('Invalid email or password')
+      } else if (err.message?.includes('Email not confirmed')) {
+        setError('Please verify your email before signing in')
+      } else {
+        setError(err.message || 'Invalid email or password')
+      }
     } finally {
       setLoading(false)
     }
