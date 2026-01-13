@@ -11,18 +11,14 @@ import { join } from 'path'
 
 const execFileAsync = promisify(execFile)
 
-// Get search API URL from environment (Render service)
 const SEARCH_API_URL = process.env.SEARCH_API_URL
 
-// Force dynamic rendering
 export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
-    // Validate environment variables
     validateEnvVars()
     
-    // Get auth token from request
     const authHeader = request.headers.get('authorization')
     if (!authHeader) {
       return NextResponse.json(
@@ -31,7 +27,6 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // Verify user authentication
     const token = authHeader.replace('Bearer ', '')
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -62,36 +57,26 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // If user hasn't completed survey, return empty recommendations
+    // If user hasn't completed survey, return empty results
     if (!userQuery || !userQuery.latest_cleansed_query) {
-      return NextResponse.json({ recommendations: [] })
+      return NextResponse.json({ organizations: [] })
     }
 
     // Get user's joined organizations
-    const { data: joinedOrgs, error: joinedOrgsError } = await supabaseAdmin
+    const { data: joinedOrgs } = await supabaseAdmin
       .from('user_joined_organizations')
       .select('organization_id')
       .eq('user_id', user.id)
-
-    if (joinedOrgsError) {
-      console.error('Error fetching joined organizations:', joinedOrgsError)
-      // Continue anyway - assume no joined orgs if table doesn't exist yet
-    }
 
     const joinedOrgIds = new Set(
       (joinedOrgs || []).map((jo: { organization_id: string }) => jo.organization_id)
     )
 
     // Get user's saved organizations (both linked and unlinked)
-    const { data: savedOrgs, error: savedOrgsError } = await supabaseAdmin
+    const { data: savedOrgs } = await supabaseAdmin
       .from('saved_organizations')
       .select('organization_name, organization_id')
       .eq('user_id', user.id)
-
-    if (savedOrgsError) {
-      console.error('Error fetching saved organizations:', savedOrgsError)
-      // Continue anyway
-    }
 
     const savedOrgNames = new Set(
       (savedOrgs || []).map((so: { organization_name: string }) => so.organization_name.toLowerCase().trim())
@@ -104,23 +89,33 @@ export async function GET(request: NextRequest) {
         .map((so: { organization_id: string }) => so.organization_id)
     )
 
+    // Get joined organization names
+    let joinedOrgNames = new Set<string>()
+    if (joinedOrgIds.size > 0) {
+      const { data: orgData } = await supabaseAdmin
+        .from('organizations')
+        .select('id, name')
+        .in('id', Array.from(joinedOrgIds))
+      
+      if (orgData) {
+        joinedOrgNames = new Set(orgData.map((org: any) => org.name.toLowerCase().trim()))
+      }
+    }
+
     // Prepare user data for search
     const userData = userQuery.user_demographics || {}
     const query = userQuery.latest_cleansed_query
 
-    // Perform search using the same logic as /api/search
+    // Perform search
     let searchResults: any[] = []
 
-    // If SEARCH_API_URL is set, use Render API service
     if (SEARCH_API_URL) {
       try {
         const response = await fetch(`${SEARCH_API_URL}/search`, {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ query, userData }),
-          signal: AbortSignal.timeout(60000) // 60 second timeout
+          signal: AbortSignal.timeout(60000)
         })
 
         if (response.ok) {
@@ -129,11 +124,9 @@ export async function GET(request: NextRequest) {
         }
       } catch (fetchError: any) {
         console.error('Search API error:', fetchError.message)
-        // Fall back to local Python execution
       }
     }
 
-    // Fallback: Try local Python execution (for local development or if API fails)
     if (searchResults.length === 0) {
       let tempFile: string | null = null
       try {
@@ -141,7 +134,7 @@ export async function GET(request: NextRequest) {
         const csvPath = path.join(process.cwd(), 'final.csv')
         const venvPython = path.join(process.cwd(), 'venv', 'bin', 'python3')
         
-        tempFile = join(tmpdir(), `recommendations_${Date.now()}_${Math.random().toString(36).substring(7)}.json`)
+        tempFile = join(tmpdir(), `explore_${Date.now()}_${Math.random().toString(36).substring(7)}.json`)
         await writeFile(tempFile, JSON.stringify({ query, userData }), 'utf-8')
         
         const pythonPath = existsSync(venvPython) ? venvPython : 'python3'
@@ -168,44 +161,27 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Get joined organization names as well (for filtering CSV results that might not have IDs)
-    let joinedOrgNames = new Set<string>()
-    if (joinedOrgIds.size > 0) {
-      const { data: orgData } = await supabaseAdmin
-        .from('organizations')
-        .select('id, name')
-        .in('id', Array.from(joinedOrgIds))
-      
-      if (orgData) {
-        joinedOrgNames = new Set(orgData.map((org: any) => org.name.toLowerCase().trim()))
+    // Filter out joined and saved organizations (NO LIMIT - show all)
+    const organizations = searchResults.filter((org: any) => {
+      if (org.id && joinedOrgIds.has(org.id)) {
+        return false
       }
-    }
+      // Filter out linked saved orgs by ID
+      if (org.id && savedOrgIds.has(org.id)) {
+        return false
+      }
+      if (org.name && joinedOrgNames.has(org.name.toLowerCase().trim())) {
+        return false
+      }
+      if (org.name && savedOrgNames.has(org.name.toLowerCase().trim())) {
+        return false
+      }
+      return true
+    })
 
-    // Filter out joined and saved organizations
-    const recommendations = searchResults
-      .filter((org: any) => {
-        // Filter out if organization ID matches a joined org
-        if (org.id && joinedOrgIds.has(org.id)) {
-          return false
-        }
-        // Filter out if organization ID matches a saved org (linked saved orgs)
-        if (org.id && savedOrgIds.has(org.id)) {
-          return false
-        }
-        // Also filter by name (for CSV results that might not have IDs)
-        if (org.name && joinedOrgNames.has(org.name.toLowerCase().trim())) {
-          return false
-        }
-        // Filter out if organization name matches a saved org
-        if (org.name && savedOrgNames.has(org.name.toLowerCase().trim())) {
-          return false
-        }
-        return true
-      })
-
-    return NextResponse.json({ recommendations })
+    return NextResponse.json({ organizations })
   } catch (error: any) {
-    console.error('Recommendations API error:', error)
+    console.error('Explore orgs API error:', error)
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }
