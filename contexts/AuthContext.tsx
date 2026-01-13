@@ -46,17 +46,6 @@ interface UserProfileData {
   } | null
 }
 
-interface SavedOrgData {
-  id: string
-  organization_id: string | null
-  organization_name: string
-  organization_bio: string | null
-  organization_website: string | null
-  organization_contact_info: string | null
-  saved_at: string
-  notified_at: string | null
-}
-
 interface AuthContextType {
   user: User | null
   session: Session | null
@@ -74,10 +63,6 @@ interface AuthContextType {
   joinedOrgIds: Set<string>
   joinedOrgIdsLoading: boolean
   refreshJoinedOrgs: () => Promise<void>
-  // Saved organizations real-time data
-  savedOrgs: SavedOrgData[]
-  savedOrgsLoading: boolean
-  refreshSavedOrgs: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -92,8 +77,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [userProfileLoading, setUserProfileLoading] = useState(false)
   const [joinedOrgIds, setJoinedOrgIds] = useState<Set<string>>(new Set())
   const [joinedOrgIdsLoading, setJoinedOrgIdsLoading] = useState(false)
-  const [savedOrgs, setSavedOrgs] = useState<SavedOrgData[]>([])
-  const [savedOrgsLoading, setSavedOrgsLoading] = useState(false)
   const router = useRouter()
   const supabase = createClientComponentClient()
 
@@ -185,35 +168,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, fetchJoinedOrgs])
 
-  // Fetch saved organizations
-  const fetchSavedOrgs = useCallback(async (userId: string) => {
-    setSavedOrgsLoading(true)
-    try {
-      const { data, error } = await supabase
-        .from('saved_organizations')
-        .select('*')
-        .eq('user_id', userId)
-        .order('saved_at', { ascending: false })
-
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching saved organizations:', error)
-      }
-      
-      setSavedOrgs((data || []) as SavedOrgData[])
-    } catch (err) {
-      console.error('Failed to fetch saved organizations:', err)
-      setSavedOrgs([])
-    } finally {
-      setSavedOrgsLoading(false)
-    }
-  }, [supabase])
-
-  const refreshSavedOrgs = useCallback(async () => {
-    if (user) {
-      await fetchSavedOrgs(user.id)
-    }
-  }, [user, fetchSavedOrgs])
-
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -226,7 +180,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         fetchUserQuery(session.user.id)
         fetchUserProfile(session.user.id)
         fetchJoinedOrgs(session.user.id)
-        fetchSavedOrgs(session.user.id)
       }
     })
 
@@ -243,12 +196,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         fetchUserQuery(session.user.id)
         fetchUserProfile(session.user.id)
         fetchJoinedOrgs(session.user.id)
-        fetchSavedOrgs(session.user.id)
       } else {
         setUserQuery(null)
         setUserProfile(null)
         setJoinedOrgIds(new Set())
-        setSavedOrgs([])
       }
       
       // Redirect to login if signed out
@@ -391,51 +342,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, supabase, fetchJoinedOrgs])
 
-  // Real-time subscription for saved_organizations
-  useEffect(() => {
-    if (!user) return
-
-    let channel: RealtimeChannel | null = null
-
-    const setupSubscription = () => {
-      channel = supabase
-        .channel(`saved_orgs_realtime_${user.id}`)
-        .on(
-          'postgres_changes',
-          {
-            event: '*', // Listen to INSERT, UPDATE, DELETE
-            schema: 'public',
-            table: 'saved_organizations',
-            filter: `user_id=eq.${user.id}`
-          },
-          (payload) => {
-            console.log('Real-time saved_organizations update:', payload)
-            
-            // Refetch saved orgs when changes occur
-            fetchSavedOrgs(user.id)
-          }
-        )
-        .subscribe((status) => {
-          console.log('saved_organizations subscription status:', status)
-        })
-    }
-
-    setupSubscription()
-
-    // Cleanup subscription on unmount or user change
-    return () => {
-      if (channel) {
-        supabase.removeChannel(channel)
-      }
-    }
-  }, [user, supabase, fetchSavedOrgs])
-
   const signOut = async () => {
     await supabase.auth.signOut()
     setUserQuery(null)
     setUserProfile(null)
     setJoinedOrgIds(new Set())
-    setSavedOrgs([])
     router.push('/login')
   }
 
@@ -453,10 +364,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       refreshUserProfile,
       joinedOrgIds,
       joinedOrgIdsLoading,
-      refreshJoinedOrgs,
-      savedOrgs,
-      savedOrgsLoading,
-      refreshSavedOrgs
+      refreshJoinedOrgs
     }}>
       {children}
     </AuthContext.Provider>
