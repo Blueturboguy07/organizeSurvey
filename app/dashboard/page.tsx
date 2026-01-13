@@ -13,17 +13,22 @@ export default function DashboardPage() {
   // All user data (profile, query) updates automatically when changed elsewhere
   const { 
     user, 
+    session,
     loading: authLoading, 
     signOut,
     userProfile,        // Real-time profile data (name, picture, preferences)
     userProfileLoading,
     userQuery,          // Real-time survey query data (interests, demographics)
-    userQueryLoading
+    userQueryLoading,
+    joinedOrgIds        // Real-time joined organizations (for filtering recommendations)
   } = useAuth()
   const router = useRouter()
   const [imageError, setImageError] = useState(false)
   const [showProfileDropdown, setShowProfileDropdown] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const [recommendations, setRecommendations] = useState<any[]>([])
+  const [recommendationsLoading, setRecommendationsLoading] = useState(false)
+  const [recommendationsError, setRecommendationsError] = useState<string | null>(null)
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -49,6 +54,45 @@ export default function DashboardPage() {
   useEffect(() => {
     setImageError(false)
   }, [userProfile?.profile_picture_url])
+
+  // Fetch recommendations when user query is available or joined orgs change
+  useEffect(() => {
+    const fetchRecommendations = async () => {
+      if (!user || !userQuery?.latest_cleansed_query || !session) {
+        setRecommendations([])
+        return
+      }
+
+      setRecommendationsLoading(true)
+      setRecommendationsError(null)
+
+      try {
+        const response = await fetch('/api/recommendations', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch recommendations')
+        }
+
+        const data = await response.json()
+        setRecommendations(data.recommendations || [])
+      } catch (error: any) {
+        console.error('Error fetching recommendations:', error)
+        setRecommendationsError(error.message || 'Failed to load recommendations')
+        setRecommendations([])
+      } finally {
+        setRecommendationsLoading(false)
+      }
+    }
+
+    fetchRecommendations()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, userQuery?.latest_cleansed_query, session, Array.from(joinedOrgIds).sort().join(',')])
 
   // Determine loading state
   const loading = authLoading || userProfileLoading || userQueryLoading
@@ -237,6 +281,92 @@ export default function DashboardPage() {
             </div>
           )}
         </motion.div>
+
+        {/* Recommended for you Section */}
+        {hasQuery && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.2 }}
+            className="mt-8"
+          >
+            <h3 className="text-2xl font-bold text-gray-800 mb-6">Recommended for you</h3>
+            
+            {recommendationsLoading ? (
+              <div className="bg-white rounded-lg shadow-md p-12 text-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-tamu-maroon mx-auto"></div>
+                <p className="mt-4 text-gray-600">Loading recommendations...</p>
+              </div>
+            ) : recommendationsError ? (
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <p className="text-gray-600 text-center">Unable to load recommendations. Please try again later.</p>
+              </div>
+            ) : recommendations.length === 0 ? (
+              <div className="bg-white rounded-lg shadow-md p-6">
+                <p className="text-gray-600 text-center">No recommendations available at this time.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {recommendations.map((org: any, index: number) => (
+                  <motion.div
+                    key={org.id || org.name || index}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1 + index * 0.05 }}
+                    className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow"
+                  >
+                    <h4 className="text-xl font-semibold text-gray-800 mb-2">{org.name}</h4>
+                    
+                    {org.relevance_score && (
+                      <div className="mb-3">
+                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-tamu-maroon/10 text-tamu-maroon">
+                          Match Score: {org.relevance_score}
+                        </span>
+                      </div>
+                    )}
+
+                    {org.bio_snippet && (
+                      <p className="text-gray-600 text-sm mb-4 line-clamp-3">{org.bio_snippet}</p>
+                    )}
+
+                    {org.typical_majors && org.typical_majors !== 'nan' && (
+                      <div className="mb-3">
+                        <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Majors</p>
+                        <p className="text-sm text-gray-700">{org.typical_majors}</p>
+                      </div>
+                    )}
+
+                    {org.typical_activities && org.typical_activities !== 'nan' && (
+                      <div className="mb-4">
+                        <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Activities</p>
+                        <p className="text-sm text-gray-700">{org.typical_activities}</p>
+                      </div>
+                    )}
+
+                    <div className="flex gap-2 mt-4">
+                      {org.website && org.website !== 'nan' && (
+                        <a
+                          href={org.website}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex-1 px-4 py-2 text-sm text-center bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                        >
+                          Visit Website
+                        </a>
+                      )}
+                      <Link
+                        href={`/survey?showResults=true&highlight=${encodeURIComponent(org.name)}`}
+                        className="flex-1 px-4 py-2 text-sm text-center bg-tamu-maroon text-white rounded-lg hover:bg-tamu-maroon-light transition-colors"
+                      >
+                        View Details
+                      </Link>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </motion.div>
+        )}
       </main>
     </div>
   )

@@ -8,10 +8,11 @@
  * - Auth state changes (login/logout)
  * - user_queries table (survey interests)
  * - user_profiles table (profile data, picture, preferences)
+ * - user_joined_organizations table (joined orgs for recommendations)
  * 
  * Usage in components:
  * ```
- * const { user, session, userProfile, userQuery } = useAuth()
+ * const { user, session, userProfile, userQuery, joinedOrgIds } = useAuth()
  * 
  * // For API calls requiring auth, use session.access_token:
  * if (session?.access_token) {
@@ -58,6 +59,10 @@ interface AuthContextType {
   userProfile: UserProfileData | null
   userProfileLoading: boolean
   refreshUserProfile: () => Promise<void>
+  // Joined organizations real-time data
+  joinedOrgIds: Set<string>
+  joinedOrgIdsLoading: boolean
+  refreshJoinedOrgs: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -70,6 +75,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [userQueryLoading, setUserQueryLoading] = useState(false)
   const [userProfile, setUserProfile] = useState<UserProfileData | null>(null)
   const [userProfileLoading, setUserProfileLoading] = useState(false)
+  const [joinedOrgIds, setJoinedOrgIds] = useState<Set<string>>(new Set())
+  const [joinedOrgIdsLoading, setJoinedOrgIdsLoading] = useState(false)
   const router = useRouter()
   const supabase = createClientComponentClient()
 
@@ -119,6 +126,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [supabase])
 
+  // Fetch joined organizations
+  const fetchJoinedOrgs = useCallback(async (userId: string) => {
+    setJoinedOrgIdsLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('user_joined_organizations')
+        .select('organization_id')
+        .eq('user_id', userId)
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching joined organizations:', error)
+      }
+      
+      const orgIds = new Set((data || []).map((jo: { organization_id: string }) => jo.organization_id))
+      setJoinedOrgIds(orgIds)
+    } catch (err) {
+      console.error('Failed to fetch joined organizations:', err)
+      setJoinedOrgIds(new Set())
+    } finally {
+      setJoinedOrgIdsLoading(false)
+    }
+  }, [supabase])
+
   // Manual refresh functions
   const refreshUserQuery = useCallback(async () => {
     if (user) {
@@ -132,6 +162,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, fetchUserProfile])
 
+  const refreshJoinedOrgs = useCallback(async () => {
+    if (user) {
+      await fetchJoinedOrgs(user.id)
+    }
+  }, [user, fetchJoinedOrgs])
+
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -143,6 +179,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (session?.user) {
         fetchUserQuery(session.user.id)
         fetchUserProfile(session.user.id)
+        fetchJoinedOrgs(session.user.id)
       }
     })
 
@@ -158,9 +195,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (session?.user) {
         fetchUserQuery(session.user.id)
         fetchUserProfile(session.user.id)
+        fetchJoinedOrgs(session.user.id)
       } else {
         setUserQuery(null)
         setUserProfile(null)
+        setJoinedOrgIds(new Set())
       }
       
       // Redirect to login if signed out
@@ -264,10 +303,50 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, supabase])
 
+  // Real-time subscription for user_joined_organizations
+  useEffect(() => {
+    if (!user) return
+
+    let channel: RealtimeChannel | null = null
+
+    const setupSubscription = () => {
+      channel = supabase
+        .channel(`user_joined_orgs_realtime_${user.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*', // Listen to INSERT, UPDATE, DELETE
+            schema: 'public',
+            table: 'user_joined_organizations',
+            filter: `user_id=eq.${user.id}`
+          },
+          (payload) => {
+            console.log('Real-time user_joined_organizations update:', payload)
+            
+            // Refetch joined orgs when changes occur
+            fetchJoinedOrgs(user.id)
+          }
+        )
+        .subscribe((status) => {
+          console.log('user_joined_organizations subscription status:', status)
+        })
+    }
+
+    setupSubscription()
+
+    // Cleanup subscription on unmount or user change
+    return () => {
+      if (channel) {
+        supabase.removeChannel(channel)
+      }
+    }
+  }, [user, supabase, fetchJoinedOrgs])
+
   const signOut = async () => {
     await supabase.auth.signOut()
     setUserQuery(null)
     setUserProfile(null)
+    setJoinedOrgIds(new Set())
     router.push('/login')
   }
 
@@ -282,7 +361,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       refreshUserQuery,
       userProfile,
       userProfileLoading,
-      refreshUserProfile
+      refreshUserProfile,
+      joinedOrgIds,
+      joinedOrgIdsLoading,
+      refreshJoinedOrgs
     }}>
       {children}
     </AuthContext.Provider>
