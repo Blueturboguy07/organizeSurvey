@@ -113,8 +113,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('id', userId)
         .single()
 
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching user profile:', error)
+      // Handle errors gracefully - table might not exist yet or no profile exists
+      if (error) {
+        // PGRST116 = no rows returned (profile doesn't exist yet)
+        // 42P01 = relation does not exist (table doesn't exist)
+        if (error.code !== 'PGRST116' && error.code !== '42P01' && !error.message?.includes('does not exist')) {
+          console.error('Error fetching user profile:', error)
+        }
       }
       
       setUserProfile(data || null)
@@ -263,34 +268,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     let channel: RealtimeChannel | null = null
 
     const setupSubscription = () => {
-      channel = supabase
-        .channel(`user_profiles_realtime_${user.id}`)
-        .on(
-          'postgres_changes',
-          {
-            event: '*', // Listen to INSERT, UPDATE, DELETE
-            schema: 'public',
-            table: 'user_profiles',
-            filter: `id=eq.${user.id}`
-          },
-          (payload) => {
-            console.log('Real-time user_profiles update:', payload)
-            
-            if (payload.eventType === 'DELETE') {
-              setUserProfile(null)
-            } else if (payload.new) {
-              const newData = payload.new as Record<string, unknown>
-              setUserProfile({
-                name: (newData.name as string) || null,
-                profile_picture_url: (newData.profile_picture_url as string) || null,
-                email_preferences: (newData.email_preferences as UserProfileData['email_preferences']) || null
-              })
+      try {
+        channel = supabase
+          .channel(`user_profiles_realtime_${user.id}`)
+          .on(
+            'postgres_changes',
+            {
+              event: '*', // Listen to INSERT, UPDATE, DELETE
+              schema: 'public',
+              table: 'user_profiles',
+              filter: `id=eq.${user.id}`
+            },
+            (payload) => {
+              console.log('Real-time user_profiles update:', payload)
+              
+              if (payload.eventType === 'DELETE') {
+                setUserProfile(null)
+              } else if (payload.new) {
+                const newData = payload.new as Record<string, unknown>
+                setUserProfile({
+                  name: (newData.name as string) || null,
+                  profile_picture_url: (newData.profile_picture_url as string) || null,
+                  email_preferences: (newData.email_preferences as UserProfileData['email_preferences']) || null
+                })
+              }
             }
-          }
-        )
-        .subscribe((status) => {
-          console.log('user_profiles subscription status:', status)
-        })
+          )
+          .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+              console.log('user_profiles subscription active')
+            } else if (status === 'CHANNEL_ERROR') {
+              // Table might not exist yet - this is okay, subscription will work once table is created
+              console.warn('user_profiles subscription error (table may not exist yet):', status)
+            } else {
+              console.log('user_profiles subscription status:', status)
+            }
+          })
+      } catch (err) {
+        // Table might not exist yet - fail silently
+        console.warn('Failed to set up user_profiles realtime subscription (table may not exist):', err)
+      }
     }
 
     setupSubscription()
