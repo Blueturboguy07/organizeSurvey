@@ -4,6 +4,8 @@ import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/contexts/AuthContext'
+import { createClientComponentClient } from '@/lib/supabase'
+import { RealtimeChannel } from '@supabase/supabase-js'
 import Image from 'next/image'
 import Link from 'next/link'
 
@@ -23,12 +25,14 @@ export default function DashboardPage() {
     joinedOrgIds        // Real-time joined organizations (for filtering recommendations)
   } = useAuth()
   const router = useRouter()
+  const supabase = createClientComponentClient()
   const [imageError, setImageError] = useState(false)
   const [showProfileDropdown, setShowProfileDropdown] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
   const [recommendations, setRecommendations] = useState<any[]>([])
   const [recommendationsLoading, setRecommendationsLoading] = useState(false)
   const [recommendationsError, setRecommendationsError] = useState<string | null>(null)
+  const [selectedOrg, setSelectedOrg] = useState<any | null>(null)
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -93,6 +97,48 @@ export default function DashboardPage() {
     fetchRecommendations()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, userQuery?.latest_cleansed_query, session, Array.from(joinedOrgIds).sort().join(',')])
+
+  // Real-time subscription for selected organization
+  useEffect(() => {
+    if (!selectedOrg?.id) return
+
+    let channel: RealtimeChannel | null = null
+
+    const setupSubscription = () => {
+      channel = supabase
+        .channel(`org-detail-${selectedOrg.id}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'organizations',
+            filter: `id=eq.${selectedOrg.id}`
+          },
+          (payload) => {
+            if (payload.new) {
+              setSelectedOrg((prev: any) => ({
+                ...prev,
+                ...payload.new
+              }))
+              // Also update in recommendations list
+              setRecommendations((prev: any[]) =>
+                prev.map(org => org.id === selectedOrg.id ? { ...org, ...payload.new } : org)
+              )
+            }
+          }
+        )
+        .subscribe()
+    }
+
+    setupSubscription()
+
+    return () => {
+      if (channel) {
+        supabase.removeChannel(channel)
+      }
+    }
+  }, [selectedOrg?.id, supabase])
 
   // Determine loading state
   const loading = authLoading || userProfileLoading || userQueryLoading
@@ -306,17 +352,18 @@ export default function DashboardPage() {
                 <p className="text-gray-600 text-center">No recommendations available at this time.</p>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-3">
                 {recommendations.map((org: any, index: number) => (
                   <motion.div
                     key={org.id || org.name || index}
                     initial={{ opacity: 0, x: -20 }}
                     animate={{ opacity: 1, x: 0 }}
                     transition={{ delay: 0.05 + index * 0.03 }}
-                    className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border border-gray-200"
+                    className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border border-gray-200 cursor-pointer"
+                    onClick={() => setSelectedOrg(org)}
                   >
                     <div className="p-6">
-                      <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-start justify-between gap-4 mb-3">
                         <div className="flex-1">
                           <div className="flex items-center gap-3 mb-2">
                             <h4 className="text-xl font-bold text-gray-800">{org.name}</h4>
@@ -328,70 +375,178 @@ export default function DashboardPage() {
                           </div>
                           
                           {org.bio_snippet && (
-                            <p className="text-gray-700 text-sm mb-4 leading-relaxed">{org.bio_snippet}</p>
+                            <p className="text-gray-700 text-sm leading-relaxed line-clamp-2">{org.bio_snippet}</p>
                           )}
                         </div>
                       </div>
 
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                        {org.typical_majors && org.typical_majors !== 'nan' && (
-                          <div className="bg-gray-50 rounded-lg p-4">
-                            <p className="text-xs font-semibold text-gray-500 uppercase mb-2 tracking-wide">Typical Majors</p>
-                            <p className="text-sm text-gray-800 leading-relaxed">{org.typical_majors}</p>
-                          </div>
-                        )}
-
-                        {org.typical_activities && org.typical_activities !== 'nan' && (
-                          <div className="bg-gray-50 rounded-lg p-4">
-                            <p className="text-xs font-semibold text-gray-500 uppercase mb-2 tracking-wide">Typical Activities</p>
-                            <p className="text-sm text-gray-800 leading-relaxed">{org.typical_activities}</p>
-                          </div>
-                        )}
-
-                        {org.club_culture_style && org.club_culture_style !== 'nan' && (
-                          <div className="bg-gray-50 rounded-lg p-4">
-                            <p className="text-xs font-semibold text-gray-500 uppercase mb-2 tracking-wide">Culture Style</p>
-                            <p className="text-sm text-gray-800 leading-relaxed">{org.club_culture_style}</p>
-                          </div>
-                        )}
-
-                        {org.meeting_frequency && org.meeting_frequency !== 'nan' && (
-                          <div className="bg-gray-50 rounded-lg p-4">
-                            <p className="text-xs font-semibold text-gray-500 uppercase mb-2 tracking-wide">Meeting Frequency</p>
-                            <p className="text-sm text-gray-800 leading-relaxed">{org.meeting_frequency}</p>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-200">
-                        {org.website && org.website !== 'nan' && (
-                          <a
-                            href={org.website}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
-                          >
-                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
-                            </svg>
-                            Visit Website
-                          </a>
-                        )}
-                        <Link
-                          href={`/survey?showResults=true&highlight=${encodeURIComponent(org.name)}`}
-                          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-tamu-maroon text-white rounded-lg hover:bg-tamu-maroon-light transition-colors"
-                        >
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                          </svg>
-                          View Full Details
-                        </Link>
-                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          setSelectedOrg(org)
+                        }}
+                        className="text-tamu-maroon hover:text-tamu-maroon-light font-medium text-sm flex items-center gap-1 mt-2"
+                      >
+                        View More Details
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </button>
                     </div>
                   </motion.div>
                 ))}
               </div>
             )}
+
+            {/* Organization Detail Modal */}
+            <AnimatePresence>
+              {selectedOrg && (
+                <>
+                  <motion.div
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    onClick={() => setSelectedOrg(null)}
+                    className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-2 sm:p-4"
+                  >
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.9 }}
+                      onClick={(e) => e.stopPropagation()}
+                      className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[95vh] sm:max-h-[90vh] overflow-y-auto"
+                    >
+                      <div className="sticky top-0 bg-gradient-to-r from-tamu-maroon to-tamu-maroon-light p-3 sm:p-4 md:p-6 text-white flex justify-between items-start">
+                        <div className="flex-1 pr-2">
+                          <h2 className="text-xl sm:text-2xl md:text-3xl font-bold mb-2 break-words">{selectedOrg.name}</h2>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="px-2 py-1 sm:px-3 sm:py-1 bg-white/20 rounded-full text-xs sm:text-sm font-medium">
+                              Score: {selectedOrg.relevance_score}
+                            </span>
+                            <span className="flex items-center gap-1 px-2 py-1 bg-white/10 rounded-full text-xs">
+                              <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse"></span>
+                              Live
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => setSelectedOrg(null)}
+                          className="text-white hover:text-gray-200 text-2xl sm:text-3xl font-bold flex-shrink-0 w-8 h-8 sm:w-10 sm:h-10 flex items-center justify-center"
+                          aria-label="Close"
+                        >
+                          ×
+                        </button>
+                      </div>
+
+                      <div className="p-3 sm:p-4 md:p-6 space-y-4 sm:space-y-6">
+                        {/* Full Bio */}
+                        {selectedOrg.full_bio && selectedOrg.full_bio !== 'nan' && (
+                          <div>
+                            <h3 className="text-base sm:text-lg font-semibold text-tamu-maroon mb-2">About</h3>
+                            <p className="text-sm sm:text-base text-gray-700 leading-relaxed">{selectedOrg.full_bio}</p>
+                          </div>
+                        )}
+
+                        {/* Contact Information */}
+                        {(selectedOrg.website || selectedOrg.administrative_contact_info) && (
+                          <div className="border-t pt-4">
+                            <h3 className="text-base sm:text-lg font-semibold text-tamu-maroon mb-2 sm:mb-3">Contact Information</h3>
+                            <div className="space-y-2">
+                              {selectedOrg.website && selectedOrg.website !== 'nan' && (
+                                <div>
+                                  <span className="font-semibold text-gray-700">Website: </span>
+                                  <a
+                                    href={selectedOrg.website.startsWith('http') ? selectedOrg.website : `https://${selectedOrg.website}`}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="text-tamu-maroon hover:underline"
+                                  >
+                                    {selectedOrg.website}
+                                  </a>
+                                </div>
+                              )}
+                              {selectedOrg.administrative_contact_info && selectedOrg.administrative_contact_info !== 'nan' && (
+                                <div>
+                                  <span className="font-semibold text-gray-700">Contact: </span>
+                                  <span className="text-gray-700">{selectedOrg.administrative_contact_info}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Additional Details */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 border-t pt-4">
+                          {selectedOrg.typical_majors && selectedOrg.typical_majors !== 'nan' && (
+                            <div>
+                              <h4 className="font-semibold text-gray-700 mb-1">Career Fields</h4>
+                              <p className="text-gray-600">{selectedOrg.typical_majors}</p>
+                            </div>
+                          )}
+                          {selectedOrg.typical_activities && selectedOrg.typical_activities !== 'nan' && (
+                            <div>
+                              <h4 className="font-semibold text-gray-700 mb-1">Typical Activities</h4>
+                              <p className="text-gray-600">{selectedOrg.typical_activities}</p>
+                            </div>
+                          )}
+                          {selectedOrg.club_culture_style && selectedOrg.club_culture_style !== 'nan' && (
+                            <div>
+                              <h4 className="font-semibold text-gray-700 mb-1">Club Culture</h4>
+                              <p className="text-gray-600">{selectedOrg.club_culture_style}</p>
+                            </div>
+                          )}
+                          {selectedOrg.meeting_frequency && selectedOrg.meeting_frequency !== 'nan' && (
+                            <div>
+                              <h4 className="font-semibold text-gray-700 mb-1">Meeting Frequency</h4>
+                              <p className="text-gray-600">{selectedOrg.meeting_frequency}</p>
+                            </div>
+                          )}
+                          {selectedOrg.meeting_times && selectedOrg.meeting_times !== 'nan' && (
+                            <div>
+                              <h4 className="font-semibold text-gray-700 mb-1">Meeting Times</h4>
+                              <p className="text-gray-600">{selectedOrg.meeting_times}</p>
+                            </div>
+                          )}
+                          {selectedOrg.meeting_locations && selectedOrg.meeting_locations !== 'nan' && (
+                            <div>
+                              <h4 className="font-semibold text-gray-700 mb-1">Meeting Locations</h4>
+                              <p className="text-gray-600">{selectedOrg.meeting_locations}</p>
+                            </div>
+                          )}
+                          {selectedOrg.dues_required && selectedOrg.dues_required !== 'nan' && (
+                            <div>
+                              <h4 className="font-semibold text-gray-700 mb-1">Dues Required</h4>
+                              <p className="text-gray-600">
+                                {selectedOrg.dues_required}
+                                {selectedOrg.dues_cost && selectedOrg.dues_cost !== 'nan' && ` - ${selectedOrg.dues_cost}`}
+                              </p>
+                            </div>
+                          )}
+                          {selectedOrg.application_required && selectedOrg.application_required !== 'nan' && (
+                            <div>
+                              <h4 className="font-semibold text-gray-700 mb-1">Application Required</h4>
+                              <p className="text-gray-600">{selectedOrg.application_required}</p>
+                            </div>
+                          )}
+                          {selectedOrg.time_commitment && selectedOrg.time_commitment !== 'nan' && (
+                            <div>
+                              <h4 className="font-semibold text-gray-700 mb-1">Time Commitment</h4>
+                              <p className="text-gray-600">{selectedOrg.time_commitment}</p>
+                            </div>
+                          )}
+                          {selectedOrg.member_count && selectedOrg.member_count !== 'nan' && (
+                            <div>
+                              <h4 className="font-semibold text-gray-700 mb-1">Member Count</h4>
+                              <p className="text-gray-600">{selectedOrg.member_count}</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </motion.div>
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
           </motion.div>
         )}
       </main>
