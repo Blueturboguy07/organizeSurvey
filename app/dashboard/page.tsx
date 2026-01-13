@@ -306,60 +306,87 @@ export default function DashboardPage() {
                 <p className="text-gray-600 text-center">No recommendations available at this time.</p>
               </div>
             ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <div className="space-y-4">
                 {recommendations.map((org: any, index: number) => (
                   <motion.div
                     key={org.id || org.name || index}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: 0.1 + index * 0.05 }}
-                    className="bg-white rounded-lg shadow-md p-6 hover:shadow-lg transition-shadow"
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: 0.05 + index * 0.03 }}
+                    className="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border border-gray-200"
                   >
-                    <h4 className="text-xl font-semibold text-gray-800 mb-2">{org.name}</h4>
-                    
-                    {org.relevance_score && (
-                      <div className="mb-3">
-                        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-tamu-maroon/10 text-tamu-maroon">
-                          Match Score: {org.relevance_score}
-                        </span>
+                    <div className="p-6">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-3 mb-2">
+                            <h4 className="text-xl font-bold text-gray-800">{org.name}</h4>
+                            {org.relevance_score && (
+                              <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold bg-tamu-maroon/10 text-tamu-maroon border border-tamu-maroon/20">
+                                Match: {org.relevance_score}
+                              </span>
+                            )}
+                          </div>
+                          
+                          {org.bio_snippet && (
+                            <p className="text-gray-700 text-sm mb-4 leading-relaxed">{org.bio_snippet}</p>
+                          )}
+                        </div>
                       </div>
-                    )}
 
-                    {org.bio_snippet && (
-                      <p className="text-gray-600 text-sm mb-4 line-clamp-3">{org.bio_snippet}</p>
-                    )}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        {org.typical_majors && org.typical_majors !== 'nan' && (
+                          <div className="bg-gray-50 rounded-lg p-4">
+                            <p className="text-xs font-semibold text-gray-500 uppercase mb-2 tracking-wide">Typical Majors</p>
+                            <p className="text-sm text-gray-800 leading-relaxed">{org.typical_majors}</p>
+                          </div>
+                        )}
 
-                    {org.typical_majors && org.typical_majors !== 'nan' && (
-                      <div className="mb-3">
-                        <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Majors</p>
-                        <p className="text-sm text-gray-700">{org.typical_majors}</p>
+                        {org.typical_activities && org.typical_activities !== 'nan' && (
+                          <div className="bg-gray-50 rounded-lg p-4">
+                            <p className="text-xs font-semibold text-gray-500 uppercase mb-2 tracking-wide">Typical Activities</p>
+                            <p className="text-sm text-gray-800 leading-relaxed">{org.typical_activities}</p>
+                          </div>
+                        )}
+
+                        {org.club_culture_style && org.club_culture_style !== 'nan' && (
+                          <div className="bg-gray-50 rounded-lg p-4">
+                            <p className="text-xs font-semibold text-gray-500 uppercase mb-2 tracking-wide">Culture Style</p>
+                            <p className="text-sm text-gray-800 leading-relaxed">{org.club_culture_style}</p>
+                          </div>
+                        )}
+
+                        {org.meeting_frequency && org.meeting_frequency !== 'nan' && (
+                          <div className="bg-gray-50 rounded-lg p-4">
+                            <p className="text-xs font-semibold text-gray-500 uppercase mb-2 tracking-wide">Meeting Frequency</p>
+                            <p className="text-sm text-gray-800 leading-relaxed">{org.meeting_frequency}</p>
+                          </div>
+                        )}
                       </div>
-                    )}
 
-                    {org.typical_activities && org.typical_activities !== 'nan' && (
-                      <div className="mb-4">
-                        <p className="text-xs font-semibold text-gray-500 uppercase mb-1">Activities</p>
-                        <p className="text-sm text-gray-700">{org.typical_activities}</p>
-                      </div>
-                    )}
-
-                    <div className="flex gap-2 mt-4">
-                      {org.website && org.website !== 'nan' && (
-                        <a
-                          href={org.website}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex-1 px-4 py-2 text-sm text-center bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                      <div className="flex flex-wrap gap-3 pt-4 border-t border-gray-200">
+                        {org.website && org.website !== 'nan' && (
+                          <a
+                            href={org.website}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+                            </svg>
+                            Visit Website
+                          </a>
+                        )}
+                        <Link
+                          href={`/survey?showResults=true&highlight=${encodeURIComponent(org.name)}`}
+                          className="inline-flex items-center gap-2 px-4 py-2 text-sm font-medium bg-tamu-maroon text-white rounded-lg hover:bg-tamu-maroon-light transition-colors"
                         >
-                          Visit Website
-                        </a>
-                      )}
-                      <Link
-                        href={`/survey?showResults=true&highlight=${encodeURIComponent(org.name)}`}
-                        className="flex-1 px-4 py-2 text-sm text-center bg-tamu-maroon text-white rounded-lg hover:bg-tamu-maroon-light transition-colors"
-                      >
-                        View Details
-                      </Link>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                          </svg>
+                          View Full Details
+                        </Link>
+                      </div>
                     </div>
                   </motion.div>
                 ))}
