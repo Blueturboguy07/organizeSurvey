@@ -240,7 +240,7 @@ export default function SavedPage() {
                 </span>
               </div>
               <p className="text-sm text-gray-600 mb-4">
-                These organizations aren't on the platform yet. You'll be notified when they join, and if they don't require an application, you'll be automatically added!
+                These organizations aren&apos;t on the platform yet. You&apos;ll be notified when they join, and if they don&apos;t require an application, you&apos;ll be automatically added!
               </p>
               <div className="space-y-4">
                 {notOnPlatformOrgs.map((org, index) => (
