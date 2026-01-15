@@ -113,6 +113,7 @@ export async function POST(request: NextRequest) {
     }
 
     // If org exists and is non-application based, auto-join
+    let autoJoined = false
     if (orgExists && orgId) {
       const { data: org } = await supabaseAdmin
         .from('organizations')
@@ -148,6 +149,8 @@ export async function POST(request: NextRequest) {
             .from('saved_organizations')
             .update({ auto_joined: true })
             .eq('id', data.id)
+          
+          autoJoined = true
         }
       }
     }
@@ -155,8 +158,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ 
       success: true, 
       data,
-      autoJoined: orgExists && orgId && (!org?.application_required || 
-        ['no', 'none', 'n/a', ''].includes(org.application_required.toLowerCase()))
+      autoJoined
     })
   } catch (error: any) {
     console.error('Save organization error:', error)
