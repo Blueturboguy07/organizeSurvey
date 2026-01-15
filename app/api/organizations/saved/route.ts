@@ -39,7 +39,8 @@ export async function GET(request: NextRequest) {
         saved_when_not_on_platform,
         notify_when_available,
         auto_joined,
-        saved_at
+        saved_at,
+        organizations (*)
       `)
       .eq('user_id', user.id)
       .order('saved_at', { ascending: false })
@@ -47,49 +48,22 @@ export async function GET(request: NextRequest) {
     if (savedOrgsError) {
       console.error('Error fetching saved organizations:', savedOrgsError)
       return NextResponse.json(
-        { error: 'Failed to fetch saved organizations', details: savedOrgsError.message },
+        { error: 'Failed to fetch saved organizations' },
         { status: 500 }
       )
     }
 
-    if (!savedOrgs || savedOrgs.length === 0) {
-      console.log(`No saved organizations found for user ${user.id}`)
-      return NextResponse.json({ organizations: [] })
-    }
-
-    console.log(`Found ${savedOrgs.length} saved organizations for user ${user.id}`)
-
-    // Get organization details for orgs that are on platform
-    const orgIds = savedOrgs
-      .map((so: any) => so.organization_id)
-      .filter((id: string | null) => id !== null)
-
-    let orgsMap = new Map()
-    if (orgIds.length > 0) {
-      const { data: orgs } = await supabaseAdmin
-        .from('organizations')
-        .select('*')
-        .in('id', orgIds)
-
-      if (orgs) {
-        orgsMap = new Map(orgs.map((org: any) => [org.id, org]))
-      }
-    }
-
     // Format the response - include org details if available, otherwise just name
-    const organizations = savedOrgs.map((so: any) => {
-      const orgDetails = so.organization_id ? orgsMap.get(so.organization_id) : null
-      return {
-        id: so.organization_id || `saved-${so.id}`,
-        name: so.organization_name,
-        ...(orgDetails || {}),
-        saved_when_not_on_platform: so.saved_when_not_on_platform,
-        notify_when_available: so.notify_when_available,
-        auto_joined: so.auto_joined,
-        saved_at: so.saved_at,
-        is_on_platform: !!so.organization_id
-      }
-    })
+    const organizations = (savedOrgs || []).map((so: any) => ({
+      id: so.organization_id || `saved-${so.id}`,
+      name: so.organization_name,
+      ...(so.organizations || {}),
+      saved_when_not_on_platform: so.saved_when_not_on_platform,
+      notify_when_available: so.notify_when_available,
+      auto_joined: so.auto_joined,
+      saved_at: so.saved_at,
+      is_on_platform: !!so.organization_id
+    }))
 
     return NextResponse.json({ organizations })
   } catch (error: any) {

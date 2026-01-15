@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import DashboardLayout from '@/components/DashboardLayout'
 
 export default function SavedPage() {
-  const { user, session, loading: authLoading, refreshSavedOrgs, refreshJoinedOrgs, savedOrgIds } = useAuth()
+  const { user, session, loading: authLoading, refreshSavedOrgs, refreshJoinedOrgs } = useAuth()
   const [organizations, setOrganizations] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -33,24 +33,21 @@ export default function SavedPage() {
         })
 
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}))
-          throw new Error(errorData.error || 'Failed to fetch saved organizations')
+          throw new Error('Failed to fetch saved organizations')
         }
 
         const data = await response.json()
-        console.log('Saved organizations data:', data)
         setOrganizations(data.organizations || [])
       } catch (err: any) {
         console.error('Error fetching saved organizations:', err)
         setError(err.message || 'Failed to load organizations')
-        setOrganizations([])
       } finally {
         setLoading(false)
       }
     }
 
     fetchSavedOrgs()
-  }, [user, session, savedOrgIds.size]) // Refetch when saved orgs change
+  }, [user, session])
 
   const handleUnsave = async (orgId: string | null, orgName: string) => {
     if (!session) return

@@ -7,7 +7,7 @@ import DashboardLayout from '@/components/DashboardLayout'
 import Image from 'next/image'
 
 export default function MyOrgsPage() {
-  const { user, session, loading: authLoading, refreshJoinedOrgs } = useAuth()
+  const { user, session, loading: authLoading } = useAuth()
   const [organizations, setOrganizations] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -33,24 +33,21 @@ export default function MyOrgsPage() {
         })
 
         if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}))
-          throw new Error(errorData.error || 'Failed to fetch joined organizations')
+          throw new Error('Failed to fetch joined organizations')
         }
 
         const data = await response.json()
-        console.log('Joined organizations data:', data)
         setOrganizations(data.organizations || [])
       } catch (err: any) {
         console.error('Error fetching joined organizations:', err)
         setError(err.message || 'Failed to load organizations')
-        setOrganizations([])
       } finally {
         setLoading(false)
       }
     }
 
     fetchJoinedOrgs()
-  }, [user, session, refreshJoinedOrgs])
+  }, [user, session])
 
   const handleLeave = async (orgId: string) => {
     if (!session) return
@@ -67,22 +64,8 @@ export default function MyOrgsPage() {
         throw new Error('Failed to leave organization')
       }
 
-      // Refresh joined orgs from context and refetch
-      await refreshJoinedOrgs()
-      
-      // Refetch the list
-      const response2 = await fetch('/api/organizations/joined', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json',
-        },
-      })
-      if (response2.ok) {
-        const data = await response2.json()
-        setOrganizations(data.organizations || [])
-      }
-      
+      // Remove from local state
+      setOrganizations(prev => prev.filter(org => org.id !== orgId))
       setSelectedOrg(null)
     } catch (err: any) {
       console.error('Error leaving organization:', err)
