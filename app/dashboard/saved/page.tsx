@@ -1,62 +1,110 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/contexts/AuthContext'
 import DashboardLayout from '@/components/DashboardLayout'
+import { createClientComponentClient } from '@/lib/supabase'
+import { RealtimeChannel } from '@supabase/supabase-js'
 
 export default function SavedPage() {
-  const { user, session, loading: authLoading, refreshSavedOrgs, refreshJoinedOrgs, savedOrgIdsVersion } = useAuth()
+  const { user, session, loading: authLoading, refreshSavedOrgs, refreshJoinedOrgs } = useAuth()
   const [organizations, setOrganizations] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedOrg, setSelectedOrg] = useState<any | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const supabase = createClientComponentClient()
 
-  useEffect(() => {
-    const fetchSavedOrgs = async () => {
-      if (!user || !session) {
-        setLoading(false)
-        return
-      }
-
-      setLoading(true)
-      setError(null)
-
-      try {
-        const response = await fetch('/api/organizations/saved', {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`,
-            'Content-Type': 'application/json',
-          },
-        })
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({}))
-          throw new Error(errorData.error || 'Failed to fetch saved organizations')
-        }
-
-        const data = await response.json()
-        console.log('Saved organizations data:', data)
-        setOrganizations(data.organizations || [])
-      } catch (err: any) {
-        console.error('Error fetching saved organizations:', err)
-        setError(err.message || 'Failed to load organizations')
-        setOrganizations([])
-      } finally {
-        setLoading(false)
-      }
+  // Fetch saved organizations
+  const fetchSavedOrgs = useCallback(async () => {
+    if (!user || !session) {
+      setLoading(false)
+      return
     }
 
+    setLoading(true)
+    setError(null)
+
+    try {
+      console.log('🟢 Saved: Fetching saved organizations...')
+      const response = await fetch('/api/organizations/saved', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Failed to fetch saved organizations')
+      }
+
+      const data = await response.json()
+      console.log('🟢 Saved: Got', data.organizations?.length || 0, 'organizations')
+      setOrganizations(data.organizations || [])
+    } catch (err: any) {
+      console.error('🟢 Saved: Error fetching:', err)
+      setError(err.message || 'Failed to load organizations')
+      setOrganizations([])
+    } finally {
+      setLoading(false)
+    }
+  }, [user, session])
+
+  // Initial fetch
+  useEffect(() => {
     fetchSavedOrgs()
-  }, [user, session, refreshSavedOrgs, savedOrgIdsVersion]) // Refetch when saved orgs change (version increments on change)
+  }, [fetchSavedOrgs])
+
+  // Set up real-time subscription directly on this page
+  useEffect(() => {
+    if (!user) return
+
+    let channel: RealtimeChannel | null = null
+
+    const setupSubscription = () => {
+      console.log('🟢 Saved: Setting up real-time subscription...')
+      channel = supabase
+        .channel(`saved_orgs_page_${user.id}_${Date.now()}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'saved_organizations',
+            filter: `user_id=eq.${user.id}`
+          },
+          (payload) => {
+            console.log('🟢 Saved: Real-time update received:', payload.eventType)
+            // Refetch when changes occur
+            fetchSavedOrgs()
+          }
+        )
+        .subscribe((status) => {
+          console.log('🟢 Saved: Subscription status:', status)
+        })
+    }
+
+    setupSubscription()
+
+    return () => {
+      if (channel) {
+        console.log('🟢 Saved: Cleaning up subscription')
+        supabase.removeChannel(channel)
+      }
+    }
+  }, [user, supabase, fetchSavedOrgs])
 
   const handleUnsave = async (orgId: string | null, orgName: string) => {
     if (!session) return
 
-    setActionLoading(orgId || orgName)
+    const loadingKey = orgId || orgName
+    setActionLoading(loadingKey)
+    
     try {
+      console.log('🟢 Saved: Unsaving organization:', orgName)
       const url = orgId 
         ? `/api/organizations/save?organizationId=${orgId}`
         : `/api/organizations/save?organizationName=${encodeURIComponent(orgName)}`
@@ -72,11 +120,19 @@ export default function SavedPage() {
         throw new Error('Failed to unsave organization')
       }
 
-      // Refresh saved orgs from context - this will trigger the useEffect to refetch
+      console.log('🟢 Saved: Unsaved successfully, refreshing...')
+      
+      // Update AuthContext
       await refreshSavedOrgs()
+      
+      // Update local state immediately
+      setOrganizations(prev => prev.filter(org => {
+        if (orgId) return org.id !== orgId && org.id !== `saved-${orgId}`
+        return org.name.toLowerCase() !== orgName.toLowerCase()
+      }))
       setSelectedOrg(null)
     } catch (err: any) {
-      console.error('Error unsaving organization:', err)
+      console.error('🟢 Saved: Error unsaving:', err)
       alert('Failed to unsave organization. Please try again.')
     } finally {
       setActionLoading(null)
@@ -88,6 +144,7 @@ export default function SavedPage() {
 
     setActionLoading(orgId)
     try {
+      console.log('🟢 Saved: Joining organization:', orgId)
       const response = await fetch('/api/organizations/join', {
         method: 'POST',
         headers: {
@@ -102,20 +159,29 @@ export default function SavedPage() {
         throw new Error(data.error || 'Failed to join organization')
       }
 
-      // Refresh joined and saved orgs - this will trigger the useEffect to refetch
+      console.log('🟢 Saved: Joined successfully, refreshing...')
+      
+      // Update AuthContext
       await refreshJoinedOrgs()
       await refreshSavedOrgs()
+      
+      // Update local state - remove from saved list
+      setOrganizations(prev => prev.filter(org => org.id !== orgId))
       setSelectedOrg(null)
       alert('Successfully joined organization!')
     } catch (err: any) {
-      console.error('Error joining organization:', err)
+      console.error('🟢 Saved: Error joining:', err)
       alert(err.message || 'Failed to join organization. Please try again.')
     } finally {
       setActionLoading(null)
     }
   }
 
-  if (authLoading || loading) {
+  const handleManualRefresh = () => {
+    fetchSavedOrgs()
+  }
+
+  if (authLoading) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center py-12">
@@ -123,30 +189,6 @@ export default function SavedPage() {
         </div>
       </DashboardLayout>
     )
-  }
-
-  const handleManualRefresh = async () => {
-    if (!user || !session) return
-    setLoading(true)
-    setError(null)
-    try {
-      await refreshSavedOrgs()
-      const response = await fetch('/api/organizations/saved', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json',
-        },
-      })
-      if (response.ok) {
-        const data = await response.json()
-        setOrganizations(data.organizations || [])
-      }
-    } catch (err: any) {
-      console.error('Error refreshing:', err)
-    } finally {
-      setLoading(false)
-    }
   }
 
   return (
@@ -166,7 +208,11 @@ export default function SavedPage() {
           </button>
         </div>
 
-        {error ? (
+        {loading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-tamu-maroon"></div>
+          </div>
+        ) : error ? (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
             <p className="text-red-800">{error}</p>
           </div>
@@ -213,7 +259,7 @@ export default function SavedPage() {
                       )}
                     </div>
                     <div className="flex gap-2">
-                      {org.is_on_platform && org.id && (
+                      {org.is_on_platform && org.id && !org.id.startsWith('saved-') && (
                         <button
                           onClick={(e) => {
                             e.stopPropagation()
@@ -228,7 +274,7 @@ export default function SavedPage() {
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
-                          handleUnsave(org.id, org.name)
+                          handleUnsave(org.is_on_platform ? org.id : null, org.name)
                         }}
                         disabled={actionLoading === (org.id || org.name)}
                         className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg font-medium transition-colors disabled:opacity-50"
@@ -246,80 +292,77 @@ export default function SavedPage() {
         {/* Organization Detail Modal */}
         <AnimatePresence>
           {selectedOrg && (
-            <>
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setSelectedOrg(null)}
+              className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+            >
               <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                exit={{ opacity: 0 }}
-                onClick={() => setSelectedOrg(null)}
-                className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.9 }}
+                onClick={(e) => e.stopPropagation()}
+                className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto"
               >
-                <motion.div
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.9 }}
-                  onClick={(e) => e.stopPropagation()}
-                  className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto"
-                >
-                  <div className="sticky top-0 bg-gradient-to-r from-tamu-maroon to-tamu-maroon-light p-6 text-white flex justify-between items-start">
-                    <div className="flex-1">
-                      <h2 className="text-2xl font-bold mb-2">{selectedOrg.name}</h2>
-                      {!selectedOrg.is_on_platform && (
-                        <span className="px-3 py-1 bg-white/20 rounded-full text-sm">
-                          Not on platform yet
-                        </span>
-                      )}
+                <div className="sticky top-0 bg-gradient-to-r from-tamu-maroon to-tamu-maroon-light p-6 text-white flex justify-between items-start">
+                  <div className="flex-1">
+                    <h2 className="text-2xl font-bold mb-2">{selectedOrg.name}</h2>
+                    {!selectedOrg.is_on_platform && (
+                      <span className="px-3 py-1 bg-white/20 rounded-full text-sm">
+                        Not on platform yet
+                      </span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => setSelectedOrg(null)}
+                    className="text-white hover:text-gray-200 text-3xl font-bold"
+                  >
+                    ×
+                  </button>
+                </div>
+
+                <div className="p-6 space-y-4">
+                  {selectedOrg.bio && (
+                    <div>
+                      <h3 className="text-lg font-semibold text-tamu-maroon mb-2">About</h3>
+                      <p className="text-gray-700">{selectedOrg.bio}</p>
                     </div>
+                  )}
+
+                  {!selectedOrg.is_on_platform && (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                      <p className="text-yellow-800 text-sm">
+                        This organization is not on the platform yet. You&apos;ll be notified when it becomes available!
+                      </p>
+                    </div>
+                  )}
+
+                  <div className="border-t pt-4 flex gap-4">
+                    {selectedOrg.is_on_platform && selectedOrg.id && !selectedOrg.id.startsWith('saved-') && (
+                      <button
+                        onClick={() => handleJoin(selectedOrg.id)}
+                        disabled={actionLoading === selectedOrg.id}
+                        className="px-6 py-2 bg-tamu-maroon text-white rounded-lg font-medium hover:bg-tamu-maroon-light transition-colors disabled:opacity-50"
+                      >
+                        {actionLoading === selectedOrg.id ? 'Joining...' : 'Join Organization'}
+                      </button>
+                    )}
                     <button
-                      onClick={() => setSelectedOrg(null)}
-                      className="text-white hover:text-gray-200 text-3xl font-bold"
+                      onClick={() => handleUnsave(selectedOrg.is_on_platform ? selectedOrg.id : null, selectedOrg.name)}
+                      disabled={actionLoading === (selectedOrg.id || selectedOrg.name)}
+                      className="px-6 py-2 border border-red-300 text-red-600 rounded-lg font-medium hover:bg-red-50 transition-colors disabled:opacity-50"
                     >
-                      ×
+                      {actionLoading === (selectedOrg.id || selectedOrg.name) ? 'Removing...' : 'Unsave'}
                     </button>
                   </div>
-
-                  <div className="p-6 space-y-4">
-                    {selectedOrg.bio && (
-                      <div>
-                        <h3 className="text-lg font-semibold text-tamu-maroon mb-2">About</h3>
-                        <p className="text-gray-700">{selectedOrg.bio}</p>
-                      </div>
-                    )}
-
-                    {!selectedOrg.is_on_platform && (
-                      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                        <p className="text-yellow-800 text-sm">
-                          This organization is not on the platform yet. You&apos;ll be notified when it becomes available!
-                        </p>
-                      </div>
-                    )}
-
-                    <div className="border-t pt-4 flex gap-4">
-                      {selectedOrg.is_on_platform && selectedOrg.id && (
-                        <button
-                          onClick={() => handleJoin(selectedOrg.id)}
-                          disabled={actionLoading === selectedOrg.id}
-                          className="px-6 py-2 bg-tamu-maroon text-white rounded-lg font-medium hover:bg-tamu-maroon-light transition-colors disabled:opacity-50"
-                        >
-                          {actionLoading === selectedOrg.id ? 'Joining...' : 'Join Organization'}
-                        </button>
-                      )}
-                      <button
-                        onClick={() => handleUnsave(selectedOrg.id, selectedOrg.name)}
-                        disabled={actionLoading === (selectedOrg.id || selectedOrg.name)}
-                        className="px-6 py-2 border border-red-300 text-red-600 rounded-lg font-medium hover:bg-red-50 transition-colors disabled:opacity-50"
-                      >
-                        {actionLoading === (selectedOrg.id || selectedOrg.name) ? 'Removing...' : 'Unsave'}
-                      </button>
-                    </div>
-                  </div>
-                </motion.div>
+                </div>
               </motion.div>
-            </>
+            </motion.div>
           )}
         </AnimatePresence>
       </div>
     </DashboardLayout>
   )
 }
-
