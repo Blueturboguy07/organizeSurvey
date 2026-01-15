@@ -125,11 +125,8 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
-    console.log('🟣 [API] DELETE /api/organizations/join - Starting...')
-    
     const authHeader = request.headers.get('authorization')
     if (!authHeader) {
-      console.log('🟣 [API] No auth header')
       return NextResponse.json(
         { error: 'Unauthorized. Please sign in.' },
         { status: 401 }
@@ -145,18 +142,14 @@ export async function DELETE(request: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser(token)
     
     if (authError || !user) {
-      console.log('🟣 [API] Auth error:', authError?.message)
       return NextResponse.json(
         { error: 'Unauthorized. Invalid or expired session.' },
         { status: 401 }
       )
     }
 
-    console.log('🟣 [API] User authenticated:', user.id, user.email)
-
     const { searchParams } = new URL(request.url)
     const organizationId = searchParams.get('organizationId')
-    console.log('🟣 [API] Organization ID to leave:', organizationId)
 
     if (!organizationId) {
       return NextResponse.json(
@@ -165,62 +158,23 @@ export async function DELETE(request: NextRequest) {
       )
     }
 
-    // First check if the record exists
-    const { data: existing, error: checkError } = await supabaseAdmin
-      .from('user_joined_organizations')
-      .select('id, user_id, organization_id')
-      .eq('user_id', user.id)
-      .eq('organization_id', organizationId)
-      .single()
-
-    console.log('🟣 [API] Existing record check:', existing, 'Error:', checkError?.message)
-
-    if (!existing) {
-      console.log('🟣 [API] No record found to delete - user may not have joined this org')
-      return NextResponse.json(
-        { error: 'You have not joined this organization', notJoined: true },
-        { status: 400 }
-      )
-    }
-
-    // Delete using the record ID for certainty
-    console.log('🟣 [API] Deleting record ID:', existing.id)
-    const { data: deleteResult, error: deleteError } = await supabaseAdmin
+    const { error } = await supabaseAdmin
       .from('user_joined_organizations')
       .delete()
-      .eq('id', existing.id)
-      .select()
-
-    console.log('🟣 [API] Delete result:', deleteResult, 'Error:', deleteError?.message)
-
-    if (deleteError) {
-      console.error('🟣 [API] Error leaving organization:', deleteError)
-      return NextResponse.json(
-        { error: 'Failed to leave organization', details: deleteError.message },
-        { status: 500 }
-      )
-    }
-
-    // Verify deletion
-    const { data: verifyData } = await supabaseAdmin
-      .from('user_joined_organizations')
-      .select('id')
       .eq('user_id', user.id)
       .eq('organization_id', organizationId)
-      .single()
 
-    if (verifyData) {
-      console.error('🟣 [API] CRITICAL: Record still exists after delete!')
+    if (error) {
+      console.error('Error leaving organization:', error)
       return NextResponse.json(
-        { error: 'Delete operation failed - record still exists', debug: { existing, deleteResult, verifyData } },
+        { error: 'Failed to leave organization', details: error.message },
         { status: 500 }
       )
     }
 
-    console.log('🟣 [API] Successfully left organization')
-    return NextResponse.json({ success: true, deleted: existing })
+    return NextResponse.json({ success: true })
   } catch (error: any) {
-    console.error('🟣 [API] Leave organization error:', error)
+    console.error('Leave organization error:', error)
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }

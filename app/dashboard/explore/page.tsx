@@ -5,17 +5,18 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/contexts/AuthContext'
 import DashboardLayout from '@/components/DashboardLayout'
 import { useRouter } from 'next/navigation'
+import { createClientComponentClient } from '@/lib/supabase'
 import { RealtimeChannel } from '@supabase/supabase-js'
 
 export default function ExplorePage() {
-  // Use supabase from AuthContext to avoid multiple GoTrueClient instances
-  const { user, session, loading: authLoading, userQuery, joinedOrgIds, savedOrgIds, savedOrgNames, refreshJoinedOrgs, refreshSavedOrgs, supabase } = useAuth()
+  const { user, session, loading: authLoading, userQuery, joinedOrgIds, savedOrgIds, savedOrgNames, refreshJoinedOrgs, refreshSavedOrgs } = useAuth()
   const router = useRouter()
   const [organizations, setOrganizations] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedOrg, setSelectedOrg] = useState<any | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const supabase = createClientComponentClient()
 
   // Fetch organizations
   const fetchOrganizations = useCallback(async () => {

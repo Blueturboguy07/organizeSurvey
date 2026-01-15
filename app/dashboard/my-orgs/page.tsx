@@ -4,17 +4,18 @@ import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/contexts/AuthContext'
 import DashboardLayout from '@/components/DashboardLayout'
+import { createClientComponentClient } from '@/lib/supabase'
 import { RealtimeChannel } from '@supabase/supabase-js'
 
 export default function MyOrgsPage() {
-  // Use supabase from AuthContext to avoid multiple GoTrueClient instances
-  const { user, session, loading: authLoading, refreshJoinedOrgs, supabase } = useAuth()
+  const { user, session, loading: authLoading, refreshJoinedOrgs } = useAuth()
   const [organizations, setOrganizations] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedOrg, setSelectedOrg] = useState<any | null>(null)
   const [debugInfo, setDebugInfo] = useState<any>(null)
   const [realtimeStatus, setRealtimeStatus] = useState<string>('not connected')
+  const supabase = createClientComponentClient()
 
   // Fetch joined organizations
   const fetchJoinedOrgs = useCallback(async () => {
