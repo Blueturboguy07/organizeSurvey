@@ -105,12 +105,14 @@ export default function SavedPage() {
         },
         (payload) => {
           const updatedOrg = payload.new
-          const isInSaved = savedOrgs.some(org => org.id === updatedOrg.id)
-          if (isInSaved) {
-            setSavedOrgs(prev => 
-              prev.map(org => org.id === updatedOrg.id ? { ...org, ...updatedOrg } : org)
-            )
-          }
+          // Use setter function to access current state and avoid stale closure
+          setSavedOrgs(prev => {
+            const isInSaved = prev.some(org => org.id === updatedOrg.id)
+            if (isInSaved) {
+              return prev.map(org => org.id === updatedOrg.id ? { ...org, ...updatedOrg } : org)
+            }
+            return prev
+          })
         }
       )
       .subscribe()
@@ -179,7 +181,7 @@ export default function SavedPage() {
           </svg>
           <h3 className="text-xl font-semibold text-gray-700 mb-2">No saved organizations</h3>
           <p className="text-gray-500 mb-6 max-w-md mx-auto">
-            Save organizations you're interested in for later. You'll be notified when organizations you've saved join the platform.
+            Save organizations you&apos;re interested in for later. You&apos;ll be notified when organizations you&apos;ve saved join the platform.
           </p>
           <Link href={hasQuery ? "/dashboard/explore" : "/survey"}>
             <motion.button

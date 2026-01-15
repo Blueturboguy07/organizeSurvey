@@ -67,6 +67,38 @@ export default function ExplorePage() {
     }
   }, [user, authLoading, router])
 
+  // Apply activity filter - defined before fetchRecommendations since it's used there
+  const applyFilters = useCallback((results: RecommendedOrg[], filter: string) => {
+    let filtered = results
+
+    if (filter) {
+      filtered = results.filter(org => {
+        const activities = (org.typical_activities || '').toLowerCase()
+        const bio = (org.bio_snippet || org.bio || '').toLowerCase()
+        const combined = `${activities} ${bio}`.toLowerCase()
+        
+        switch (filter) {
+          case 'Volunteering':
+            return combined.includes('volunteer') || combined.includes('service') || activities.includes('volunteering')
+          case 'Social Events':
+            return combined.includes('social') || combined.includes('networking') || combined.includes('mixer')
+          case 'Projects':
+            return combined.includes('project') || activities.includes('projects')
+          case 'Competitions':
+            return combined.includes('competition') || combined.includes('hackathon') || combined.includes('contest')
+          case 'Workshops':
+            return combined.includes('workshop') || combined.includes('training') || combined.includes('seminar')
+          case 'Trips':
+            return combined.includes('trip') || combined.includes('travel') || combined.includes('excursion')
+          default:
+            return true
+        }
+      })
+    }
+
+    setFilteredResults(filtered)
+  }, [])
+
   // Fetch recommendations when user query is available
   const fetchRecommendations = useCallback(async () => {
     if (!userQuery?.latest_cleansed_query || !session) {
@@ -102,13 +134,13 @@ export default function ExplorePage() {
     } finally {
       setIsLoading(false)
     }
-  }, [userQuery?.latest_cleansed_query, session, selectedFilter])
+  }, [userQuery?.latest_cleansed_query, session, selectedFilter, applyFilters])
 
   useEffect(() => {
     if (!userQueryLoading) {
       fetchRecommendations()
     }
-  }, [userQuery?.latest_cleansed_query, session, userQueryLoading])
+  }, [userQueryLoading, fetchRecommendations])
 
   // Filter out joined and saved orgs from results
   const getVisibleResults = useCallback((results: RecommendedOrg[]) => {
@@ -116,38 +148,6 @@ export default function ExplorePage() {
       !joinedOrgIds.has(org.id) && !savedOrgIds.has(org.id)
     )
   }, [joinedOrgIds, savedOrgIds])
-
-  // Apply activity filter
-  const applyFilters = useCallback((results: RecommendedOrg[], filter: string) => {
-    let filtered = results
-
-    if (filter) {
-      filtered = results.filter(org => {
-        const activities = (org.typical_activities || '').toLowerCase()
-        const bio = (org.bio_snippet || org.bio || '').toLowerCase()
-        const combined = `${activities} ${bio}`.toLowerCase()
-        
-        switch (filter) {
-          case 'Volunteering':
-            return combined.includes('volunteer') || combined.includes('service') || activities.includes('volunteering')
-          case 'Social Events':
-            return combined.includes('social') || combined.includes('networking') || combined.includes('mixer')
-          case 'Projects':
-            return combined.includes('project') || activities.includes('projects')
-          case 'Competitions':
-            return combined.includes('competition') || combined.includes('hackathon') || combined.includes('contest')
-          case 'Workshops':
-            return combined.includes('workshop') || combined.includes('training') || combined.includes('seminar')
-          case 'Trips':
-            return combined.includes('trip') || combined.includes('travel') || combined.includes('excursion')
-          default:
-            return true
-        }
-      })
-    }
-
-    setFilteredResults(filtered)
-  }, [])
 
   const handleFilterChange = (filter: string) => {
     setSelectedFilter(filter)
@@ -169,15 +169,21 @@ export default function ExplorePage() {
         },
         (payload) => {
           const updatedOrg = payload.new
-          const isInResults = allResults.some(org => org.id === updatedOrg.id)
-          if (isInResults) {
-            setAllResults(prev => 
-              prev.map(org => org.id === updatedOrg.id ? { ...org, ...updatedOrg } : org)
-            )
-            setFilteredResults(prev => 
-              prev.map(org => org.id === updatedOrg.id ? { ...org, ...updatedOrg } : org)
-            )
-          }
+          // Use setter functions to access current state and avoid stale closures
+          setAllResults(prev => {
+            const isInResults = prev.some(org => org.id === updatedOrg.id)
+            if (isInResults) {
+              return prev.map(org => org.id === updatedOrg.id ? { ...org, ...updatedOrg } : org)
+            }
+            return prev
+          })
+          setFilteredResults(prev => {
+            const isInResults = prev.some(org => org.id === updatedOrg.id)
+            if (isInResults) {
+              return prev.map(org => org.id === updatedOrg.id ? { ...org, ...updatedOrg } : org)
+            }
+            return prev
+          })
         }
       )
       .subscribe()
