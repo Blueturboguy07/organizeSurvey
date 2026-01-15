@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import DashboardLayout from '@/components/DashboardLayout'
 
 export default function SavedPage() {
-  const { user, session, loading: authLoading, refreshSavedOrgs, refreshJoinedOrgs, savedOrgIds, savedOrgNames } = useAuth()
+  const { user, session, loading: authLoading, refreshSavedOrgs, refreshJoinedOrgs, savedOrgIds } = useAuth()
   const [organizations, setOrganizations] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -50,7 +50,7 @@ export default function SavedPage() {
     }
 
     fetchSavedOrgs()
-  }, [user, session, refreshSavedOrgs, Array.from(savedOrgIds).sort().join(','), Array.from(savedOrgNames).sort().join(',')]) // Refetch when saved orgs change
+  }, [user, session, savedOrgIds.size]) // Refetch when saved orgs change
 
   const handleUnsave = async (orgId: string | null, orgName: string) => {
     if (!session) return
@@ -72,8 +72,12 @@ export default function SavedPage() {
         throw new Error('Failed to unsave organization')
       }
 
-      // Refresh saved orgs from context - this will trigger the useEffect to refetch
+      // Refresh saved orgs and remove from list
       await refreshSavedOrgs()
+      setOrganizations(prev => prev.filter(org => {
+        if (orgId) return org.id !== orgId
+        return org.name !== orgName
+      }))
       setSelectedOrg(null)
     } catch (err: any) {
       console.error('Error unsaving organization:', err)
@@ -102,9 +106,10 @@ export default function SavedPage() {
         throw new Error(data.error || 'Failed to join organization')
       }
 
-      // Refresh joined and saved orgs - this will trigger the useEffect to refetch
+      // Refresh joined and saved orgs, remove from saved list
       await refreshJoinedOrgs()
       await refreshSavedOrgs()
+      setOrganizations(prev => prev.filter(org => org.id !== orgId))
       setSelectedOrg(null)
       alert('Successfully joined organization!')
     } catch (err: any) {
