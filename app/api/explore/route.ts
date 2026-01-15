@@ -62,9 +62,9 @@ export async function GET(request: NextRequest) {
       )
     }
 
-    // If user hasn't completed survey, return empty recommendations
+    // If user hasn't completed survey, return empty results
     if (!userQuery || !userQuery.latest_cleansed_query) {
-      return NextResponse.json({ recommendations: [] })
+      return NextResponse.json({ organizations: [] })
     }
 
     // Get user's joined organizations
@@ -75,7 +75,6 @@ export async function GET(request: NextRequest) {
 
     if (joinedOrgsError) {
       console.error('Error fetching joined organizations:', joinedOrgsError)
-      // Continue anyway - assume no joined orgs if table doesn't exist yet
     }
 
     const joinedOrgIds = new Set(
@@ -90,7 +89,6 @@ export async function GET(request: NextRequest) {
 
     if (savedOrgsError) {
       console.error('Error fetching saved organizations:', savedOrgsError)
-      // Continue anyway - assume no saved orgs if table doesn't exist yet
     }
 
     const savedOrgIds = new Set(
@@ -141,7 +139,7 @@ export async function GET(request: NextRequest) {
         const csvPath = path.join(process.cwd(), 'final.csv')
         const venvPython = path.join(process.cwd(), 'venv', 'bin', 'python3')
         
-        tempFile = join(tmpdir(), `recommendations_${Date.now()}_${Math.random().toString(36).substring(7)}.json`)
+        tempFile = join(tmpdir(), `explore_${Date.now()}_${Math.random().toString(36).substring(7)}.json`)
         await writeFile(tempFile, JSON.stringify({ query, userData }), 'utf-8')
         
         const pythonPath = existsSync(venvPython) ? venvPython : 'python3'
@@ -181,31 +179,30 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Filter out joined and saved organizations
-    const recommendations = searchResults
-      .filter((org: any) => {
-        // Filter out if organization ID matches a joined org
-        if (org.id && joinedOrgIds.has(org.id)) {
-          return false
-        }
-        // Also filter by name (for CSV results that might not have IDs)
-        if (org.name && joinedOrgNames.has(org.name.toLowerCase().trim())) {
-          return false
-        }
-        // Filter out if organization ID matches a saved org
-        if (org.id && savedOrgIds.has(org.id)) {
-          return false
-        }
-        // Filter out if organization name matches a saved org
-        if (org.name && savedOrgNames.has(org.name.toLowerCase().trim())) {
-          return false
-        }
-        return true
-      })
+    // Filter out joined and saved organizations (NO LIMIT - show all results)
+    const organizations = searchResults.filter((org: any) => {
+      // Filter out if organization ID matches a joined org
+      if (org.id && joinedOrgIds.has(org.id)) {
+        return false
+      }
+      // Also filter by name (for CSV results that might not have IDs)
+      if (org.name && joinedOrgNames.has(org.name.toLowerCase().trim())) {
+        return false
+      }
+      // Filter out if organization ID matches a saved org
+      if (org.id && savedOrgIds.has(org.id)) {
+        return false
+      }
+      // Filter out if organization name matches a saved org
+      if (org.name && savedOrgNames.has(org.name.toLowerCase().trim())) {
+        return false
+      }
+      return true
+    })
 
-    return NextResponse.json({ recommendations })
+    return NextResponse.json({ organizations })
   } catch (error: any) {
-    console.error('Recommendations API error:', error)
+    console.error('Explore API error:', error)
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }
