@@ -47,6 +47,24 @@ interface UserProfileData {
   } | null
 }
 
+interface Organization {
+  id: string
+  name: string
+  bio?: string
+  website?: string
+  [key: string]: any
+}
+
+interface JoinedOrganization extends Organization {
+  joined_at: string
+}
+
+interface SavedOrganization extends Organization {
+  saved_at: string
+  is_on_platform: boolean
+  auto_joined?: boolean
+}
+
 interface AuthContextType {
   user: User | null
   session: Session | null
@@ -62,11 +80,13 @@ interface AuthContextType {
   userProfile: UserProfileData | null
   userProfileLoading: boolean
   refreshUserProfile: () => Promise<void>
-  // Joined organizations real-time data
+  // Joined organizations - FULL DATA for pages to use directly
+  joinedOrganizations: JoinedOrganization[]
   joinedOrgIds: Set<string>
   joinedOrgIdsLoading: boolean
   refreshJoinedOrgs: () => Promise<void>
-  // Saved organizations real-time data
+  // Saved organizations - FULL DATA for pages to use directly
+  savedOrganizations: SavedOrganization[]
   savedOrgIds: Set<string>
   savedOrgNames: Set<string>
   savedOrgIdsLoading: boolean
@@ -83,8 +103,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [userQueryLoading, setUserQueryLoading] = useState(false)
   const [userProfile, setUserProfile] = useState<UserProfileData | null>(null)
   const [userProfileLoading, setUserProfileLoading] = useState(false)
+  const [joinedOrganizations, setJoinedOrganizations] = useState<JoinedOrganization[]>([])
   const [joinedOrgIds, setJoinedOrgIds] = useState<Set<string>>(new Set())
   const [joinedOrgIdsLoading, setJoinedOrgIdsLoading] = useState(false)
+  const [savedOrganizations, setSavedOrganizations] = useState<SavedOrganization[]>([])
   const [savedOrgIds, setSavedOrgIds] = useState<Set<string>>(new Set())
   const [savedOrgNames, setSavedOrgNames] = useState<Set<string>>(new Set())
   const [savedOrgIdsLoading, setSavedOrgIdsLoading] = useState(false)
@@ -142,27 +164,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [supabase])
 
-  // Fetch joined organizations
+  // Fetch joined organizations - gets FULL data from API
   const fetchJoinedOrgs = useCallback(async (userId: string) => {
     console.log('🔴 AuthContext fetchJoinedOrgs: Starting for user', userId)
     setJoinedOrgIdsLoading(true)
     try {
-      const { data, error } = await supabase
-        .from('user_joined_organizations')
-        .select('organization_id')
-        .eq('user_id', userId)
-
-      console.log('🔴 AuthContext fetchJoinedOrgs: Raw response:', JSON.stringify(data), 'Error:', error?.message)
-
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching joined organizations:', error)
-      }
+      // Get the current session for the API call
+      const { data: { session: currentSession } } = await supabase.auth.getSession()
       
-      const orgIds = new Set((data || []).map((jo: { organization_id: string }) => jo.organization_id))
+      if (!currentSession?.access_token) {
+        console.log('🔴 AuthContext fetchJoinedOrgs: No session, clearing data')
+        setJoinedOrganizations([])
+        setJoinedOrgIds(new Set())
+        return
+      }
+
+      // Fetch full org data from API (uses admin client, bypasses RLS issues)
+      const response = await fetch('/api/organizations/joined', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${currentSession.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch joined organizations')
+      }
+
+      const result = await response.json()
+      console.log('🔴 AuthContext fetchJoinedOrgs: API response:', result.organizations?.length, 'orgs')
+      
+      const orgs: JoinedOrganization[] = result.organizations || []
+      const orgIds = new Set<string>(orgs.map((org) => org.id))
+      
+      setJoinedOrganizations(orgs)
       setJoinedOrgIds(orgIds)
-      console.log('🔴 AuthContext: Updated joinedOrgIds, count:', orgIds.size, 'IDs:', Array.from(orgIds))
+      console.log('🔴 AuthContext: Updated joinedOrganizations, count:', orgs.length)
     } catch (err) {
       console.error('Failed to fetch joined organizations:', err)
+      setJoinedOrganizations([])
       setJoinedOrgIds(new Set())
     } finally {
       setJoinedOrgIdsLoading(false)
@@ -188,36 +229,58 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, fetchJoinedOrgs])
 
-  // Fetch saved organizations
+  // Fetch saved organizations - gets FULL data from API
   const fetchSavedOrgs = useCallback(async (userId: string) => {
+    console.log('🟢 AuthContext fetchSavedOrgs: Starting for user', userId)
     setSavedOrgIdsLoading(true)
     try {
-      const { data, error } = await supabase
-        .from('saved_organizations')
-        .select('organization_id, organization_name')
-        .eq('user_id', userId)
-
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching saved organizations:', error)
-      }
+      // Get the current session for the API call
+      const { data: { session: currentSession } } = await supabase.auth.getSession()
       
+      if (!currentSession?.access_token) {
+        console.log('🟢 AuthContext fetchSavedOrgs: No session, clearing data')
+        setSavedOrganizations([])
+        setSavedOrgIds(new Set())
+        setSavedOrgNames(new Set())
+        return
+      }
+
+      // Fetch full org data from API (uses admin client, bypasses RLS issues)
+      const response = await fetch('/api/organizations/saved', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${currentSession.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to fetch saved organizations')
+      }
+
+      const result = await response.json()
+      console.log('🟢 AuthContext fetchSavedOrgs: API response:', result.organizations?.length, 'orgs')
+      
+      const orgs: SavedOrganization[] = result.organizations || []
       const orgIds = new Set<string>()
       const orgNames = new Set<string>()
       
-      ;(data || []).forEach((so: { organization_id: string | null, organization_name: string }) => {
-        if (so.organization_id) {
-          orgIds.add(so.organization_id)
+      orgs.forEach((org) => {
+        if (org.id && !org.id.startsWith('saved-')) {
+          orgIds.add(org.id)
         }
-        if (so.organization_name) {
-          orgNames.add(so.organization_name.toLowerCase().trim())
+        if (org.name) {
+          orgNames.add(org.name.toLowerCase().trim())
         }
       })
       
+      setSavedOrganizations(orgs)
       setSavedOrgIds(orgIds)
       setSavedOrgNames(orgNames)
-      console.log('🟢 AuthContext: Updated savedOrgIds, count:', orgIds.size)
+      console.log('🟢 AuthContext: Updated savedOrganizations, count:', orgs.length)
     } catch (err) {
       console.error('Failed to fetch saved organizations:', err)
+      setSavedOrganizations([])
       setSavedOrgIds(new Set())
       setSavedOrgNames(new Set())
     } finally {
@@ -266,7 +329,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } else {
         setUserQuery(null)
         setUserProfile(null)
+        setJoinedOrganizations([])
         setJoinedOrgIds(new Set())
+        setSavedOrganizations([])
         setSavedOrgIds(new Set())
         setSavedOrgNames(new Set())
       }
@@ -492,7 +557,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await supabase.auth.signOut()
     setUserQuery(null)
     setUserProfile(null)
+    setJoinedOrganizations([])
     setJoinedOrgIds(new Set())
+    setSavedOrganizations([])
     setSavedOrgIds(new Set())
     setSavedOrgNames(new Set())
     router.push('/login')
@@ -511,9 +578,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       userProfile,
       userProfileLoading,
       refreshUserProfile,
+      joinedOrganizations,
       joinedOrgIds,
       joinedOrgIdsLoading,
       refreshJoinedOrgs,
+      savedOrganizations,
       savedOrgIds,
       savedOrgNames,
       savedOrgIdsLoading,
