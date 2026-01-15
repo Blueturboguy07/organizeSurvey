@@ -86,46 +86,10 @@ export default function MyOrgsPage() {
     )
   }
 
-  const handleManualRefresh = async () => {
-    if (!user || !session) return
-    setLoading(true)
-    setError(null)
-    try {
-      await refreshJoinedOrgs()
-      const response = await fetch('/api/organizations/joined', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json',
-        },
-      })
-      if (response.ok) {
-        const data = await response.json()
-        setOrganizations(data.organizations || [])
-      }
-    } catch (err: any) {
-      console.error('Error refreshing:', err)
-    } finally {
-      setLoading(false)
-    }
-  }
-
   return (
     <DashboardLayout>
       <div>
-        <div className="flex items-center justify-between mb-6">
-          <h2 className="text-3xl font-bold text-gray-800">My Organizations</h2>
-          <button
-            onClick={handleManualRefresh}
-            disabled={loading}
-            className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
-          >
-            <svg className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-            </svg>
-            Refresh
-          </button>
-        </div>
+        <h2 className="text-3xl font-bold text-gray-800 mb-6">My Organizations</h2>
 
         {error ? (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">

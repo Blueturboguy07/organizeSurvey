@@ -401,27 +401,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             filter: `user_id=eq.${user.id}`
           },
           (payload) => {
-            console.log('🔴 Real-time user_joined_organizations update:', payload)
-            console.log('🔴 Event type:', payload.eventType)
-            console.log('🔴 New data:', payload.new)
-            console.log('🔴 Old data:', payload.old)
+            console.log('Real-time user_joined_organizations update:', payload)
             
             // Refetch joined orgs when changes occur
-            console.log('🔴 Calling fetchJoinedOrgs...')
-            fetchJoinedOrgs(user.id).then(() => {
-              console.log('🔴 fetchJoinedOrgs completed')
-            }).catch((err) => {
-              console.error('🔴 Error in fetchJoinedOrgs:', err)
-            })
+            fetchJoinedOrgs(user.id)
           }
         )
         .subscribe((status) => {
-          console.log('🔴 user_joined_organizations subscription status:', status)
-          if (status === 'SUBSCRIBED') {
-            console.log('✅ Successfully subscribed to user_joined_organizations real-time')
-          } else if (status === 'CHANNEL_ERROR') {
-            console.error('❌ Failed to subscribe to user_joined_organizations real-time')
-          }
+          console.log('user_joined_organizations subscription status:', status)
         })
     }
 
@@ -453,27 +440,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             filter: `user_id=eq.${user.id}`
           },
           (payload) => {
-            console.log('🟢 Real-time saved_organizations update:', payload)
-            console.log('🟢 Event type:', payload.eventType)
-            console.log('🟢 New data:', payload.new)
-            console.log('🟢 Old data:', payload.old)
+            console.log('Real-time saved_organizations update:', payload)
             
             // Refetch saved orgs when changes occur
-            console.log('🟢 Calling fetchSavedOrgs...')
-            fetchSavedOrgs(user.id).then(() => {
-              console.log('🟢 fetchSavedOrgs completed')
-            }).catch((err) => {
-              console.error('🟢 Error in fetchSavedOrgs:', err)
-            })
+            fetchSavedOrgs(user.id)
           }
         )
         .subscribe((status) => {
-          console.log('🟢 saved_organizations subscription status:', status)
-          if (status === 'SUBSCRIBED') {
-            console.log('✅ Successfully subscribed to saved_organizations real-time')
-          } else if (status === 'CHANNEL_ERROR') {
-            console.error('❌ Failed to subscribe to saved_organizations real-time')
-          }
+          console.log('saved_organizations subscription status:', status)
         })
     }
 
