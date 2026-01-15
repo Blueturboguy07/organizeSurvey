@@ -63,6 +63,15 @@ interface AuthContextType {
   joinedOrgIds: Set<string>
   joinedOrgIdsLoading: boolean
   refreshJoinedOrgs: () => Promise<void>
+  // Saved organizations real-time data
+  savedOrgIds: Set<string>
+  savedOrgIdsLoading: boolean
+  refreshSavedOrgs: () => Promise<void>
+  // Actions
+  joinOrg: (organizationId: string) => Promise<{ success: boolean; error?: string }>
+  leaveOrg: (organizationId: string) => Promise<{ success: boolean; error?: string }>
+  saveOrg: (organizationId: string) => Promise<{ success: boolean; error?: string }>
+  unsaveOrg: (organizationId: string) => Promise<{ success: boolean; error?: string }>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -77,6 +86,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [userProfileLoading, setUserProfileLoading] = useState(false)
   const [joinedOrgIds, setJoinedOrgIds] = useState<Set<string>>(new Set())
   const [joinedOrgIdsLoading, setJoinedOrgIdsLoading] = useState(false)
+  const [savedOrgIds, setSavedOrgIds] = useState<Set<string>>(new Set())
+  const [savedOrgIdsLoading, setSavedOrgIdsLoading] = useState(false)
   const router = useRouter()
   const supabase = createClientComponentClient()
 
@@ -154,6 +165,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [supabase])
 
+  // Fetch saved organizations
+  const fetchSavedOrgs = useCallback(async (userId: string) => {
+    setSavedOrgIdsLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('user_saved_organizations')
+        .select('organization_id')
+        .eq('user_id', userId)
+
+      if (error && error.code !== 'PGRST116' && error.code !== '42P01') {
+        console.error('Error fetching saved organizations:', error)
+      }
+      
+      const orgIds = new Set((data || []).map((so: { organization_id: string }) => so.organization_id))
+      setSavedOrgIds(orgIds)
+    } catch (err) {
+      console.error('Failed to fetch saved organizations:', err)
+      setSavedOrgIds(new Set())
+    } finally {
+      setSavedOrgIdsLoading(false)
+    }
+  }, [supabase])
+
   // Manual refresh functions
   const refreshUserQuery = useCallback(async () => {
     if (user) {
@@ -173,6 +207,137 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, fetchJoinedOrgs])
 
+  const refreshSavedOrgs = useCallback(async () => {
+    if (user) {
+      await fetchSavedOrgs(user.id)
+    }
+  }, [user, fetchSavedOrgs])
+
+  // Action: Join an organization
+  const joinOrg = useCallback(async (organizationId: string): Promise<{ success: boolean; error?: string }> => {
+    if (!user) return { success: false, error: 'Not authenticated' }
+    
+    try {
+      const { error } = await supabase
+        .from('user_joined_organizations')
+        .insert({
+          user_id: user.id,
+          organization_id: organizationId
+        })
+
+      if (error) {
+        if (error.code === '23505') {
+          return { success: false, error: 'Already joined this organization' }
+        }
+        console.error('Error joining organization:', error)
+        return { success: false, error: error.message }
+      }
+
+      // Optimistically update local state
+      setJoinedOrgIds(prev => new Set([...prev, organizationId]))
+      
+      // Remove from saved if it was saved
+      if (savedOrgIds.has(organizationId)) {
+        await unsaveOrg(organizationId)
+      }
+
+      return { success: true }
+    } catch (err: any) {
+      console.error('Failed to join organization:', err)
+      return { success: false, error: err.message || 'Unknown error' }
+    }
+  }, [user, supabase, savedOrgIds])
+
+  // Action: Leave an organization
+  const leaveOrg = useCallback(async (organizationId: string): Promise<{ success: boolean; error?: string }> => {
+    if (!user) return { success: false, error: 'Not authenticated' }
+    
+    try {
+      const { error } = await supabase
+        .from('user_joined_organizations')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('organization_id', organizationId)
+
+      if (error) {
+        console.error('Error leaving organization:', error)
+        return { success: false, error: error.message }
+      }
+
+      // Optimistically update local state
+      setJoinedOrgIds(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(organizationId)
+        return newSet
+      })
+
+      return { success: true }
+    } catch (err: any) {
+      console.error('Failed to leave organization:', err)
+      return { success: false, error: err.message || 'Unknown error' }
+    }
+  }, [user, supabase])
+
+  // Action: Save an organization (for orgs not on platform yet)
+  const saveOrg = useCallback(async (organizationId: string): Promise<{ success: boolean; error?: string }> => {
+    if (!user) return { success: false, error: 'Not authenticated' }
+    
+    try {
+      const { error } = await supabase
+        .from('user_saved_organizations')
+        .insert({
+          user_id: user.id,
+          organization_id: organizationId
+        })
+
+      if (error) {
+        if (error.code === '23505') {
+          return { success: false, error: 'Already saved this organization' }
+        }
+        console.error('Error saving organization:', error)
+        return { success: false, error: error.message }
+      }
+
+      // Optimistically update local state
+      setSavedOrgIds(prev => new Set([...prev, organizationId]))
+
+      return { success: true }
+    } catch (err: any) {
+      console.error('Failed to save organization:', err)
+      return { success: false, error: err.message || 'Unknown error' }
+    }
+  }, [user, supabase])
+
+  // Action: Unsave an organization
+  const unsaveOrg = useCallback(async (organizationId: string): Promise<{ success: boolean; error?: string }> => {
+    if (!user) return { success: false, error: 'Not authenticated' }
+    
+    try {
+      const { error } = await supabase
+        .from('user_saved_organizations')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('organization_id', organizationId)
+
+      if (error) {
+        console.error('Error unsaving organization:', error)
+        return { success: false, error: error.message }
+      }
+
+      // Optimistically update local state
+      setSavedOrgIds(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(organizationId)
+        return newSet
+      })
+
+      return { success: true }
+    } catch (err: any) {
+      console.error('Failed to unsave organization:', err)
+      return { success: false, error: err.message || 'Unknown error' }
+    }
+  }, [user, supabase])
+
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -185,6 +350,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         fetchUserQuery(session.user.id)
         fetchUserProfile(session.user.id)
         fetchJoinedOrgs(session.user.id)
+        fetchSavedOrgs(session.user.id)
       }
     })
 
@@ -201,10 +367,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         fetchUserQuery(session.user.id)
         fetchUserProfile(session.user.id)
         fetchJoinedOrgs(session.user.id)
+        fetchSavedOrgs(session.user.id)
       } else {
         setUserQuery(null)
         setUserProfile(null)
         setJoinedOrgIds(new Set())
+        setSavedOrgIds(new Set())
       }
       
       // Redirect to login if signed out
@@ -214,7 +382,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })
 
     return () => subscription.unsubscribe()
-  }, [router, supabase.auth, fetchUserQuery, fetchUserProfile])
+  }, [router, supabase.auth, fetchUserQuery, fetchUserProfile, fetchJoinedOrgs, fetchSavedOrgs])
 
   // Real-time subscription for user_queries
   useEffect(() => {
@@ -359,11 +527,61 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, supabase, fetchJoinedOrgs])
 
+  // Real-time subscription for user_saved_organizations
+  useEffect(() => {
+    if (!user) return
+
+    let channel: RealtimeChannel | null = null
+
+    const setupSubscription = () => {
+      try {
+        channel = supabase
+          .channel(`user_saved_orgs_realtime_${user.id}`)
+          .on(
+            'postgres_changes',
+            {
+              event: '*', // Listen to INSERT, UPDATE, DELETE
+              schema: 'public',
+              table: 'user_saved_organizations',
+              filter: `user_id=eq.${user.id}`
+            },
+            (payload) => {
+              console.log('Real-time user_saved_organizations update:', payload)
+              
+              // Refetch saved orgs when changes occur
+              fetchSavedOrgs(user.id)
+            }
+          )
+          .subscribe((status) => {
+            if (status === 'SUBSCRIBED') {
+              console.log('user_saved_organizations subscription active')
+            } else if (status === 'CHANNEL_ERROR') {
+              console.warn('user_saved_organizations subscription error (table may not exist yet)')
+            } else {
+              console.log('user_saved_organizations subscription status:', status)
+            }
+          })
+      } catch (err) {
+        console.warn('Failed to set up user_saved_organizations realtime subscription:', err)
+      }
+    }
+
+    setupSubscription()
+
+    // Cleanup subscription on unmount or user change
+    return () => {
+      if (channel) {
+        supabase.removeChannel(channel)
+      }
+    }
+  }, [user, supabase, fetchSavedOrgs])
+
   const signOut = async () => {
     await supabase.auth.signOut()
     setUserQuery(null)
     setUserProfile(null)
     setJoinedOrgIds(new Set())
+    setSavedOrgIds(new Set())
     router.push('/login')
   }
 
@@ -381,7 +599,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       refreshUserProfile,
       joinedOrgIds,
       joinedOrgIdsLoading,
-      refreshJoinedOrgs
+      refreshJoinedOrgs,
+      savedOrgIds,
+      savedOrgIdsLoading,
+      refreshSavedOrgs,
+      joinOrg,
+      leaveOrg,
+      saveOrg,
+      unsaveOrg
     }}>
       {children}
     </AuthContext.Provider>

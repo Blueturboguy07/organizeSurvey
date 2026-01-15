@@ -82,6 +82,21 @@ export async function GET(request: NextRequest) {
       (joinedOrgs || []).map((jo: { organization_id: string }) => jo.organization_id)
     )
 
+    // Get user's saved organizations
+    const { data: savedOrgs, error: savedOrgsError } = await supabaseAdmin
+      .from('user_saved_organizations')
+      .select('organization_id')
+      .eq('user_id', user.id)
+
+    if (savedOrgsError && savedOrgsError.code !== '42P01') {
+      console.error('Error fetching saved organizations:', savedOrgsError)
+      // Continue anyway - assume no saved orgs if table doesn't exist yet
+    }
+
+    const savedOrgIds = new Set(
+      (savedOrgs || []).map((so: { organization_id: string }) => so.organization_id)
+    )
+
     // Prepare user data for search
     const userData = userQuery.user_demographics || {}
     const query = userQuery.latest_cleansed_query
@@ -146,33 +161,43 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Get joined organization names as well (for filtering CSV results that might not have IDs)
+    // Get joined and saved organization names as well (for filtering CSV results that might not have IDs)
     let joinedOrgNames = new Set<string>()
-    if (joinedOrgIds.size > 0) {
+    let savedOrgNames = new Set<string>()
+    
+    const allFilteredIds = [...Array.from(joinedOrgIds), ...Array.from(savedOrgIds)]
+    if (allFilteredIds.length > 0) {
       const { data: orgData } = await supabaseAdmin
         .from('organizations')
         .select('id, name')
-        .in('id', Array.from(joinedOrgIds))
+        .in('id', allFilteredIds)
       
       if (orgData) {
-        joinedOrgNames = new Set(orgData.map((org: any) => org.name.toLowerCase().trim()))
+        for (const org of orgData) {
+          if (joinedOrgIds.has(org.id)) {
+            joinedOrgNames.add(org.name.toLowerCase().trim())
+          }
+          if (savedOrgIds.has(org.id)) {
+            savedOrgNames.add(org.name.toLowerCase().trim())
+          }
+        }
       }
     }
 
-    // Filter out joined organizations and limit to top 20
+    // Filter out joined and saved organizations - no longer limited to 20, return all results
     const recommendations = searchResults
       .filter((org: any) => {
-        // Filter out if organization ID matches a joined org
-        if (org.id && joinedOrgIds.has(org.id)) {
+        // Filter out if organization ID matches a joined or saved org
+        if (org.id && (joinedOrgIds.has(org.id) || savedOrgIds.has(org.id))) {
           return false
         }
         // Also filter by name (for CSV results that might not have IDs)
-        if (org.name && joinedOrgNames.has(org.name.toLowerCase().trim())) {
+        const orgNameLower = org.name?.toLowerCase().trim()
+        if (orgNameLower && (joinedOrgNames.has(orgNameLower) || savedOrgNames.has(orgNameLower))) {
           return false
         }
         return true
       })
-      .slice(0, 20) // Top 20
 
     return NextResponse.json({ recommendations })
   } catch (error: any) {

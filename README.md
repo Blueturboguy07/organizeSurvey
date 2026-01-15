@@ -26,58 +26,68 @@ ORGanize TAMU solves the challenge of helping students find organizations that a
 - **Eligibility Filtering**: Automatically filters organizations based on user demographics and organization requirements
 - **Real-time Updates**: Live synchronization of data across sessions using Supabase Realtime
 - **Dual User Types**: Separate interfaces and authentication flows for students and organization representatives
+- **Join & Save Organizations**: Students can join organizations directly or save them for later
 - **Profile Management**: Upload profile pictures, manage preferences, and track joined organizations
 
 ## Features
 
 ### For Students
 
-- **Multi-step Survey**: Interactive survey with smooth Framer Motion animations capturing:
-  - Personal information and demographics
-  - Career interests and goals
-  - Engineering specializations (if applicable)
-  - Activity preferences
-  - Religious affiliations
-  - Primary goals for joining organizations
+#### Dashboard Navigation
+The student dashboard features a tabbed navigation with three main sections:
 
-- **AI-Powered Recommendations**: 
-  - Weighted text matching algorithm ranks organizations by relevance
-  - Top 20 recommendations displayed with similarity scores
-  - Filters out organizations the student has already joined
-  - Eligibility-based filtering ensures only accessible organizations are shown
+- **My Orgs**: View and manage organizations you've joined
+- **Explore**: Browse all recommended organizations with filtering options
+- **Saved**: Track organizations saved for later (including those not yet on the platform)
 
-- **User Dashboard**:
-  - View personalized organization recommendations
-  - See similarity scores and organization details
-  - Join organizations directly from recommendations
-  - Track joined organizations
-  - Real-time updates when recommendations change
+#### Multi-step Survey
+Interactive survey with smooth Framer Motion animations capturing:
+- Personal information and demographics
+- Career interests and goals
+- Engineering specializations (if applicable)
+- Activity preferences
+- Religious affiliations
+- Primary goals for joining organizations
 
-- **Profile Management**:
-  - Upload and manage profile pictures (stored in Supabase Storage)
-  - Update name and email preferences
-  - Reset survey responses to get new recommendations
-  - Email preference controls (marketing, updates, recommendations)
+#### AI-Powered Recommendations
+- Weighted text matching algorithm ranks organizations by relevance
+- **All matching organizations displayed** (no limit) with similarity scores
+- Automatically filters out organizations already joined or saved
+- Eligibility-based filtering ensures only accessible organizations are shown
+- Activity-based filters (Volunteering, Social Events, Projects, Competitions, Workshops, Trips)
 
-- **Real-time Synchronization**:
-  - Profile changes reflect immediately across sessions
-  - Survey responses sync in real-time
-  - Joined organizations update live
-  - Recommendations refresh automatically
+#### Join & Save System
+- **Join Organizations**: Directly join organizations that don't require applications
+- **Save for Later**: Save organizations to join later or track organizations not yet on the platform
+- **Automatic Notifications**: Get notified when saved organizations join the platform
+- **Auto-Join**: Automatically joined to saved organizations when they join (if no application required)
+- **Smart Filtering**: Joined and saved organizations are automatically hidden from Explore page
+
+#### Profile Management
+- Upload and manage profile pictures (stored in Supabase Storage)
+- Update name and email preferences
+- Reset survey responses to get new recommendations
+- Email preference controls (marketing, updates, recommendations)
+
+#### Real-time Synchronization
+- Profile changes reflect immediately across sessions
+- Survey responses sync in real-time
+- Joined/saved organizations update live across all tabs
+- Recommendations refresh automatically when organizations are joined or saved
 
 ### For Organization Representatives
 
-- **Organization Dashboard**:
-  - Dedicated dashboard for managing organization information
-  - Inline editing of organization details (bio, contact info, meeting times, etc.)
-  - Update eligibility criteria and membership requirements
-  - Real-time sync of changes across all connected clients
+#### Organization Dashboard
+- Dedicated dashboard for managing organization information
+- Inline editing of organization details (bio, contact info, meeting times, etc.)
+- Update eligibility criteria and membership requirements
+- Real-time sync of changes across all connected clients
 
-- **Account Setup Flow**:
-  - Search and select organization during signup
-  - Email verification required for account activation
-  - Password setup via secure verification link
-  - Automatic linking of account to organization
+#### Account Setup Flow
+- Search and select organization during signup
+- Email verification required for account activation
+- Password setup via secure verification link
+- Automatic linking of account to organization
 
 ### Authentication & Security
 
@@ -97,7 +107,7 @@ ORGanize TAMU solves the challenge of helping students find organizations that a
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS
 - **Animations**: Framer Motion
-- **State Management**: React Context API (AuthContext)
+- **State Management**: React Context API (AuthContext with real-time subscriptions)
 - **Image Optimization**: Next.js Image component
 
 ### Backend
@@ -138,16 +148,17 @@ ORGanize TAMU solves the challenge of helping students find organizations that a
 ### Data Flow
 
 1. **Student Registration** → Supabase Auth → Email Verification → Profile Creation
-2. **Survey Submission** → API Route → Supabase (`user_queries` table) → Real-time Update
-3. **Recommendations Request** → API Route → Python Search API → Weighted Matching → Filtered Results
-4. **Organization Join** → API Route → Supabase (`user_joined_organizations`) → Real-time Update → Recommendations Refresh
+2. **Survey Submission** → API Route → Supabase (`user_queries` table) → Redirect to Explore
+3. **Recommendations Request** → API Route → Python Search API → Weighted Matching → Filtered Results (excludes joined/saved)
+4. **Organization Join** → AuthContext → Supabase (`user_joined_organizations`) → Real-time Update → Auto-remove from Explore
+5. **Organization Save** → AuthContext → Supabase (`user_saved_organizations`) → Real-time Update → Auto-remove from Explore
 
 ### Key Components
 
-- **AuthContext**: Central authentication provider with real-time subscriptions to user data
+- **AuthContext**: Central authentication provider with real-time subscriptions and organization actions (join, leave, save, unsave)
+- **DashboardLayout**: Shared layout with tabbed navigation (My Orgs, Explore, Saved)
+- **OrgCard**: Reusable organization card with join/save buttons and detail modal
 - **SurveyForm**: Multi-step survey component with form validation and animations
-- **Dashboard**: Student dashboard displaying recommendations and joined organizations
-- **Org Dashboard**: Organization management interface with inline editing
 - **Middleware**: Route protection and authentication state management
 
 ## Getting Started
@@ -223,6 +234,7 @@ Run these SQL scripts in your Supabase SQL Editor in order:
    - Organization information and details
    - Eligibility criteria (gender, race, classification, sexuality)
    - Meeting information and membership requirements
+   - Platform status (`is_on_platform`, `application_required_bool`)
 
 3. **`supabase_org_accounts.sql`** - Creates `org_accounts` table
    - Links Supabase auth users to organizations
@@ -231,6 +243,12 @@ Run these SQL scripts in your Supabase SQL Editor in order:
 4. **`supabase_user_joined_orgs.sql`** - Creates `user_joined_organizations` table
    - Tracks which organizations students have joined
    - Enables filtering joined orgs from recommendations
+
+5. **`supabase_user_saved_orgs.sql`** - Creates `user_saved_organizations` table
+   - Tracks organizations saved for later
+   - Notification tracking for when orgs join platform
+   - Auto-join tracking
+   - Adds `is_on_platform` and `application_required_bool` to organizations table
 
 ### Step 2: Create Storage Bucket
 
@@ -259,6 +277,7 @@ Real-time subscriptions are automatically enabled for:
 - `user_profiles`
 - `user_queries`
 - `user_joined_organizations`
+- `user_saved_organizations`
 - `organizations`
 
 Verify in Supabase Dashboard → Database → Replication that these tables have replication enabled.
@@ -281,6 +300,9 @@ Submit survey responses and demographics.
   "race": "Asian",
   "classification": "Sophomore",
   "careerFields": ["Engineering", "Technology"],
+  "activities": ["Projects", "Competitions"],
+  "livesOnCampus": "Yes",
+  "hall": "Hullabaloo",
   ...
 }
 ```
@@ -296,7 +318,7 @@ Submit survey responses and demographics.
 **Rate Limit**: 5 requests per hour per IP
 
 #### `GET /api/recommendations`
-Get personalized organization recommendations.
+Get personalized organization recommendations (excludes joined and saved orgs).
 
 **Headers:**
 ```
@@ -311,7 +333,55 @@ Authorization: Bearer <access_token>
       "id": "uuid",
       "name": "Organization Name",
       "bio": "...",
-      "similarity_score": 0.85,
+      "relevance_score": 85,
+      "is_on_platform": true,
+      "application_required_bool": false,
+      ...
+    }
+  ]
+}
+```
+
+#### `GET /api/orgs/joined`
+Get user's joined organizations with full details.
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Response:**
+```json
+{
+  "organizations": [
+    {
+      "id": "uuid",
+      "name": "Organization Name",
+      "joined_at": "2024-01-15T10:30:00Z",
+      ...
+    }
+  ]
+}
+```
+
+#### `GET /api/orgs/saved`
+Get user's saved organizations with full details.
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Response:**
+```json
+{
+  "organizations": [
+    {
+      "id": "uuid",
+      "name": "Organization Name",
+      "saved_at": "2024-01-15T10:30:00Z",
+      "is_on_platform": false,
+      "notified_at": null,
       ...
     }
   ]
@@ -340,7 +410,7 @@ Search organizations by query string.
     {
       "id": "uuid",
       "name": "Organization Name",
-      "similarity_score": 0.92,
+      "relevance_score": 92,
       ...
     }
   ]
@@ -476,20 +546,28 @@ organizeSurvey/
 ├── app/                          # Next.js App Router
 │   ├── api/                      # API routes
 │   │   ├── org/                  # Organization endpoints
+│   │   ├── orgs/                 # Joined/saved org endpoints
+│   │   │   ├── joined/           # GET joined organizations
+│   │   │   └── saved/            # GET saved organizations
 │   │   ├── profile/              # Profile management
 │   │   ├── recommendations/      # Recommendations API
 │   │   ├── search/               # Search API
 │   │   └── submit/               # Survey submission
 │   ├── auth/                     # Authentication pages
 │   ├── dashboard/                # Student dashboard
+│   │   ├── page.tsx              # My Orgs page
+│   │   ├── explore/              # Explore recommendations
+│   │   └── saved/                # Saved organizations
 │   ├── org/                      # Organization pages
 │   ├── profile/                  # Profile settings
 │   ├── survey/                   # Survey form
 │   └── layout.tsx                # Root layout
 ├── components/
+│   ├── DashboardLayout.tsx       # Dashboard with tabbed navigation
+│   ├── OrgCard.tsx               # Reusable org card with actions
 │   └── SurveyForm.tsx            # Multi-step survey component
 ├── contexts/
-│   └── AuthContext.tsx           # Auth state & real-time subscriptions
+│   └── AuthContext.tsx           # Auth state, real-time subscriptions, org actions
 ├── lib/
 │   ├── rateLimit.ts              # Rate limiting utility
 │   └── supabase.ts               # Supabase client configuration
@@ -505,7 +583,12 @@ organizeSurvey/
 ### Key Development Files
 
 - **`middleware.ts`**: Handles route protection and authentication redirects
-- **`contexts/AuthContext.tsx`**: Central auth provider with real-time subscriptions
+- **`contexts/AuthContext.tsx`**: Central auth provider with:
+  - Real-time subscriptions for user data, joined orgs, and saved orgs
+  - Action functions: `joinOrg()`, `leaveOrg()`, `saveOrg()`, `unsaveOrg()`
+  - Optimistic updates for instant UI feedback
+- **`components/DashboardLayout.tsx`**: Shared dashboard layout with tabbed navigation
+- **`components/OrgCard.tsx`**: Reusable organization card with join/save/leave buttons
 - **`lib/supabase.ts`**: Supabase client configuration (browser and server)
 - **`scripts/weighted_search.py`**: Core matching algorithm using sentence transformers
 - **`api_server.py`**: Python Flask API for organization search
@@ -531,8 +614,8 @@ When making schema changes:
 The app uses Supabase Realtime for live updates. To test:
 
 1. Open the app in multiple browser windows
-2. Make changes in one window
-3. Verify updates appear in other windows automatically
+2. Join or save an organization in one window
+3. Verify updates appear in other windows automatically (org removed from Explore, added to My Orgs/Saved)
 
 ## Security
 
@@ -585,6 +668,7 @@ The app uses Supabase Realtime for live updates. To test:
    - Test in development mode
    - Verify real-time updates work
    - Test authentication flows
+   - Test join/save functionality across tabs
    - Check rate limiting
 
 5. **Submit a pull request**
@@ -598,7 +682,7 @@ The app uses Supabase Realtime for live updates. To test:
 - Follow Next.js App Router conventions
 - Use Tailwind CSS for styling
 - Prefer functional components with hooks
-- Use `useAuth()` hook for authentication state
+- Use `useAuth()` hook for authentication state and org actions
 
 ### Database Changes
 
