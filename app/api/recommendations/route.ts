@@ -82,28 +82,6 @@ export async function GET(request: NextRequest) {
       (joinedOrgs || []).map((jo: { organization_id: string }) => jo.organization_id)
     )
 
-    // Get user's saved organizations
-    const { data: savedOrgs, error: savedOrgsError } = await supabaseAdmin
-      .from('saved_organizations')
-      .select('organization_id, organization_name')
-      .eq('user_id', user.id)
-
-    if (savedOrgsError) {
-      console.error('Error fetching saved organizations:', savedOrgsError)
-      // Continue anyway - assume no saved orgs if table doesn't exist yet
-    }
-
-    const savedOrgIds = new Set(
-      (savedOrgs || [])
-        .filter((so: { organization_id: string | null }) => so.organization_id)
-        .map((so: { organization_id: string }) => so.organization_id)
-    )
-    
-    const savedOrgNames = new Set(
-      (savedOrgs || [])
-        .map((so: { organization_name: string }) => so.organization_name.toLowerCase().trim())
-    )
-
     // Prepare user data for search
     const userData = userQuery.user_demographics || {}
     const query = userQuery.latest_cleansed_query
@@ -181,7 +159,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Filter out joined and saved organizations
+    // Filter out joined organizations and limit to top 20
     const recommendations = searchResults
       .filter((org: any) => {
         // Filter out if organization ID matches a joined org
@@ -192,16 +170,9 @@ export async function GET(request: NextRequest) {
         if (org.name && joinedOrgNames.has(org.name.toLowerCase().trim())) {
           return false
         }
-        // Filter out if organization ID matches a saved org
-        if (org.id && savedOrgIds.has(org.id)) {
-          return false
-        }
-        // Filter out if organization name matches a saved org
-        if (org.name && savedOrgNames.has(org.name.toLowerCase().trim())) {
-          return false
-        }
         return true
       })
+      .slice(0, 20) // Top 20
 
     return NextResponse.json({ recommendations })
   } catch (error: any) {

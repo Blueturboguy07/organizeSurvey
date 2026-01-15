@@ -9,11 +9,10 @@
  * - user_queries table (survey interests)
  * - user_profiles table (profile data, picture, preferences)
  * - user_joined_organizations table (joined orgs for recommendations)
- * - saved_organizations table (saved orgs for notifications)
  * 
  * Usage in components:
  * ```
- * const { user, session, userProfile, userQuery, joinedOrgIds, savedOrgIds } = useAuth()
+ * const { user, session, userProfile, userQuery, joinedOrgIds } = useAuth()
  * 
  * // For API calls requiring auth, use session.access_token:
  * if (session?.access_token) {
@@ -64,11 +63,6 @@ interface AuthContextType {
   joinedOrgIds: Set<string>
   joinedOrgIdsLoading: boolean
   refreshJoinedOrgs: () => Promise<void>
-  // Saved organizations real-time data
-  savedOrgIds: Set<string>
-  savedOrgNames: Set<string>
-  savedOrgIdsLoading: boolean
-  refreshSavedOrgs: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -83,9 +77,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [userProfileLoading, setUserProfileLoading] = useState(false)
   const [joinedOrgIds, setJoinedOrgIds] = useState<Set<string>>(new Set())
   const [joinedOrgIdsLoading, setJoinedOrgIdsLoading] = useState(false)
-  const [savedOrgIds, setSavedOrgIds] = useState<Set<string>>(new Set())
-  const [savedOrgNames, setSavedOrgNames] = useState<Set<string>>(new Set())
-  const [savedOrgIdsLoading, setSavedOrgIdsLoading] = useState(false)
   const router = useRouter()
   const supabase = createClientComponentClient()
 
@@ -182,48 +173,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, fetchJoinedOrgs])
 
-  // Fetch saved organizations
-  const fetchSavedOrgs = useCallback(async (userId: string) => {
-    setSavedOrgIdsLoading(true)
-    try {
-      const { data, error } = await supabase
-        .from('saved_organizations')
-        .select('organization_id, organization_name')
-        .eq('user_id', userId)
-
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching saved organizations:', error)
-      }
-      
-      const orgIds = new Set<string>()
-      const orgNames = new Set<string>()
-      
-      ;(data || []).forEach((so: { organization_id: string | null, organization_name: string }) => {
-        if (so.organization_id) {
-          orgIds.add(so.organization_id)
-        }
-        if (so.organization_name) {
-          orgNames.add(so.organization_name.toLowerCase().trim())
-        }
-      })
-      
-      setSavedOrgIds(orgIds)
-      setSavedOrgNames(orgNames)
-    } catch (err) {
-      console.error('Failed to fetch saved organizations:', err)
-      setSavedOrgIds(new Set())
-      setSavedOrgNames(new Set())
-    } finally {
-      setSavedOrgIdsLoading(false)
-    }
-  }, [supabase])
-
-  const refreshSavedOrgs = useCallback(async () => {
-    if (user) {
-      await fetchSavedOrgs(user.id)
-    }
-  }, [user, fetchSavedOrgs])
-
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -236,7 +185,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         fetchUserQuery(session.user.id)
         fetchUserProfile(session.user.id)
         fetchJoinedOrgs(session.user.id)
-        fetchSavedOrgs(session.user.id)
       }
     })
 
@@ -253,13 +201,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         fetchUserQuery(session.user.id)
         fetchUserProfile(session.user.id)
         fetchJoinedOrgs(session.user.id)
-        fetchSavedOrgs(session.user.id)
       } else {
         setUserQuery(null)
         setUserProfile(null)
         setJoinedOrgIds(new Set())
-        setSavedOrgIds(new Set())
-        setSavedOrgNames(new Set())
       }
       
       // Redirect to login if signed out
@@ -269,7 +214,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })
 
     return () => subscription.unsubscribe()
-  }, [router, supabase.auth, fetchUserQuery, fetchUserProfile, fetchJoinedOrgs, fetchSavedOrgs])
+  }, [router, supabase.auth, fetchUserQuery, fetchUserProfile])
 
   // Real-time subscription for user_queries
   useEffect(() => {
@@ -414,52 +359,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, supabase, fetchJoinedOrgs])
 
-  // Real-time subscription for saved_organizations
-  useEffect(() => {
-    if (!user) return
-
-    let channel: RealtimeChannel | null = null
-
-    const setupSubscription = () => {
-      channel = supabase
-        .channel(`saved_orgs_realtime_${user.id}`)
-        .on(
-          'postgres_changes',
-          {
-            event: '*', // Listen to INSERT, UPDATE, DELETE
-            schema: 'public',
-            table: 'saved_organizations',
-            filter: `user_id=eq.${user.id}`
-          },
-          (payload) => {
-            console.log('Real-time saved_organizations update:', payload)
-            
-            // Refetch saved orgs when changes occur
-            fetchSavedOrgs(user.id)
-          }
-        )
-        .subscribe((status) => {
-          console.log('saved_organizations subscription status:', status)
-        })
-    }
-
-    setupSubscription()
-
-    // Cleanup subscription on unmount or user change
-    return () => {
-      if (channel) {
-        supabase.removeChannel(channel)
-      }
-    }
-  }, [user, supabase, fetchSavedOrgs])
-
   const signOut = async () => {
     await supabase.auth.signOut()
     setUserQuery(null)
     setUserProfile(null)
     setJoinedOrgIds(new Set())
-    setSavedOrgIds(new Set())
-    setSavedOrgNames(new Set())
     router.push('/login')
   }
 
@@ -477,11 +381,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       refreshUserProfile,
       joinedOrgIds,
       joinedOrgIdsLoading,
-      refreshJoinedOrgs,
-      savedOrgIds,
-      savedOrgNames,
-      savedOrgIdsLoading,
-      refreshSavedOrgs
+      refreshJoinedOrgs
     }}>
       {children}
     </AuthContext.Provider>
