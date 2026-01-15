@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import DashboardLayout from '@/components/DashboardLayout'
 
 export default function SavedPage() {
-  const { user, session, loading: authLoading, refreshSavedOrgs, refreshJoinedOrgs, savedOrgIdsVersion } = useAuth()
+  const { user, session, loading: authLoading, refreshSavedOrgs, refreshJoinedOrgs, savedOrgIds, savedOrgNames } = useAuth()
   const [organizations, setOrganizations] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -50,7 +50,7 @@ export default function SavedPage() {
     }
 
     fetchSavedOrgs()
-  }, [user, session, refreshSavedOrgs, savedOrgIdsVersion]) // Refetch when saved orgs change (version increments on change)
+  }, [user, session, refreshSavedOrgs, Array.from(savedOrgIds).sort().join(','), Array.from(savedOrgNames).sort().join(',')]) // Refetch when saved orgs change
 
   const handleUnsave = async (orgId: string | null, orgName: string) => {
     if (!session) return

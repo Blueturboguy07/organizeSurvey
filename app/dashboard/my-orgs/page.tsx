@@ -7,7 +7,7 @@ import DashboardLayout from '@/components/DashboardLayout'
 import Image from 'next/image'
 
 export default function MyOrgsPage() {
-  const { user, session, loading: authLoading, refreshJoinedOrgs, joinedOrgIdsVersion } = useAuth()
+  const { user, session, loading: authLoading, refreshJoinedOrgs, joinedOrgIds } = useAuth()
   const [organizations, setOrganizations] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -50,7 +50,7 @@ export default function MyOrgsPage() {
     }
 
     fetchJoinedOrgs()
-  }, [user, session, refreshJoinedOrgs, joinedOrgIdsVersion]) // Refetch when joined orgs change (version increments on change)
+  }, [user, session, refreshJoinedOrgs, Array.from(joinedOrgIds).sort().join(',')]) // Refetch when joined orgs change
 
   const handleLeave = async (orgId: string) => {
     if (!session) return
