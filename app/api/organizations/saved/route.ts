@@ -6,8 +6,11 @@ export const dynamic = 'force-dynamic'
 
 export async function GET(request: NextRequest) {
   try {
+    console.log('🟢 [API] GET /api/organizations/saved - Starting...')
+    
     const authHeader = request.headers.get('authorization')
     if (!authHeader) {
+      console.log('🟢 [API] No auth header')
       return NextResponse.json(
         { error: 'Unauthorized. Please sign in.' },
         { status: 401 }
@@ -15,6 +18,8 @@ export async function GET(request: NextRequest) {
     }
 
     const token = authHeader.replace('Bearer ', '')
+    console.log('🟢 [API] Token present, length:', token.length)
+    
     const supabase = createClient(
       process.env.NEXT_PUBLIC_SUPABASE_URL!,
       process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
@@ -23,13 +28,17 @@ export async function GET(request: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser(token)
     
     if (authError || !user) {
+      console.log('🟢 [API] Auth error:', authError?.message)
       return NextResponse.json(
         { error: 'Unauthorized. Invalid or expired session.' },
         { status: 401 }
       )
     }
 
+    console.log('🟢 [API] User authenticated:', user.id, user.email)
+
     // Get saved organizations
+    console.log('🟢 [API] Querying saved_organizations...')
     const { data: savedOrgs, error: savedOrgsError } = await supabaseAdmin
       .from('saved_organizations')
       .select(`
@@ -45,19 +54,21 @@ export async function GET(request: NextRequest) {
       .order('saved_at', { ascending: false })
 
     if (savedOrgsError) {
-      console.error('Error fetching saved organizations:', savedOrgsError)
+      console.error('🟢 [API] Error fetching saved organizations:', savedOrgsError)
       return NextResponse.json(
         { error: 'Failed to fetch saved organizations', details: savedOrgsError.message },
         { status: 500 }
       )
     }
 
+    console.log('🟢 [API] Saved orgs query result:', JSON.stringify(savedOrgs))
+
     if (!savedOrgs || savedOrgs.length === 0) {
-      console.log(`No saved organizations found for user ${user.id}`)
-      return NextResponse.json({ organizations: [] })
+      console.log(`🟢 [API] No saved organizations found for user ${user.id}`)
+      return NextResponse.json({ organizations: [], debug: { userId: user.id, savedOrgsCount: 0 } })
     }
 
-    console.log(`Found ${savedOrgs.length} saved organizations for user ${user.id}`)
+    console.log(`🟢 [API] Found ${savedOrgs.length} saved organizations for user ${user.id}`)
 
     // Get organization details for orgs that are on platform
     const orgIds = savedOrgs
@@ -91,9 +102,13 @@ export async function GET(request: NextRequest) {
       }
     })
 
-    return NextResponse.json({ organizations })
+    console.log('🟢 [API] Returning', organizations.length, 'saved organizations')
+    return NextResponse.json({ 
+      organizations,
+      debug: { userId: user.id, savedOrgsCount: savedOrgs.length, returnedCount: organizations.length }
+    })
   } catch (error: any) {
-    console.error('Get saved organizations error:', error)
+    console.error('🟢 [API] Get saved organizations error:', error)
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }

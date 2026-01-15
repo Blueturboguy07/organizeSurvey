@@ -14,6 +14,8 @@ export default function SavedPage() {
   const [error, setError] = useState<string | null>(null)
   const [selectedOrg, setSelectedOrg] = useState<any | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [debugInfo, setDebugInfo] = useState<any>(null)
+  const [realtimeStatus, setRealtimeStatus] = useState<string>('not connected')
   const supabase = createClientComponentClient()
 
   // Fetch saved organizations
@@ -42,7 +44,10 @@ export default function SavedPage() {
       }
 
       const data = await response.json()
+      console.log('🟢 Saved: Full API response:', JSON.stringify(data))
       console.log('🟢 Saved: Got', data.organizations?.length || 0, 'organizations')
+      console.log('🟢 Saved: Debug info:', data.debug)
+      setDebugInfo({ ...data.debug, fetchTime: new Date().toISOString(), responseStatus: response.status })
       setOrganizations(data.organizations || [])
     } catch (err: any) {
       console.error('🟢 Saved: Error fetching:', err)
@@ -84,6 +89,7 @@ export default function SavedPage() {
         )
         .subscribe((status) => {
           console.log('🟢 Saved: Subscription status:', status)
+          setRealtimeStatus(status)
         })
     }
 
@@ -206,6 +212,15 @@ export default function SavedPage() {
             </svg>
             Refresh
           </button>
+        </div>
+
+        {/* Debug Panel - Remove in production */}
+        <div className="mb-4 p-4 bg-gray-100 rounded-lg text-xs font-mono">
+          <div className="font-bold mb-2">Debug Info:</div>
+          <div>User ID: {user?.id || 'not logged in'}</div>
+          <div>Realtime Status: <span className={realtimeStatus === 'SUBSCRIBED' ? 'text-green-600' : 'text-yellow-600'}>{realtimeStatus}</span></div>
+          <div>Organizations Count: {organizations.length}</div>
+          <div>API Debug: {JSON.stringify(debugInfo)}</div>
         </div>
 
         {loading ? (

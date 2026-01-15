@@ -6,8 +6,11 @@ export const dynamic = 'force-dynamic'
 
 export async function POST(request: NextRequest) {
   try {
+    console.log('🟣 [API] POST /api/organizations/join - Starting...')
+    
     const authHeader = request.headers.get('authorization')
     if (!authHeader) {
+      console.log('🟣 [API] No auth header')
       return NextResponse.json(
         { error: 'Unauthorized. Please sign in.' },
         { status: 401 }
@@ -23,14 +26,18 @@ export async function POST(request: NextRequest) {
     const { data: { user }, error: authError } = await supabase.auth.getUser(token)
     
     if (authError || !user) {
+      console.log('🟣 [API] Auth error:', authError?.message)
       return NextResponse.json(
         { error: 'Unauthorized. Invalid or expired session.' },
         { status: 401 }
       )
     }
 
+    console.log('🟣 [API] User authenticated:', user.id, user.email)
+
     const body = await request.json()
     const { organizationId } = body
+    console.log('🟣 [API] Organization ID:', organizationId)
 
     if (!organizationId) {
       return NextResponse.json(
@@ -40,6 +47,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify organization exists
+    console.log('🟣 [API] Verifying organization exists...')
     const { data: org, error: orgError } = await supabaseAdmin
       .from('organizations')
       .select('id, name, application_required')
@@ -47,11 +55,14 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (orgError || !org) {
+      console.log('🟣 [API] Organization not found:', orgError?.message)
       return NextResponse.json(
         { error: 'Organization not found' },
         { status: 404 }
       )
     }
+
+    console.log('🟣 [API] Organization found:', org.name)
 
     // Check if already joined
     const { data: existing } = await supabaseAdmin
@@ -62,6 +73,7 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (existing) {
+      console.log('🟣 [API] Already joined')
       return NextResponse.json(
         { error: 'Already joined this organization' },
         { status: 400 }
@@ -69,6 +81,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Join organization
+    console.log('🟣 [API] Inserting into user_joined_organizations...')
     const { data, error } = await supabaseAdmin
       .from('user_joined_organizations')
       .insert({
@@ -79,12 +92,14 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (error) {
-      console.error('Error joining organization:', error)
+      console.error('🟣 [API] Error joining organization:', error)
       return NextResponse.json(
         { error: 'Failed to join organization', details: error.message },
         { status: 500 }
       )
     }
+
+    console.log('🟣 [API] Successfully joined! Insert result:', JSON.stringify(data))
 
     // If user had saved this org, update the saved record
     await supabaseAdmin
@@ -97,6 +112,7 @@ export async function POST(request: NextRequest) {
       .eq('user_id', user.id)
       .or(`organization_id.eq.${organizationId},organization_name.ilike.${org.name}`)
 
+    console.log('🟣 [API] Returning success')
     return NextResponse.json({ success: true, data })
   } catch (error: any) {
     console.error('Join organization error:', error)
