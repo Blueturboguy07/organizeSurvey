@@ -1,28 +1,109 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/contexts/AuthContext'
 import DashboardLayout from '@/components/DashboardLayout'
+import { RealtimeChannel } from '@supabase/supabase-js'
 
 export default function MyOrgsPage() {
-  // Get ALL data from AuthContext - no separate API calls needed
-  const { 
-    user, 
-    session, 
-    loading: authLoading, 
-    joinedOrganizations, 
-    joinedOrgIdsLoading,
-    refreshJoinedOrgs 
-  } = useAuth()
-  
+  // Use supabase from AuthContext to avoid multiple GoTrueClient instances
+  const { user, session, loading: authLoading, refreshJoinedOrgs, supabase } = useAuth()
+  const [organizations, setOrganizations] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [selectedOrg, setSelectedOrg] = useState<any | null>(null)
-  const [leavingOrgId, setLeavingOrgId] = useState<string | null>(null)
+  const [debugInfo, setDebugInfo] = useState<any>(null)
+  const [realtimeStatus, setRealtimeStatus] = useState<string>('not connected')
+
+  // Fetch joined organizations
+  const fetchJoinedOrgs = useCallback(async () => {
+    if (!user || !session) {
+      setLoading(false)
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+
+    try {
+      console.log('🔵 MyOrgs: Fetching joined organizations...')
+      const response = await fetch('/api/organizations/joined', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}))
+        throw new Error(errorData.error || 'Failed to fetch joined organizations')
+      }
+
+      const data = await response.json()
+      console.log('🔵 MyOrgs: Full API response:', JSON.stringify(data))
+      console.log('🔵 MyOrgs: Got', data.organizations?.length || 0, 'organizations')
+      console.log('🔵 MyOrgs: Debug info:', data.debug)
+      setDebugInfo({ ...data.debug, fetchTime: new Date().toISOString(), responseStatus: response.status })
+      setOrganizations(data.organizations || [])
+    } catch (err: any) {
+      console.error('🔵 MyOrgs: Error fetching:', err)
+      setError(err.message || 'Failed to load organizations')
+      setOrganizations([])
+    } finally {
+      setLoading(false)
+    }
+  }, [user, session])
+
+  // Initial fetch
+  useEffect(() => {
+    fetchJoinedOrgs()
+  }, [fetchJoinedOrgs])
+
+  // Set up real-time subscription directly on this page
+  useEffect(() => {
+    if (!user) return
+
+    let channel: RealtimeChannel | null = null
+
+    const setupSubscription = () => {
+      console.log('🔵 MyOrgs: Setting up real-time subscription...')
+      channel = supabase
+        .channel(`my_orgs_page_${user.id}_${Date.now()}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'user_joined_organizations',
+            filter: `user_id=eq.${user.id}`
+          },
+          (payload) => {
+            console.log('🔵 MyOrgs: Real-time update received:', payload.eventType)
+            // Refetch when changes occur
+            fetchJoinedOrgs()
+          }
+        )
+        .subscribe((status) => {
+          console.log('🔵 MyOrgs: Subscription status:', status)
+          setRealtimeStatus(status)
+        })
+    }
+
+    setupSubscription()
+
+    return () => {
+      if (channel) {
+        console.log('🔵 MyOrgs: Cleaning up subscription')
+        supabase.removeChannel(channel)
+      }
+    }
+  }, [user, supabase, fetchJoinedOrgs])
 
   const handleLeave = async (orgId: string) => {
     if (!session) return
 
-    setLeavingOrgId(orgId)
     try {
       console.log('🔵 MyOrgs: Leaving organization:', orgId)
       const response = await fetch(`/api/organizations/join?organizationId=${orgId}`, {
@@ -33,25 +114,25 @@ export default function MyOrgsPage() {
       })
 
       if (!response.ok) {
-        const data = await response.json()
-        throw new Error(data.error || 'Failed to leave organization')
+        throw new Error('Failed to leave organization')
       }
 
-      console.log('🔵 MyOrgs: Left successfully, refreshing AuthContext...')
+      console.log('🔵 MyOrgs: Left successfully, refreshing...')
       
-      // Refresh AuthContext - this will update joinedOrganizations
+      // Update AuthContext
       await refreshJoinedOrgs()
+      
+      // Update local state immediately
+      setOrganizations(prev => prev.filter(org => org.id !== orgId))
       setSelectedOrg(null)
     } catch (err: any) {
       console.error('🔵 MyOrgs: Error leaving:', err)
-      alert(err.message || 'Failed to leave organization. Please try again.')
-    } finally {
-      setLeavingOrgId(null)
+      alert('Failed to leave organization. Please try again.')
     }
   }
 
-  const handleManualRefresh = async () => {
-    await refreshJoinedOrgs()
+  const handleManualRefresh = () => {
+    fetchJoinedOrgs()
   }
 
   if (authLoading) {
@@ -71,29 +152,34 @@ export default function MyOrgsPage() {
           <h2 className="text-3xl font-bold text-gray-800">My Organizations</h2>
           <button
             onClick={handleManualRefresh}
-            disabled={joinedOrgIdsLoading}
+            disabled={loading}
             className="px-4 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg font-medium transition-colors disabled:opacity-50 flex items-center gap-2"
           >
-            <svg className={`w-4 h-4 ${joinedOrgIdsLoading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
             Refresh
           </button>
         </div>
 
-        {/* Debug Panel */}
+        {/* Debug Panel - Remove in production */}
         <div className="mb-4 p-4 bg-gray-100 rounded-lg text-xs font-mono">
           <div className="font-bold mb-2">Debug Info:</div>
           <div>User ID: {user?.id || 'not logged in'}</div>
-          <div>Loading: {joinedOrgIdsLoading ? 'Yes' : 'No'}</div>
-          <div>Organizations from AuthContext: {joinedOrganizations.length}</div>
+          <div>Realtime Status: <span className={realtimeStatus === 'SUBSCRIBED' ? 'text-green-600' : 'text-yellow-600'}>{realtimeStatus}</span></div>
+          <div>Organizations Count: {organizations.length}</div>
+          <div>API Debug: {JSON.stringify(debugInfo)}</div>
         </div>
 
-        {joinedOrgIdsLoading ? (
+        {loading ? (
           <div className="flex items-center justify-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-tamu-maroon"></div>
           </div>
-        ) : joinedOrganizations.length === 0 ? (
+        ) : error ? (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <p className="text-red-800">{error}</p>
+          </div>
+        ) : organizations.length === 0 ? (
           <div className="bg-white rounded-lg shadow-md p-12 text-center">
             <svg className="w-16 h-16 text-gray-300 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -103,9 +189,9 @@ export default function MyOrgsPage() {
           </div>
         ) : (
           <div className="space-y-4">
-            {joinedOrganizations.map((org, index) => (
+            {organizations.map((org: any, index: number) => (
               <motion.div
-                key={org.id}
+                key={org.id || index}
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: index * 0.05 }}
@@ -130,10 +216,9 @@ export default function MyOrgsPage() {
                           handleLeave(org.id)
                         }
                       }}
-                      disabled={leavingOrgId === org.id}
-                      className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg font-medium transition-colors disabled:opacity-50"
+                      className="px-4 py-2 text-red-600 hover:bg-red-50 rounded-lg font-medium transition-colors"
                     >
-                      {leavingOrgId === org.id ? 'Leaving...' : 'Leave'}
+                      Leave
                     </button>
                   </div>
                 </div>
@@ -177,12 +262,14 @@ export default function MyOrgsPage() {
                     </div>
                   )}
 
-                  {selectedOrg.website && (
+                  {(selectedOrg.website || selectedOrg.administrative_contact_info) && (
                     <div className="border-t pt-4">
                       <h3 className="text-lg font-semibold text-tamu-maroon mb-2">Contact</h3>
-                      <a href={selectedOrg.website} target="_blank" rel="noopener noreferrer" className="text-tamu-maroon hover:underline">
-                        {selectedOrg.website}
-                      </a>
+                      {selectedOrg.website && (
+                        <a href={selectedOrg.website} target="_blank" rel="noopener noreferrer" className="text-tamu-maroon hover:underline">
+                          {selectedOrg.website}
+                        </a>
+                      )}
                     </div>
                   )}
 
@@ -193,10 +280,9 @@ export default function MyOrgsPage() {
                           handleLeave(selectedOrg.id)
                         }
                       }}
-                      disabled={leavingOrgId === selectedOrg.id}
-                      className="px-6 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors disabled:opacity-50"
+                      className="px-6 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors"
                     >
-                      {leavingOrgId === selectedOrg.id ? 'Leaving...' : 'Leave Organization'}
+                      Leave Organization
                     </button>
                   </div>
                 </div>

@@ -5,21 +5,11 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/contexts/AuthContext'
 import DashboardLayout from '@/components/DashboardLayout'
 import { useRouter } from 'next/navigation'
+import { RealtimeChannel } from '@supabase/supabase-js'
 
 export default function ExplorePage() {
-  // Get data from AuthContext - joinedOrgIds and savedOrgIds for filtering
-  const { 
-    user, 
-    session, 
-    loading: authLoading, 
-    userQuery, 
-    joinedOrgIds, 
-    savedOrgIds, 
-    savedOrgNames, 
-    refreshJoinedOrgs, 
-    refreshSavedOrgs 
-  } = useAuth()
-  
+  // Use supabase from AuthContext to avoid multiple GoTrueClient instances
+  const { user, session, loading: authLoading, userQuery, joinedOrgIds, savedOrgIds, savedOrgNames, refreshJoinedOrgs, refreshSavedOrgs, supabase } = useAuth()
   const router = useRouter()
   const [organizations, setOrganizations] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -27,7 +17,7 @@ export default function ExplorePage() {
   const [selectedOrg, setSelectedOrg] = useState<any | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
 
-  // Fetch organizations from API
+  // Fetch organizations
   const fetchOrganizations = useCallback(async () => {
     if (!user || !session) {
       setLoading(false)
@@ -68,10 +58,77 @@ export default function ExplorePage() {
     }
   }, [user, session, userQuery])
 
-  // Fetch on mount and when dependencies change
+  // Initial fetch
   useEffect(() => {
     fetchOrganizations()
   }, [fetchOrganizations])
+
+  // Set up real-time subscriptions for both joined and saved orgs
+  useEffect(() => {
+    if (!user) return
+
+    let joinedChannel: RealtimeChannel | null = null
+    let savedChannel: RealtimeChannel | null = null
+
+    const setupSubscriptions = () => {
+      console.log('🟡 Explore: Setting up real-time subscriptions...')
+      
+      // Subscribe to joined orgs changes
+      joinedChannel = supabase
+        .channel(`explore_joined_${user.id}_${Date.now()}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'user_joined_organizations',
+            filter: `user_id=eq.${user.id}`
+          },
+          (payload) => {
+            console.log('🟡 Explore: Joined orgs update:', payload.eventType)
+            refreshJoinedOrgs()
+            fetchOrganizations()
+          }
+        )
+        .subscribe((status) => {
+          console.log('🟡 Explore: Joined subscription status:', status)
+        })
+
+      // Subscribe to saved orgs changes
+      savedChannel = supabase
+        .channel(`explore_saved_${user.id}_${Date.now()}`)
+        .on(
+          'postgres_changes',
+          {
+            event: '*',
+            schema: 'public',
+            table: 'saved_organizations',
+            filter: `user_id=eq.${user.id}`
+          },
+          (payload) => {
+            console.log('🟡 Explore: Saved orgs update:', payload.eventType)
+            refreshSavedOrgs()
+            fetchOrganizations()
+          }
+        )
+        .subscribe((status) => {
+          console.log('🟡 Explore: Saved subscription status:', status)
+        })
+    }
+
+    setupSubscriptions()
+
+    return () => {
+      if (joinedChannel) {
+        console.log('🟡 Explore: Cleaning up joined subscription')
+        supabase.removeChannel(joinedChannel)
+      }
+      if (savedChannel) {
+        console.log('🟡 Explore: Cleaning up saved subscription')
+        supabase.removeChannel(savedChannel)
+      }
+    }
+  }, [user, supabase, fetchOrganizations, refreshJoinedOrgs, refreshSavedOrgs])
 
   const handleJoin = async (orgId: string) => {
     if (!session) return
@@ -93,12 +150,12 @@ export default function ExplorePage() {
         throw new Error(data.error || 'Failed to join organization')
       }
 
-      console.log('🟡 Explore: Joined successfully, refreshing...')
+      console.log('🟡 Explore: Joined successfully')
       
-      // Refresh AuthContext - this updates joinedOrgIds
+      // Update AuthContext
       await refreshJoinedOrgs()
       
-      // Remove from local list
+      // Remove from local list immediately
       setOrganizations(prev => prev.filter(org => org.id !== orgId))
       setSelectedOrg(null)
     } catch (err: any) {
@@ -134,10 +191,10 @@ export default function ExplorePage() {
       const data = await response.json()
       console.log('🟡 Explore: Saved successfully, autoJoined:', data.autoJoined)
       
-      // Refresh AuthContext
+      // Update AuthContext
       await refreshSavedOrgs()
       
-      // Remove from local list
+      // Remove from local list immediately
       if (orgId) {
         setOrganizations(prev => prev.filter(org => org.id !== orgId))
       } else {
@@ -342,12 +399,14 @@ export default function ExplorePage() {
                     </div>
                   )}
 
-                  {selectedOrg.website && (
+                  {(selectedOrg.website || selectedOrg.administrative_contact_info) && (
                     <div className="border-t pt-4">
                       <h3 className="text-lg font-semibold text-tamu-maroon mb-2">Contact</h3>
-                      <a href={selectedOrg.website} target="_blank" rel="noopener noreferrer" className="text-tamu-maroon hover:underline">
-                        {selectedOrg.website}
-                      </a>
+                      {selectedOrg.website && (
+                        <a href={selectedOrg.website} target="_blank" rel="noopener noreferrer" className="text-tamu-maroon hover:underline">
+                          {selectedOrg.website}
+                        </a>
+                      )}
                     </div>
                   )}
 
