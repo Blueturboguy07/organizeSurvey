@@ -13,8 +13,6 @@ export default function MyOrgsPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedOrg, setSelectedOrg] = useState<any | null>(null)
-  const [debugInfo, setDebugInfo] = useState<any>(null)
-  const [realtimeStatus, setRealtimeStatus] = useState<string>('not connected')
   const supabase = createClientComponentClient()
 
   // Fetch joined organizations
@@ -43,10 +41,7 @@ export default function MyOrgsPage() {
       }
 
       const data = await response.json()
-      console.log('🔵 MyOrgs: Full API response:', JSON.stringify(data))
       console.log('🔵 MyOrgs: Got', data.organizations?.length || 0, 'organizations')
-      console.log('🔵 MyOrgs: Debug info:', data.debug)
-      setDebugInfo({ ...data.debug, fetchTime: new Date().toISOString(), responseStatus: response.status })
       setOrganizations(data.organizations || [])
     } catch (err: any) {
       console.error('🔵 MyOrgs: Error fetching:', err)
@@ -88,7 +83,6 @@ export default function MyOrgsPage() {
         )
         .subscribe((status) => {
           console.log('🔵 MyOrgs: Subscription status:', status)
-          setRealtimeStatus(status)
         })
     }
 
@@ -161,15 +155,6 @@ export default function MyOrgsPage() {
             </svg>
             Refresh
           </button>
-        </div>
-
-        {/* Debug Panel - Remove in production */}
-        <div className="mb-4 p-4 bg-gray-100 rounded-lg text-xs font-mono">
-          <div className="font-bold mb-2">Debug Info:</div>
-          <div>User ID: {user?.id || 'not logged in'}</div>
-          <div>Realtime Status: <span className={realtimeStatus === 'SUBSCRIBED' ? 'text-green-600' : 'text-yellow-600'}>{realtimeStatus}</span></div>
-          <div>Organizations Count: {organizations.length}</div>
-          <div>API Debug: {JSON.stringify(debugInfo)}</div>
         </div>
 
         {loading ? (
