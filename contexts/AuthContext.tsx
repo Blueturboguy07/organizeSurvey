@@ -63,11 +63,13 @@ interface AuthContextType {
   // Joined organizations real-time data
   joinedOrgIds: Set<string>
   joinedOrgIdsLoading: boolean
+  joinedOrgIdsVersion: number // Version counter for change detection
   refreshJoinedOrgs: () => Promise<void>
   // Saved organizations real-time data
   savedOrgIds: Set<string>
   savedOrgNames: Set<string>
   savedOrgIdsLoading: boolean
+  savedOrgIdsVersion: number // Version counter for change detection
   refreshSavedOrgs: () => Promise<void>
 }
 
@@ -83,9 +85,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [userProfileLoading, setUserProfileLoading] = useState(false)
   const [joinedOrgIds, setJoinedOrgIds] = useState<Set<string>>(new Set())
   const [joinedOrgIdsLoading, setJoinedOrgIdsLoading] = useState(false)
+  const [joinedOrgIdsVersion, setJoinedOrgIdsVersion] = useState(0) // Version counter for change detection
   const [savedOrgIds, setSavedOrgIds] = useState<Set<string>>(new Set())
   const [savedOrgNames, setSavedOrgNames] = useState<Set<string>>(new Set())
   const [savedOrgIdsLoading, setSavedOrgIdsLoading] = useState(false)
+  const [savedOrgIdsVersion, setSavedOrgIdsVersion] = useState(0) // Version counter for change detection
   const router = useRouter()
   const supabase = createClientComponentClient()
 
@@ -155,10 +159,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       const orgIds = new Set((data || []).map((jo: { organization_id: string }) => jo.organization_id))
       setJoinedOrgIds(orgIds)
-      console.log('🔴 AuthContext: Updated joinedOrgIds, count:', orgIds.size)
+      setJoinedOrgIdsVersion(prev => prev + 1) // Increment version to trigger re-renders
     } catch (err) {
       console.error('Failed to fetch joined organizations:', err)
       setJoinedOrgIds(new Set())
+      setJoinedOrgIdsVersion(prev => prev + 1) // Still increment to trigger re-render
     } finally {
       setJoinedOrgIdsLoading(false)
     }
@@ -210,11 +215,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       
       setSavedOrgIds(orgIds)
       setSavedOrgNames(orgNames)
-      console.log('🟢 AuthContext: Updated savedOrgIds, count:', orgIds.size)
+      setSavedOrgIdsVersion(prev => prev + 1) // Increment version to trigger re-renders
     } catch (err) {
       console.error('Failed to fetch saved organizations:', err)
       setSavedOrgIds(new Set())
       setSavedOrgNames(new Set())
+      setSavedOrgIdsVersion(prev => prev + 1) // Still increment to trigger re-render
     } finally {
       setSavedOrgIdsLoading(false)
     }
@@ -505,10 +511,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       refreshUserProfile,
       joinedOrgIds,
       joinedOrgIdsLoading,
+      joinedOrgIdsVersion,
       refreshJoinedOrgs,
       savedOrgIds,
       savedOrgNames,
       savedOrgIdsLoading,
+      savedOrgIdsVersion,
       refreshSavedOrgs
     }}>
       {children}

@@ -1,106 +1,61 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/contexts/AuthContext'
 import DashboardLayout from '@/components/DashboardLayout'
-import { createClientComponentClient } from '@/lib/supabase'
-import { RealtimeChannel } from '@supabase/supabase-js'
+import Image from 'next/image'
 
 export default function MyOrgsPage() {
-  const { user, session, loading: authLoading, refreshJoinedOrgs } = useAuth()
+  const { user, session, loading: authLoading, refreshJoinedOrgs, joinedOrgIdsVersion } = useAuth()
   const [organizations, setOrganizations] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selectedOrg, setSelectedOrg] = useState<any | null>(null)
-  const supabase = createClientComponentClient()
 
-  // Fetch joined organizations
-  const fetchJoinedOrgs = useCallback(async () => {
-    if (!user || !session) {
-      setLoading(false)
-      return
-    }
-
-    setLoading(true)
-    setError(null)
-
-    try {
-      console.log('🔵 MyOrgs: Fetching joined organizations...')
-      const response = await fetch('/api/organizations/joined', {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`,
-          'Content-Type': 'application/json',
-        },
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}))
-        throw new Error(errorData.error || 'Failed to fetch joined organizations')
+  useEffect(() => {
+    const fetchJoinedOrgs = async () => {
+      if (!user || !session) {
+        setLoading(false)
+        return
       }
 
-      const data = await response.json()
-      console.log('🔵 MyOrgs: Got', data.organizations?.length || 0, 'organizations')
-      setOrganizations(data.organizations || [])
-    } catch (err: any) {
-      console.error('🔵 MyOrgs: Error fetching:', err)
-      setError(err.message || 'Failed to load organizations')
-      setOrganizations([])
-    } finally {
-      setLoading(false)
-    }
-  }, [user, session])
+      setLoading(true)
+      setError(null)
 
-  // Initial fetch
-  useEffect(() => {
-    fetchJoinedOrgs()
-  }, [fetchJoinedOrgs])
-
-  // Set up real-time subscription directly on this page
-  useEffect(() => {
-    if (!user) return
-
-    let channel: RealtimeChannel | null = null
-
-    const setupSubscription = () => {
-      console.log('🔵 MyOrgs: Setting up real-time subscription...')
-      channel = supabase
-        .channel(`my_orgs_page_${user.id}_${Date.now()}`)
-        .on(
-          'postgres_changes',
-          {
-            event: '*',
-            schema: 'public',
-            table: 'user_joined_organizations',
-            filter: `user_id=eq.${user.id}`
+      try {
+        const response = await fetch('/api/organizations/joined', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${session.access_token}`,
+            'Content-Type': 'application/json',
           },
-          (payload) => {
-            console.log('🔵 MyOrgs: Real-time update received:', payload.eventType)
-            // Refetch when changes occur
-            fetchJoinedOrgs()
-          }
-        )
-        .subscribe((status) => {
-          console.log('🔵 MyOrgs: Subscription status:', status)
         })
-    }
 
-    setupSubscription()
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}))
+          throw new Error(errorData.error || 'Failed to fetch joined organizations')
+        }
 
-    return () => {
-      if (channel) {
-        console.log('🔵 MyOrgs: Cleaning up subscription')
-        supabase.removeChannel(channel)
+        const data = await response.json()
+        console.log('Joined organizations data:', data)
+        setOrganizations(data.organizations || [])
+      } catch (err: any) {
+        console.error('Error fetching joined organizations:', err)
+        setError(err.message || 'Failed to load organizations')
+        setOrganizations([])
+      } finally {
+        setLoading(false)
       }
     }
-  }, [user, supabase, fetchJoinedOrgs])
+
+    fetchJoinedOrgs()
+  }, [user, session, refreshJoinedOrgs, joinedOrgIdsVersion]) // Refetch when joined orgs change (version increments on change)
 
   const handleLeave = async (orgId: string) => {
     if (!session) return
 
     try {
-      console.log('🔵 MyOrgs: Leaving organization:', orgId)
       const response = await fetch(`/api/organizations/join?organizationId=${orgId}`, {
         method: 'DELETE',
         headers: {
@@ -112,25 +67,16 @@ export default function MyOrgsPage() {
         throw new Error('Failed to leave organization')
       }
 
-      console.log('🔵 MyOrgs: Left successfully, refreshing...')
-      
-      // Update AuthContext
+      // Refresh joined orgs from context - this will trigger the useEffect to refetch
       await refreshJoinedOrgs()
-      
-      // Update local state immediately
-      setOrganizations(prev => prev.filter(org => org.id !== orgId))
       setSelectedOrg(null)
     } catch (err: any) {
-      console.error('🔵 MyOrgs: Error leaving:', err)
+      console.error('Error leaving organization:', err)
       alert('Failed to leave organization. Please try again.')
     }
   }
 
-  const handleManualRefresh = () => {
-    fetchJoinedOrgs()
-  }
-
-  if (authLoading) {
+  if (authLoading || loading) {
     return (
       <DashboardLayout>
         <div className="flex items-center justify-center py-12">
@@ -138,6 +84,30 @@ export default function MyOrgsPage() {
         </div>
       </DashboardLayout>
     )
+  }
+
+  const handleManualRefresh = async () => {
+    if (!user || !session) return
+    setLoading(true)
+    setError(null)
+    try {
+      await refreshJoinedOrgs()
+      const response = await fetch('/api/organizations/joined', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+      })
+      if (response.ok) {
+        const data = await response.json()
+        setOrganizations(data.organizations || [])
+      }
+    } catch (err: any) {
+      console.error('Error refreshing:', err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -157,11 +127,7 @@ export default function MyOrgsPage() {
           </button>
         </div>
 
-        {loading ? (
-          <div className="flex items-center justify-center py-12">
-            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-tamu-maroon"></div>
-          </div>
-        ) : error ? (
+        {error ? (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
             <p className="text-red-800">{error}</p>
           </div>
@@ -216,67 +182,70 @@ export default function MyOrgsPage() {
         {/* Organization Detail Modal */}
         <AnimatePresence>
           {selectedOrg && (
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              onClick={() => setSelectedOrg(null)}
-              className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
-            >
+            <>
               <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                onClick={(e) => e.stopPropagation()}
-                className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                onClick={() => setSelectedOrg(null)}
+                className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4"
               >
-                <div className="sticky top-0 bg-gradient-to-r from-tamu-maroon to-tamu-maroon-light p-6 text-white flex justify-between items-start">
-                  <h2 className="text-2xl font-bold">{selectedOrg.name}</h2>
-                  <button
-                    onClick={() => setSelectedOrg(null)}
-                    className="text-white hover:text-gray-200 text-3xl font-bold"
-                  >
-                    ×
-                  </button>
-                </div>
-
-                <div className="p-6 space-y-4">
-                  {selectedOrg.bio && (
-                    <div>
-                      <h3 className="text-lg font-semibold text-tamu-maroon mb-2">About</h3>
-                      <p className="text-gray-700">{selectedOrg.bio}</p>
-                    </div>
-                  )}
-
-                  {(selectedOrg.website || selectedOrg.administrative_contact_info) && (
-                    <div className="border-t pt-4">
-                      <h3 className="text-lg font-semibold text-tamu-maroon mb-2">Contact</h3>
-                      {selectedOrg.website && (
-                        <a href={selectedOrg.website} target="_blank" rel="noopener noreferrer" className="text-tamu-maroon hover:underline">
-                          {selectedOrg.website}
-                        </a>
-                      )}
-                    </div>
-                  )}
-
-                  <div className="border-t pt-4 flex gap-4">
+                <motion.div
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.9 }}
+                  onClick={(e) => e.stopPropagation()}
+                  className="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-y-auto"
+                >
+                  <div className="sticky top-0 bg-gradient-to-r from-tamu-maroon to-tamu-maroon-light p-6 text-white flex justify-between items-start">
+                    <h2 className="text-2xl font-bold">{selectedOrg.name}</h2>
                     <button
-                      onClick={() => {
-                        if (confirm('Are you sure you want to leave this organization?')) {
-                          handleLeave(selectedOrg.id)
-                        }
-                      }}
-                      className="px-6 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors"
+                      onClick={() => setSelectedOrg(null)}
+                      className="text-white hover:text-gray-200 text-3xl font-bold"
                     >
-                      Leave Organization
+                      ×
                     </button>
                   </div>
-                </div>
+
+                  <div className="p-6 space-y-4">
+                    {selectedOrg.bio && (
+                      <div>
+                        <h3 className="text-lg font-semibold text-tamu-maroon mb-2">About</h3>
+                        <p className="text-gray-700">{selectedOrg.bio}</p>
+                      </div>
+                    )}
+
+                    {(selectedOrg.website || selectedOrg.administrative_contact_info) && (
+                      <div className="border-t pt-4">
+                        <h3 className="text-lg font-semibold text-tamu-maroon mb-2">Contact</h3>
+                        {selectedOrg.website && (
+                          <a href={selectedOrg.website} target="_blank" rel="noopener noreferrer" className="text-tamu-maroon hover:underline">
+                            {selectedOrg.website}
+                          </a>
+                        )}
+                      </div>
+                    )}
+
+                    <div className="border-t pt-4 flex gap-4">
+                      <button
+                        onClick={() => {
+                          if (confirm('Are you sure you want to leave this organization?')) {
+                            handleLeave(selectedOrg.id)
+                          }
+                        }}
+                        className="px-6 py-2 bg-red-600 text-white rounded-lg font-medium hover:bg-red-700 transition-colors"
+                      >
+                        Leave Organization
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
               </motion.div>
-            </motion.div>
+            </>
           )}
         </AnimatePresence>
       </div>
     </DashboardLayout>
   )
 }
+
