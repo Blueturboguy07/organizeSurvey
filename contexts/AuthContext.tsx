@@ -52,6 +52,8 @@ interface AuthContextType {
   session: Session | null
   loading: boolean
   signOut: () => Promise<void>
+  // Shared supabase client - use this in pages to avoid multiple instances
+  supabase: ReturnType<typeof createClientComponentClient>
   // User query real-time data
   userQuery: UserQueryData | null
   userQueryLoading: boolean
@@ -142,6 +144,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Fetch joined organizations
   const fetchJoinedOrgs = useCallback(async (userId: string) => {
+    console.log('🔴 AuthContext fetchJoinedOrgs: Starting for user', userId)
     setJoinedOrgIdsLoading(true)
     try {
       const { data, error } = await supabase
@@ -149,13 +152,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .select('organization_id')
         .eq('user_id', userId)
 
+      console.log('🔴 AuthContext fetchJoinedOrgs: Raw response:', JSON.stringify(data), 'Error:', error?.message)
+
       if (error && error.code !== 'PGRST116') {
         console.error('Error fetching joined organizations:', error)
       }
       
       const orgIds = new Set((data || []).map((jo: { organization_id: string }) => jo.organization_id))
       setJoinedOrgIds(orgIds)
-      console.log('🔴 AuthContext: Updated joinedOrgIds, count:', orgIds.size)
+      console.log('🔴 AuthContext: Updated joinedOrgIds, count:', orgIds.size, 'IDs:', Array.from(orgIds))
     } catch (err) {
       console.error('Failed to fetch joined organizations:', err)
       setJoinedOrgIds(new Set())
@@ -246,12 +251,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
+      console.log('🔵 AuthContext: Auth state changed, event:', _event, 'user:', session?.user?.id, session?.user?.email)
       setSession(session)
       setUser(session?.user ?? null)
       setLoading(false)
       
       // Fetch/clear user data based on auth state
       if (session?.user) {
+        console.log('🔵 AuthContext: User logged in:', session.user.id, session.user.email)
         fetchUserQuery(session.user.id)
         fetchUserProfile(session.user.id)
         fetchJoinedOrgs(session.user.id)
@@ -497,6 +504,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       session, 
       loading, 
       signOut,
+      supabase,
       userQuery,
       userQueryLoading,
       refreshUserQuery,
