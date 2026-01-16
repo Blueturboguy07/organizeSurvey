@@ -210,7 +210,16 @@ export async function GET(request: NextRequest) {
         return true
       })
 
-    return NextResponse.json({ recommendations })
+    // Include debug info in response
+    return NextResponse.json({ 
+      recommendations,
+      _debug: {
+        queryUsed: userQuery.latest_cleansed_query.substring(0, 150) + '...',
+        queryLength: userQuery.latest_cleansed_query.length,
+        totalResults: searchResults.length,
+        filteredResults: recommendations.length
+      }
+    })
   } catch (error: any) {
     console.error('Recommendations API error:', error)
     return NextResponse.json(
