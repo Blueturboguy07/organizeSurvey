@@ -534,7 +534,7 @@ export default function OrgDashboardPage() {
             {type === 'textarea' ? (
               <textarea
                 value={editValues[field] || ''}
-                onChange={(e) => setEditValues({ ...editValues, [field]: e.target.value })}
+                onChange={(e) => setEditValues(prev => ({ ...prev, [field]: e.target.value }))}
                 rows={3}
                 className="w-full p-2 text-sm border border-tamu-maroon rounded-lg focus:outline-none focus:ring-2 focus:ring-tamu-maroon/20 resize-none"
                 placeholder={placeholder || `Enter ${label.toLowerCase()}...`}
@@ -544,7 +544,7 @@ export default function OrgDashboardPage() {
               <input
                 type="text"
                 value={editValues[field] || ''}
-                onChange={(e) => setEditValues({ ...editValues, [field]: e.target.value })}
+                onChange={(e) => setEditValues(prev => ({ ...prev, [field]: e.target.value }))}
                 className="w-full p-2 text-sm border border-tamu-maroon rounded-lg focus:outline-none focus:ring-2 focus:ring-tamu-maroon/20"
                 placeholder={placeholder || `Enter ${label.toLowerCase()}...`}
                 autoFocus
