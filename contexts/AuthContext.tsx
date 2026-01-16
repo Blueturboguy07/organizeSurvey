@@ -93,6 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Fetch user query data
   const fetchUserQuery = useCallback(async (userId: string) => {
+    console.log('🔍 [AuthContext] fetchUserQuery called for userId:', userId)
     setUserQueryLoading(true)
     try {
       const { data, error } = await supabase
@@ -101,16 +102,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .eq('user_id', userId)
         .single()
 
+      console.log('🔍 [AuthContext] fetchUserQuery response:', {
+        hasData: !!data,
+        queryPreview: data?.latest_cleansed_query?.substring(0, 100) + '...',
+        queryLength: data?.latest_cleansed_query?.length,
+        error: error?.message || null,
+        errorCode: error?.code || null
+      })
+
       if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching user query:', error)
+        console.error('❌ [AuthContext] Error fetching user query:', error)
       }
       
       setUserQuery(data || null)
+      console.log('✅ [AuthContext] setUserQuery called with:', data ? 'data' : 'null')
     } catch (err) {
-      console.error('Failed to fetch user query:', err)
+      console.error('❌ [AuthContext] Failed to fetch user query:', err)
       setUserQuery(null)
     } finally {
       setUserQueryLoading(false)
+      console.log('🔍 [AuthContext] fetchUserQuery completed, loading set to false')
     }
   }, [supabase])
 
@@ -403,8 +414,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Real-time subscription for user_queries
   useEffect(() => {
-    if (!user) return
+    if (!user) {
+      console.log('📡 [AuthContext] Skipping user_queries subscription - no user')
+      return
+    }
 
+    console.log('📡 [AuthContext] Setting up user_queries real-time subscription for user:', user.id)
     let channel: RealtimeChannel | null = null
 
     const setupSubscription = () => {
@@ -419,22 +434,46 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             filter: `user_id=eq.${user.id}`
           },
           (payload) => {
-            console.log('Real-time user_queries update:', payload.eventType, payload.new)
+            console.log('📡 [AuthContext] ⚡ REAL-TIME EVENT RECEIVED ⚡')
+            console.log('📡 [AuthContext] Event type:', payload.eventType)
+            console.log('📡 [AuthContext] Old data:', payload.old)
+            console.log('📡 [AuthContext] New data:', payload.new)
+            console.log('📡 [AuthContext] New query preview:', 
+              (payload.new as any)?.latest_cleansed_query?.substring(0, 100) + '...'
+            )
             
             if (payload.eventType === 'DELETE') {
+              console.log('📡 [AuthContext] DELETE event - setting userQuery to null')
               setUserQuery(null)
             } else if (payload.new && typeof payload.new === 'object') {
               const newData = payload.new as Record<string, unknown>
-              // Force a new object reference to trigger React updates
-              setUserQuery({
+              const newQuery = {
                 latest_cleansed_query: (newData.latest_cleansed_query as string) || null,
                 user_demographics: (newData.user_demographics as Record<string, unknown>) || null
+              }
+              console.log('📡 [AuthContext] Setting new userQuery from real-time:', {
+                queryLength: newQuery.latest_cleansed_query?.length,
+                queryPreview: newQuery.latest_cleansed_query?.substring(0, 100) + '...'
               })
+              // Force a new object reference to trigger React updates
+              setUserQuery(newQuery)
+            } else {
+              console.log('📡 [AuthContext] ⚠️ Unexpected payload structure:', payload)
             }
           }
         )
-        .subscribe((status) => {
-          console.log('user_queries subscription status:', status)
+        .subscribe((status, err) => {
+          console.log('📡 [AuthContext] user_queries subscription status:', status)
+          if (err) {
+            console.error('📡 [AuthContext] Subscription error:', err)
+          }
+          if (status === 'SUBSCRIBED') {
+            console.log('📡 [AuthContext] ✅ Successfully subscribed to user_queries real-time')
+          } else if (status === 'CHANNEL_ERROR') {
+            console.error('📡 [AuthContext] ❌ Channel error - real-time may not work')
+          } else if (status === 'TIMED_OUT') {
+            console.error('📡 [AuthContext] ❌ Subscription timed out')
+          }
         })
     }
 
@@ -442,6 +481,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Cleanup subscription on unmount or user change
     return () => {
+      console.log('📡 [AuthContext] Cleaning up user_queries subscription')
       if (channel) {
         supabase.removeChannel(channel)
       }

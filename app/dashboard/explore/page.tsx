@@ -101,7 +101,16 @@ export default function ExplorePage() {
 
   // Fetch recommendations when user query is available
   const fetchRecommendations = useCallback(async () => {
+    console.log('🎯 [ExplorePage] fetchRecommendations called')
+    console.log('🎯 [ExplorePage] Current userQuery:', {
+      hasQuery: !!userQuery?.latest_cleansed_query,
+      queryLength: userQuery?.latest_cleansed_query?.length,
+      queryPreview: userQuery?.latest_cleansed_query?.substring(0, 100) + '...',
+      hasSession: !!session
+    })
+    
     if (!userQuery?.latest_cleansed_query || !session) {
+      console.log('🎯 [ExplorePage] ⚠️ Missing query or session, clearing results')
       setAllResults([])
       setFilteredResults([])
       return
@@ -111,6 +120,7 @@ export default function ExplorePage() {
     setError(null)
 
     try {
+      console.log('🎯 [ExplorePage] Fetching from /api/recommendations...')
       const response = await fetch('/api/recommendations', {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
@@ -125,10 +135,11 @@ export default function ExplorePage() {
       const data = await response.json()
       const results = data.recommendations || []
       
+      console.log('🎯 [ExplorePage] ✅ Received', results.length, 'recommendations')
       setAllResults(results)
       applyFilters(results, selectedFilter)
     } catch (err: any) {
-      console.error('Error fetching recommendations:', err)
+      console.error('🎯 [ExplorePage] ❌ Error fetching recommendations:', err)
       setError(err.message || 'Failed to load recommendations')
       setAllResults([])
       setFilteredResults([])
@@ -139,11 +150,26 @@ export default function ExplorePage() {
 
   // Store the current query to detect changes
   const currentQuery = userQuery?.latest_cleansed_query
+  
+  // Debug log when currentQuery changes
+  useEffect(() => {
+    console.log('🎯 [ExplorePage] 🔄 currentQuery changed!')
+    console.log('🎯 [ExplorePage] New currentQuery preview:', currentQuery?.substring(0, 100) + '...')
+    console.log('🎯 [ExplorePage] Query length:', currentQuery?.length)
+  }, [currentQuery])
 
   // Fetch recommendations when query changes (including real-time updates)
   useEffect(() => {
+    console.log('🎯 [ExplorePage] useEffect triggered - checking if should fetch')
+    console.log('🎯 [ExplorePage] userQueryLoading:', userQueryLoading)
+    console.log('🎯 [ExplorePage] hasSession:', !!session)
+    console.log('🎯 [ExplorePage] currentQuery preview:', currentQuery?.substring(0, 50) + '...')
+    
     if (!userQueryLoading && session) {
+      console.log('🎯 [ExplorePage] ✅ Conditions met - calling fetchRecommendations')
       fetchRecommendations()
+    } else {
+      console.log('🎯 [ExplorePage] ⏳ Conditions not met - waiting...')
     }
   }, [userQueryLoading, currentQuery, session, fetchRecommendations])
 

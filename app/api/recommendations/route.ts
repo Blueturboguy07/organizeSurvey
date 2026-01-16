@@ -48,14 +48,22 @@ export async function GET(request: NextRequest) {
     }
 
     // Get user's survey query and demographics
+    console.log('🔎 [RecommendationsAPI] Fetching user query for user:', user.id)
     const { data: userQuery, error: queryError } = await supabaseAdmin
       .from('user_queries')
       .select('latest_cleansed_query, user_demographics')
       .eq('user_id', user.id)
       .single()
 
+    console.log('🔎 [RecommendationsAPI] Query fetch result:', {
+      hasData: !!userQuery,
+      queryPreview: userQuery?.latest_cleansed_query?.substring(0, 100) + '...',
+      queryLength: userQuery?.latest_cleansed_query?.length,
+      error: queryError?.message || null
+    })
+
     if (queryError && queryError.code !== 'PGRST116') {
-      console.error('Error fetching user query:', queryError)
+      console.error('🔎 [RecommendationsAPI] ❌ Error fetching user query:', queryError)
       return NextResponse.json(
         { error: 'Failed to fetch user query' },
         { status: 500 }
@@ -64,8 +72,11 @@ export async function GET(request: NextRequest) {
 
     // If user hasn't completed survey, return empty recommendations
     if (!userQuery || !userQuery.latest_cleansed_query) {
+      console.log('🔎 [RecommendationsAPI] No query found, returning empty recommendations')
       return NextResponse.json({ recommendations: [] })
     }
+    
+    console.log('🔎 [RecommendationsAPI] Using query for search:', userQuery.latest_cleansed_query.substring(0, 100) + '...')
 
     // Get user's joined organizations
     const { data: joinedOrgs, error: joinedOrgsError } = await supabaseAdmin

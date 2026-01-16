@@ -369,10 +369,17 @@ export default function SurveyForm() {
         console.error('Failed to save preferences:', data.error)
         alert('Failed to save your preferences. Please try again.')
       } else {
-        console.log('Preferences saved successfully')
+        console.log('📝 [SurveyForm] ✅ Preferences saved successfully to database')
+        console.log('📝 [SurveyForm] Submitted query preview:', finalCleansedString.substring(0, 100) + '...')
+        console.log('📝 [SurveyForm] Query length:', finalCleansedString.length)
+        
         // Refresh the userQuery in AuthContext before navigating
         // This ensures the explore page has the latest query
+        console.log('📝 [SurveyForm] Calling refreshUserQuery()...')
         await refreshUserQuery()
+        console.log('📝 [SurveyForm] refreshUserQuery() completed')
+        
+        console.log('📝 [SurveyForm] Navigating to /dashboard/explore...')
         router.push('/dashboard/explore')
       }
     } catch (err) {
