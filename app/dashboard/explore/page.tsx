@@ -134,13 +134,17 @@ export default function ExplorePage() {
     } finally {
       setIsLoading(false)
     }
-  }, [userQuery?.latest_cleansed_query, session, selectedFilter, applyFilters])
+  }, [userQuery?.latest_cleansed_query, session, applyFilters])
 
+  // Store the current query to detect changes
+  const currentQuery = userQuery?.latest_cleansed_query
+
+  // Fetch recommendations when query changes (including real-time updates)
   useEffect(() => {
-    if (!userQueryLoading) {
+    if (!userQueryLoading && session) {
       fetchRecommendations()
     }
-  }, [userQueryLoading, fetchRecommendations])
+  }, [userQueryLoading, currentQuery, session, fetchRecommendations])
 
   // Filter out joined and saved orgs from results
   const getVisibleResults = useCallback((results: RecommendedOrg[]) => {

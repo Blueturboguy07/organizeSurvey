@@ -419,14 +419,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             filter: `user_id=eq.${user.id}`
           },
           (payload) => {
-            console.log('Real-time user_queries update:', payload)
+            console.log('Real-time user_queries update:', payload.eventType, payload.new)
             
             if (payload.eventType === 'DELETE') {
               setUserQuery(null)
-            } else if (payload.new) {
+            } else if (payload.new && typeof payload.new === 'object') {
+              const newData = payload.new as Record<string, unknown>
+              // Force a new object reference to trigger React updates
               setUserQuery({
-                latest_cleansed_query: (payload.new as UserQueryData).latest_cleansed_query,
-                user_demographics: (payload.new as UserQueryData).user_demographics
+                latest_cleansed_query: (newData.latest_cleansed_query as string) || null,
+                user_demographics: (newData.user_demographics as Record<string, unknown>) || null
               })
             }
           }
