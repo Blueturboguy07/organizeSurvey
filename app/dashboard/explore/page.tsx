@@ -115,6 +115,7 @@ export default function ExplorePage() {
         headers: {
           'Authorization': `Bearer ${session.access_token}`,
         },
+        cache: 'no-store', // Ensure fresh data on every request
       })
 
       if (!response.ok) {

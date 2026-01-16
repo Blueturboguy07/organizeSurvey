@@ -100,7 +100,7 @@ interface SurveyData {
 }
 
 export default function SurveyForm() {
-  const { user, signOut, session, loading: authLoading, userQuery, userQueryLoading } = useAuth()
+  const { user, signOut, session, loading: authLoading, userQuery, userQueryLoading, refreshUserQuery } = useAuth()
   const router = useRouter()
   const [currentStep, setCurrentStep] = useState(0)
   const [formData, setFormData] = useState<SurveyData>({
@@ -370,6 +370,9 @@ export default function SurveyForm() {
         alert('Failed to save your preferences. Please try again.')
       } else {
         console.log('Preferences saved successfully')
+        // Refresh the userQuery in AuthContext before navigating
+        // This ensures the explore page has the latest query
+        await refreshUserQuery()
         router.push('/dashboard/explore')
       }
     } catch (err) {

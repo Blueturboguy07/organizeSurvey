@@ -110,3 +110,13 @@ CREATE INDEX IF NOT EXISTS idx_user_profiles_email ON public.user_profiles(email
 -- TO public
 -- USING (bucket_id = 'profile-pictures');
 
+-- ============================================
+-- Enable Real-time for user_queries table
+-- ============================================
+-- This is required for the AuthContext real-time subscription to work
+-- Run this command to enable real-time updates when user preferences change:
+ALTER PUBLICATION supabase_realtime ADD TABLE public.user_queries;
+
+-- Also enable for user_profiles if not already done:
+-- ALTER PUBLICATION supabase_realtime ADD TABLE public.user_profiles;
+
