@@ -1,6 +1,36 @@
 # ORGanize TAMU
 
+![Next.js](https://img.shields.io/badge/Next.js-14-black?style=flat-square&logo=next.js)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?style=flat-square&logo=typescript)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-3.3-38B2AC?style=flat-square&logo=tailwind-css)
+![Supabase](https://img.shields.io/badge/Supabase-PostgreSQL-3ECF8E?style=flat-square&logo=supabase)
+![Python](https://img.shields.io/badge/Python-3.8+-3776AB?style=flat-square&logo=python)
+
 A full-stack web application that helps Texas A&M University students discover and connect with student organizations that match their interests and demographics. Built with Next.js, TypeScript, Tailwind CSS, Supabase, and Python.
+
+---
+
+## Quick Start
+
+```bash
+# Clone the repository
+git clone <repository-url>
+cd organizeSurvey
+
+# Install dependencies
+npm install
+
+# Set up environment variables
+cp .env.example .env.local
+# Edit .env.local with your Supabase credentials
+
+# Run development server
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) in your browser.
+
+---
 
 ## Table of Contents
 
@@ -16,32 +46,41 @@ A full-stack web application that helps Texas A&M University students discover a
 - [Security](#security)
 - [Contributing](#contributing)
 
+---
+
 ## Overview
 
 ORGanize TAMU solves the challenge of helping students find organizations that align with their interests, career goals, and eligibility criteria. The platform uses AI-powered matching algorithms to recommend organizations based on survey responses, while filtering by demographics such as gender, race, classification, and sexuality.
 
 ### Key Capabilities
 
-- **Intelligent Matching**: Weighted text matching algorithm analyzes survey responses to find the best organization matches
-- **Eligibility Filtering**: Automatically filters organizations based on user demographics and organization requirements
-- **Real-time Updates**: Live synchronization of data across sessions using Supabase Realtime
-- **Dual User Types**: Separate interfaces and authentication flows for students and organization representatives
-- **Join & Save Organizations**: Students can join organizations directly or save them for later
-- **Profile Management**: Upload profile pictures, manage preferences, and track joined organizations
+| Feature | Description |
+|---------|-------------|
+| **Intelligent Matching** | Weighted text matching algorithm analyzes survey responses to find the best organization matches |
+| **Eligibility Filtering** | Automatically filters organizations based on user demographics and organization requirements |
+| **Real-time Updates** | Live synchronization of data across sessions using Supabase Realtime |
+| **Dual User Types** | Separate interfaces and authentication flows for students and organization representatives |
+| **Join & Save** | Students can join organizations directly or save them for later |
+| **Profile Management** | Upload profile pictures, manage preferences, and track joined organizations |
+
+---
 
 ## Features
 
 ### For Students
 
 #### Dashboard Navigation
+
 The student dashboard features a tabbed navigation with three main sections:
 
-- **My Orgs**: View and manage organizations you've joined
-- **Explore**: Browse all recommended organizations with filtering options
-- **Saved**: Track organizations saved for later (including those not yet on the platform)
+- **My Orgs** — View and manage organizations you've joined
+- **Explore** — Browse all recommended organizations with filtering options
+- **Saved** — Track organizations saved for later (including those not yet on the platform)
 
 #### Multi-step Survey
+
 Interactive survey with smooth Framer Motion animations capturing:
+
 - Personal information and demographics
 - Career interests and goals
 - Engineering specializations (if applicable)
@@ -50,6 +89,7 @@ Interactive survey with smooth Framer Motion animations capturing:
 - Primary goals for joining organizations
 
 #### AI-Powered Recommendations
+
 - Weighted text matching algorithm ranks organizations by relevance
 - **All matching organizations displayed** (no limit) with similarity scores
 - Automatically filters out organizations already joined or saved
@@ -57,19 +97,24 @@ Interactive survey with smooth Framer Motion animations capturing:
 - Activity-based filters (Volunteering, Social Events, Projects, Competitions, Workshops, Trips)
 
 #### Join & Save System
-- **Join Organizations**: Directly join organizations that don't require applications
-- **Save for Later**: Save organizations to join later or track organizations not yet on the platform
-- **Automatic Notifications**: Get notified when saved organizations join the platform
-- **Auto-Join**: Automatically joined to saved organizations when they join (if no application required)
-- **Smart Filtering**: Joined and saved organizations are automatically hidden from Explore page
+
+| Action | Description |
+|--------|-------------|
+| **Join** | Directly join organizations that don't require applications |
+| **Save for Later** | Save organizations to join later or track organizations not yet on the platform |
+| **Notifications** | Get notified when saved organizations join the platform |
+| **Auto-Join** | Automatically joined to saved organizations when they join (if no application required) |
+| **Smart Filtering** | Joined and saved organizations are automatically hidden from Explore page |
 
 #### Profile Management
+
 - Upload and manage profile pictures (stored in Supabase Storage)
 - Update name and email preferences
 - Reset survey responses to get new recommendations
 - Email preference controls (marketing, updates, recommendations)
 
 #### Real-time Synchronization
+
 - Profile changes reflect immediately across sessions
 - Survey responses sync in real-time
 - Joined/saved organizations update live across all tabs
@@ -78,55 +123,69 @@ Interactive survey with smooth Framer Motion animations capturing:
 ### For Organization Representatives
 
 #### Organization Dashboard
+
 - Dedicated dashboard for managing organization information
 - Inline editing of organization details (bio, contact info, meeting times, etc.)
 - Update eligibility criteria and membership requirements
 - Real-time sync of changes across all connected clients
 
 #### Account Setup Flow
-- Search and select organization during signup
-- Email verification required for account activation
-- Password setup via secure verification link
-- Automatic linking of account to organization
+
+1. Search and select organization during signup
+2. Email verification required for account activation
+3. Password setup via secure verification link
+4. Automatic linking of account to organization
 
 ### Authentication & Security
 
-- **Dual Login Flow**: Separate authentication flows for students and organization representatives
-- **Email Verification**: Required for account activation
-- **Password Reset**: Secure password reset flow with email verification
-- **Resend Verification**: Ability to resend verification emails if not received
-- **Rate Limiting**: API rate limiting to prevent abuse (30 searches/min, 5 submissions/hour)
-- **Row Level Security (RLS)**: Supabase RLS policies for data protection
-- **Input Validation**: XSS protection, honeypot fields, and input sanitization
-- **Session Management**: Secure session handling with automatic token refresh
+- **Dual Login Flow** — Separate authentication flows for students and organization representatives
+- **Email Verification** — Required for account activation
+- **Password Reset** — Secure password reset flow with email verification
+- **Resend Verification** — Ability to resend verification emails if not received
+- **Rate Limiting** — API rate limiting to prevent abuse (30 searches/min, 5 submissions/hour)
+- **Row Level Security (RLS)** — Supabase RLS policies for data protection
+- **Input Validation** — XSS protection, honeypot fields, and input sanitization
+- **Session Management** — Secure session handling with automatic token refresh
+
+---
 
 ## Tech Stack
 
 ### Frontend
-- **Framework**: Next.js 14 (App Router)
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS
-- **Animations**: Framer Motion
-- **State Management**: React Context API (AuthContext with real-time subscriptions)
-- **Image Optimization**: Next.js Image component
+
+| Technology | Purpose |
+|------------|---------|
+| Next.js 14 | App Router framework |
+| TypeScript | Type-safe development |
+| Tailwind CSS | Utility-first styling |
+| Framer Motion | Animations and transitions |
+| React Context API | State management with real-time subscriptions |
 
 ### Backend
-- **API Routes**: Next.js API Routes (TypeScript)
-- **Search Service**: Python Flask API (deployed on Render)
-- **Database**: Supabase (PostgreSQL)
-- **Authentication**: Supabase Auth
-- **Storage**: Supabase Storage (profile pictures)
-- **Real-time**: Supabase Realtime subscriptions
+
+| Technology | Purpose |
+|------------|---------|
+| Next.js API Routes | TypeScript API endpoints |
+| Python Flask API | Search service (deployed on Render) |
+| Supabase | PostgreSQL database |
+| Supabase Auth | Authentication |
+| Supabase Storage | Profile pictures |
+| Supabase Realtime | Live subscriptions |
 
 ### Python Dependencies
-- `pandas` - Data manipulation
-- `numpy` - Numerical operations
-- `sentence-transformers` - Text embeddings for matching
-- `scikit-learn` - Machine learning utilities
-- `flask` - API server framework
-- `flask-cors` - CORS support
-- `gunicorn` - Production WSGI server
-- `supabase` - Supabase Python client
+
+```
+pandas          # Data manipulation
+numpy           # Numerical operations
+sentence-transformers  # Text embeddings for matching
+scikit-learn    # Machine learning utilities
+flask           # API server framework
+flask-cors      # CORS support
+gunicorn        # Production WSGI server
+supabase        # Supabase Python client
+```
+
+---
 
 ## Architecture
 
@@ -147,19 +206,25 @@ Interactive survey with smooth Framer Motion animations capturing:
 
 ### Data Flow
 
-1. **Student Registration** → Supabase Auth → Email Verification → Profile Creation
-2. **Survey Submission** → API Route → Supabase (`user_queries` table) → Redirect to Explore
-3. **Recommendations Request** → API Route → Python Search API → Weighted Matching → Filtered Results (excludes joined/saved)
-4. **Organization Join** → AuthContext → Supabase (`user_joined_organizations`) → Real-time Update → Auto-remove from Explore
-5. **Organization Save** → AuthContext → Supabase (`user_saved_organizations`) → Real-time Update → Auto-remove from Explore
+```
+1. Student Registration → Supabase Auth → Email Verification → Profile Creation
+2. Survey Submission → API Route → Supabase (user_queries) → Redirect to Explore
+3. Recommendations → API Route → Python Search API → Weighted Matching → Filtered Results
+4. Join Organization → AuthContext → Supabase (user_joined_organizations) → Real-time Update
+5. Save Organization → AuthContext → Supabase (user_saved_organizations) → Real-time Update
+```
 
 ### Key Components
 
-- **AuthContext**: Central authentication provider with real-time subscriptions and organization actions (join, leave, save, unsave)
-- **DashboardLayout**: Shared layout with tabbed navigation (My Orgs, Explore, Saved)
-- **OrgCard**: Reusable organization card with join/save buttons and detail modal
-- **SurveyForm**: Multi-step survey component with form validation and animations
-- **Middleware**: Route protection and authentication state management
+| Component | Description |
+|-----------|-------------|
+| `AuthContext` | Central authentication provider with real-time subscriptions and organization actions (join, leave, save, unsave) |
+| `DashboardLayout` | Shared layout with tabbed navigation (My Orgs, Explore, Saved) |
+| `OrgCard` | Reusable organization card with join/save buttons and detail modal |
+| `SurveyForm` | Multi-step survey component with form validation and animations |
+| `Middleware` | Route protection and authentication state management |
+
+---
 
 ## Getting Started
 
@@ -173,12 +238,14 @@ Interactive survey with smooth Framer Motion animations capturing:
 ### Installation
 
 1. **Clone the repository**
+
    ```bash
    git clone <repository-url>
    cd organizeSurvey
    ```
 
 2. **Install Node.js dependencies**
+
    ```bash
    npm install
    ```
@@ -186,6 +253,7 @@ Interactive survey with smooth Framer Motion animations capturing:
 3. **Set up environment variables**
    
    Create a `.env.local` file in the project root:
+
    ```env
    NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
    NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
@@ -199,6 +267,7 @@ Interactive survey with smooth Framer Motion animations capturing:
    See [Database Setup](#database-setup) section below.
 
 5. **Install Python dependencies**
+
    ```bash
    python3 -m venv venv
    source venv/bin/activate  # On Windows: venv\Scripts\activate
@@ -206,6 +275,7 @@ Interactive survey with smooth Framer Motion animations capturing:
    ```
 
 6. **Run the development server**
+
    ```bash
    npm run dev
    ```
@@ -213,11 +283,14 @@ Interactive survey with smooth Framer Motion animations capturing:
    Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 7. **Run Python API server (optional, for local development)**
+
    ```bash
    python api_server.py
    ```
 
    The API will run on `http://localhost:5000` by default.
+
+---
 
 ## Database Setup
 
@@ -225,30 +298,13 @@ Interactive survey with smooth Framer Motion animations capturing:
 
 Run these SQL scripts in your Supabase SQL Editor in order:
 
-1. **`supabase_setup.sql`** - Creates `user_profiles` and `user_queries` tables
-   - User profile information (name, picture, email preferences)
-   - Survey responses and demographics
-   - Row Level Security policies
-
-2. **`supabase_organizations.sql`** - Creates `organizations` table
-   - Organization information and details
-   - Eligibility criteria (gender, race, classification, sexuality)
-   - Meeting information and membership requirements
-   - Platform status (`is_on_platform`, `application_required_bool`)
-
-3. **`supabase_org_accounts.sql`** - Creates `org_accounts` table
-   - Links Supabase auth users to organizations
-   - Organization representative accounts
-
-4. **`supabase_user_joined_orgs.sql`** - Creates `user_joined_organizations` table
-   - Tracks which organizations students have joined
-   - Enables filtering joined orgs from recommendations
-
-5. **`supabase_user_saved_orgs.sql`** - Creates `user_saved_organizations` table
-   - Tracks organizations saved for later
-   - Notification tracking for when orgs join platform
-   - Auto-join tracking
-   - Adds `is_on_platform` and `application_required_bool` to organizations table
+| Script | Purpose |
+|--------|---------|
+| `supabase_setup.sql` | Creates `user_profiles` and `user_queries` tables with RLS policies |
+| `supabase_organizations.sql` | Creates `organizations` table with eligibility criteria |
+| `supabase_org_accounts.sql` | Creates `org_accounts` table for organization representatives |
+| `supabase_user_joined_orgs.sql` | Creates `user_joined_organizations` table |
+| `supabase_user_saved_orgs.sql` | Creates `user_saved_organizations` table with notification tracking |
 
 ### Step 2: Create Storage Bucket
 
@@ -274,6 +330,7 @@ Or manually import through Supabase Dashboard → Table Editor → Import data.
 ### Step 4: Enable Real-time
 
 Real-time subscriptions are automatically enabled for:
+
 - `user_profiles`
 - `user_queries`
 - `user_joined_organizations`
@@ -282,12 +339,18 @@ Real-time subscriptions are automatically enabled for:
 
 Verify in Supabase Dashboard → Database → Replication that these tables have replication enabled.
 
+---
+
 ## API Documentation
 
 ### Student Endpoints
 
 #### `POST /api/submit`
+
 Submit survey responses and demographics.
+
+<details>
+<summary>Request/Response</summary>
 
 **Request:**
 ```json
@@ -302,8 +365,7 @@ Submit survey responses and demographics.
   "careerFields": ["Engineering", "Technology"],
   "activities": ["Projects", "Competitions"],
   "livesOnCampus": "Yes",
-  "hall": "Hullabaloo",
-  ...
+  "hall": "Hullabaloo"
 }
 ```
 
@@ -316,9 +378,14 @@ Submit survey responses and demographics.
 ```
 
 **Rate Limit**: 5 requests per hour per IP
+</details>
 
 #### `GET /api/recommendations`
+
 Get personalized organization recommendations (excludes joined and saved orgs).
+
+<details>
+<summary>Request/Response</summary>
 
 **Headers:**
 ```
@@ -335,15 +402,19 @@ Authorization: Bearer <access_token>
       "bio": "...",
       "relevance_score": 85,
       "is_on_platform": true,
-      "application_required_bool": false,
-      ...
+      "application_required_bool": false
     }
   ]
 }
 ```
+</details>
 
 #### `GET /api/orgs/joined`
+
 Get user's joined organizations with full details.
+
+<details>
+<summary>Request/Response</summary>
 
 **Headers:**
 ```
@@ -357,15 +428,19 @@ Authorization: Bearer <access_token>
     {
       "id": "uuid",
       "name": "Organization Name",
-      "joined_at": "2024-01-15T10:30:00Z",
-      ...
+      "joined_at": "2024-01-15T10:30:00Z"
     }
   ]
 }
 ```
+</details>
 
 #### `GET /api/orgs/saved`
+
 Get user's saved organizations with full details.
+
+<details>
+<summary>Request/Response</summary>
 
 **Headers:**
 ```
@@ -381,15 +456,19 @@ Authorization: Bearer <access_token>
       "name": "Organization Name",
       "saved_at": "2024-01-15T10:30:00Z",
       "is_on_platform": false,
-      "notified_at": null,
-      ...
+      "notified_at": null
     }
   ]
 }
 ```
+</details>
 
 #### `POST /api/search`
+
 Search organizations by query string.
+
+<details>
+<summary>Request/Response</summary>
 
 **Request:**
 ```json
@@ -397,8 +476,7 @@ Search organizations by query string.
   "query": "engineering robotics",
   "userData": {
     "gender": "Male",
-    "classification": "Sophomore",
-    ...
+    "classification": "Sophomore"
   }
 }
 ```
@@ -410,77 +488,42 @@ Search organizations by query string.
     {
       "id": "uuid",
       "name": "Organization Name",
-      "relevance_score": 92,
-      ...
+      "relevance_score": 92
     }
   ]
 }
 ```
 
 **Rate Limit**: 30 requests per minute per IP
+</details>
 
-#### `GET /api/profile`
-Get user profile information.
+#### Profile Endpoints
 
-**Headers:**
-```
-Authorization: Bearer <access_token>
-```
-
-#### `PUT /api/profile`
-Update user profile.
-
-**Request:**
-```json
-{
-  "name": "John Doe",
-  "email_preferences": {
-    "marketing": true,
-    "updates": true,
-    "recommendations": true
-  }
-}
-```
-
-#### `POST /api/profile/upload`
-Upload profile picture.
-
-**Request:** FormData with `file` field
-
-**Response:**
-```json
-{
-  "url": "https://...supabase.co/storage/.../profile-picture.jpg"
-}
-```
-
-#### `POST /api/reset-profile`
-Reset user survey responses to get new recommendations.
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/profile` | GET | Get user profile information |
+| `/api/profile` | PUT | Update user profile |
+| `/api/profile/upload` | POST | Upload profile picture (FormData) |
+| `/api/reset-profile` | POST | Reset survey responses |
 
 ### Organization Endpoints
 
-#### `POST /api/org/signup`
-Create organization account.
-
-#### `POST /api/org/login`
-Organization login helper.
-
-#### `POST /api/org/check-account`
-Check if organization account exists.
-
-#### `POST /api/org/send-setup-link`
-Send organization setup link via email.
-
-#### `POST /api/org/complete-setup`
-Complete organization account setup.
-
-#### `POST /api/org/verify-request`
-Verify organization account request.
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/org/signup` | POST | Create organization account |
+| `/api/org/login` | POST | Organization login helper |
+| `/api/org/check-account` | POST | Check if organization account exists |
+| `/api/org/send-setup-link` | POST | Send organization setup link via email |
+| `/api/org/complete-setup` | POST | Complete organization account setup |
+| `/api/org/verify-request` | POST | Verify organization account request |
 
 ### Authentication Endpoints
 
-#### `POST /api/resend-verification`
-Resend email verification.
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/api/resend-verification` | POST | Resend email verification |
+
+---
 
 ## Deployment
 
@@ -491,6 +534,7 @@ Resend email verification.
    - Vercel will auto-detect Next.js
 
 2. **Configure environment variables** in Vercel Dashboard:
+
    ```
    NEXT_PUBLIC_SUPABASE_URL
    NEXT_PUBLIC_SUPABASE_ANON_KEY
@@ -500,6 +544,7 @@ Resend email verification.
    ```
 
 3. **Deploy**
+
    ```bash
    npm run build  # Test build locally first
    ```
@@ -515,6 +560,7 @@ Resend email verification.
    - Start Command: `gunicorn api_server:app --bind 0.0.0.0:$PORT`
 
 3. **Set environment variables**:
+
    ```
    SUPABASE_URL
    SUPABASE_SERVICE_KEY
@@ -523,19 +569,12 @@ Resend email verification.
    ```
 
 4. **Update Vercel environment** with Render service URL:
+
    ```
    SEARCH_API_URL=https://your-render-service.onrender.com
    ```
 
-### Alternative: Local Python API
-
-For local development, you can run the Python API locally:
-
-```bash
-python api_server.py
-```
-
-Set `SEARCH_API_URL=http://localhost:5000` in your `.env.local`.
+---
 
 ## Development
 
@@ -582,22 +621,23 @@ organizeSurvey/
 
 ### Key Development Files
 
-- **`middleware.ts`**: Handles route protection and authentication redirects
-- **`contexts/AuthContext.tsx`**: Central auth provider with:
-  - Real-time subscriptions for user data, joined orgs, and saved orgs
-  - Action functions: `joinOrg()`, `leaveOrg()`, `saveOrg()`, `unsaveOrg()`
-  - Optimistic updates for instant UI feedback
-- **`components/DashboardLayout.tsx`**: Shared dashboard layout with tabbed navigation
-- **`components/OrgCard.tsx`**: Reusable organization card with join/save/leave buttons
-- **`lib/supabase.ts`**: Supabase client configuration (browser and server)
-- **`scripts/weighted_search.py`**: Core matching algorithm using sentence transformers
-- **`api_server.py`**: Python Flask API for organization search
+| File | Purpose |
+|------|---------|
+| `middleware.ts` | Handles route protection and authentication redirects |
+| `contexts/AuthContext.tsx` | Central auth provider with real-time subscriptions and action functions |
+| `components/DashboardLayout.tsx` | Shared dashboard layout with tabbed navigation |
+| `components/OrgCard.tsx` | Reusable organization card with join/save/leave buttons |
+| `lib/supabase.ts` | Supabase client configuration (browser and server) |
+| `scripts/weighted_search.py` | Core matching algorithm using sentence transformers |
+| `api_server.py` | Python Flask API for organization search |
 
-### Running Tests
+### Available Scripts
 
 ```bash
-npm run lint        # Run ESLint
-npm run build       # Test production build
+npm run dev       # Start development server
+npm run build     # Build for production
+npm run start     # Start production server
+npm run lint      # Run ESLint
 ```
 
 ### Database Migrations
@@ -615,28 +655,35 @@ The app uses Supabase Realtime for live updates. To test:
 
 1. Open the app in multiple browser windows
 2. Join or save an organization in one window
-3. Verify updates appear in other windows automatically (org removed from Explore, added to My Orgs/Saved)
+3. Verify updates appear in other windows automatically
+
+---
 
 ## Security
 
 ### Authentication
+
 - Supabase Auth handles user authentication
 - JWT tokens with automatic refresh
 - Email verification required for account activation
 - Secure password reset flow
 
 ### Data Protection
+
 - Row Level Security (RLS) policies on all tables
 - Users can only access their own data
 - Service role key only used server-side
 - Input validation and sanitization on all API endpoints
 
 ### Rate Limiting
-- Search API: 30 requests per minute per IP
-- Survey submission: 5 requests per hour per IP
-- In-memory rate limiting (resets on server restart)
+
+| Endpoint | Limit |
+|----------|-------|
+| Search API | 30 requests/minute/IP |
+| Survey submission | 5 requests/hour/IP |
 
 ### Input Validation
+
 - XSS protection (script tag detection)
 - Honeypot fields for bot detection
 - Email format validation
@@ -644,17 +691,22 @@ The app uses Supabase Realtime for live updates. To test:
 - SQL injection prevention via Supabase parameterized queries
 
 ### Storage Security
+
 - Profile pictures stored in Supabase Storage
 - Storage policies restrict uploads to authenticated users
 - File type and size validation
 - Public read access for profile pictures
+
+---
 
 ## Contributing
 
 ### Development Workflow
 
 1. **Fork the repository**
+
 2. **Create a feature branch**
+
    ```bash
    git checkout -b feature/your-feature-name
    ```
@@ -691,13 +743,18 @@ The app uses Supabase Realtime for live updates. To test:
 - Test migrations on a development database first
 - Update TypeScript types if schema changes
 
+---
+
 ## License
 
 This project is private and intended for Texas A&M University use.
 
+---
+
 ## Support
 
 For issues or questions:
+
 1. Check existing documentation
 2. Review Supabase logs for errors
 3. Check browser console for client-side errors
