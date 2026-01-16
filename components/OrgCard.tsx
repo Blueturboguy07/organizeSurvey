@@ -52,7 +52,7 @@ export default function OrgCard({
 
   const isJoined = joinedOrgIds.has(org.id)
   const isSaved = savedOrgIds.has(org.id)
-  const isOnPlatform = org.is_on_platform ?? true // Default to true for existing orgs
+  const isOnPlatform = org.is_on_platform === true // Only true if explicitly set to true
   const requiresApplication = org.application_required_bool ?? 
     (org.application_required?.toLowerCase() === 'yes')
 

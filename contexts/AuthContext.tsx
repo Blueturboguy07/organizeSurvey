@@ -218,6 +218,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!user) return { success: false, error: 'Not authenticated' }
     
     try {
+      // First check if the organization is on platform
+      const { data: org, error: orgError } = await supabase
+        .from('organizations')
+        .select('is_on_platform')
+        .eq('id', organizationId)
+        .single()
+
+      if (orgError) {
+        console.error('Error checking organization:', orgError)
+        return { success: false, error: 'Organization not found' }
+      }
+
+      // Only allow joining if org is on platform
+      if (!org.is_on_platform) {
+        return { success: false, error: 'This organization is not on the platform yet. You can save it for later instead.' }
+      }
+
       const { error } = await supabase
         .from('user_joined_organizations')
         .insert({
