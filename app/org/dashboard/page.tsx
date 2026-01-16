@@ -112,6 +112,98 @@ const RACES = ['All', 'Asian', 'Black', 'Hispanic', 'White', 'South Asian', 'Pac
 
 type ActiveTab = 'about' | 'details' | 'membership'
 
+// Extracted EditableField component to prevent re-creation on every render
+const EditableField = ({ 
+  field, 
+  label, 
+  value, 
+  type = 'text',
+  placeholder,
+  editingField,
+  editValues,
+  setEditingField,
+  setEditValues,
+  saving,
+  saveField
+}: { 
+  field: keyof Organization
+  label: string
+  value: string | null
+  type?: 'text' | 'textarea'
+  placeholder?: string
+  editingField: string | null
+  editValues: Record<string, string>
+  setEditingField: (field: string | null) => void
+  setEditValues: React.Dispatch<React.SetStateAction<Record<string, string>>>
+  saving: boolean
+  saveField: (field: keyof Organization, value: string | null) => void
+}) => {
+  const isEditing = editingField === field
+  const displayValue = value && value !== 'nan' ? value : ''
+  
+  return (
+    <div className="group">
+      <div className="flex items-center justify-between mb-1">
+        <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</label>
+        {!isEditing && (
+          <button
+            onClick={() => {
+              setEditingField(field)
+              setEditValues(prev => ({ ...prev, [field]: displayValue }))
+            }}
+            className="opacity-0 group-hover:opacity-100 text-xs text-tamu-maroon hover:underline transition-opacity"
+          >
+            Edit
+          </button>
+        )}
+      </div>
+      
+      {isEditing ? (
+        <div className="space-y-2">
+          {type === 'textarea' ? (
+            <textarea
+              value={editValues[field] || ''}
+              onChange={(e) => setEditValues(prev => ({ ...prev, [field]: e.target.value }))}
+              rows={3}
+              className="w-full p-2 text-sm border border-tamu-maroon rounded-lg focus:outline-none focus:ring-2 focus:ring-tamu-maroon/20 resize-none"
+              placeholder={placeholder || `Enter ${label.toLowerCase()}...`}
+              autoFocus
+            />
+          ) : (
+            <input
+              type="text"
+              value={editValues[field] || ''}
+              onChange={(e) => setEditValues(prev => ({ ...prev, [field]: e.target.value }))}
+              className="w-full p-2 text-sm border border-tamu-maroon rounded-lg focus:outline-none focus:ring-2 focus:ring-tamu-maroon/20"
+              placeholder={placeholder || `Enter ${label.toLowerCase()}...`}
+              autoFocus
+            />
+          )}
+          <div className="flex gap-2">
+            <button
+              onClick={() => saveField(field, editValues[field] || null)}
+              disabled={saving}
+              className="px-3 py-1 text-xs bg-tamu-maroon text-white rounded-md hover:bg-tamu-maroon-light disabled:opacity-50"
+            >
+              {saving ? '...' : 'Save'}
+            </button>
+            <button
+              onClick={() => setEditingField(null)}
+              className="px-3 py-1 text-xs text-gray-600 hover:text-gray-800"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+      ) : (
+        <p className="text-gray-800 text-sm">
+          {displayValue || <span className="text-gray-400 italic">Not set</span>}
+        </p>
+      )}
+    </div>
+  )
+}
+
 export default function OrgDashboardPage() {
   const [loading, setLoading] = useState(true)
   const [organization, setOrganization] = useState<Organization | null>(null)
@@ -495,84 +587,14 @@ export default function OrgDashboardPage() {
     )
   }
 
-  // Inline editable field component
-  const EditableField = ({ 
-    field, 
-    label, 
-    value, 
-    type = 'text',
-    placeholder 
-  }: { 
-    field: keyof Organization
-    label: string
-    value: string | null
-    type?: 'text' | 'textarea'
-    placeholder?: string
-  }) => {
-    const isEditing = editingField === field
-    const displayValue = value && value !== 'nan' ? value : ''
-    
-    return (
-      <div className="group">
-        <div className="flex items-center justify-between mb-1">
-          <label className="text-xs font-medium text-gray-500 uppercase tracking-wide">{label}</label>
-          {!isEditing && (
-            <button
-              onClick={() => {
-                setEditingField(field)
-                setEditValues({ ...editValues, [field]: displayValue })
-              }}
-              className="opacity-0 group-hover:opacity-100 text-xs text-tamu-maroon hover:underline transition-opacity"
-            >
-              Edit
-            </button>
-          )}
-        </div>
-        
-        {isEditing ? (
-          <div className="space-y-2">
-            {type === 'textarea' ? (
-              <textarea
-                value={editValues[field] || ''}
-                onChange={(e) => setEditValues(prev => ({ ...prev, [field]: e.target.value }))}
-                rows={3}
-                className="w-full p-2 text-sm border border-tamu-maroon rounded-lg focus:outline-none focus:ring-2 focus:ring-tamu-maroon/20 resize-none"
-                placeholder={placeholder || `Enter ${label.toLowerCase()}...`}
-                autoFocus
-              />
-            ) : (
-              <input
-                type="text"
-                value={editValues[field] || ''}
-                onChange={(e) => setEditValues(prev => ({ ...prev, [field]: e.target.value }))}
-                className="w-full p-2 text-sm border border-tamu-maroon rounded-lg focus:outline-none focus:ring-2 focus:ring-tamu-maroon/20"
-                placeholder={placeholder || `Enter ${label.toLowerCase()}...`}
-                autoFocus
-              />
-            )}
-            <div className="flex gap-2">
-              <button
-                onClick={() => saveField(field, editValues[field] || null)}
-                disabled={saving}
-                className="px-3 py-1 text-xs bg-tamu-maroon text-white rounded-md hover:bg-tamu-maroon-light disabled:opacity-50"
-              >
-                {saving ? '...' : 'Save'}
-              </button>
-              <button
-                onClick={() => setEditingField(null)}
-                className="px-3 py-1 text-xs text-gray-600 hover:text-gray-800"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        ) : (
-          <p className="text-gray-800 text-sm">
-            {displayValue || <span className="text-gray-400 italic">Not set</span>}
-          </p>
-        )}
-      </div>
-    )
+  // Common props for EditableField component
+  const editableFieldProps = {
+    editingField,
+    editValues,
+    setEditingField,
+    setEditValues,
+    saving,
+    saveField
   }
 
   return (
@@ -768,6 +790,7 @@ export default function OrgDashboardPage() {
                   value={organization.bio}
                   type="textarea"
                   placeholder="Describe your organization..."
+                  {...editableFieldProps}
                 />
               </div>
 
@@ -780,12 +803,14 @@ export default function OrgDashboardPage() {
                     label="Website"
                     value={organization.website}
                     placeholder="https://..."
+                    {...editableFieldProps}
                   />
                   <EditableField
                     field="administrative_contact_info"
                     label="Contact Email"
                     value={organization.administrative_contact_info}
                     placeholder="contact@example.com"
+                    {...editableFieldProps}
                   />
                 </div>
               </div>
@@ -936,6 +961,7 @@ export default function OrgDashboardPage() {
                   })()}
                   type="textarea"
                   placeholder="e.g., Computer Science, Mechanical Engineering, Business Administration..."
+                  {...editableFieldProps}
                 />
                 <p className="text-xs text-gray-400 mt-2 italic">Note: Career fields and engineering types are managed separately above.</p>
               </div>
@@ -1022,9 +1048,9 @@ export default function OrgDashboardPage() {
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
                 <h3 className="text-sm font-semibold text-gray-800 mb-4">Meeting Information</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  <EditableField field="meeting_frequency" label="Frequency" value={organization.meeting_frequency} />
-                  <EditableField field="meeting_times" label="Times" value={organization.meeting_times} />
-                  <EditableField field="meeting_locations" label="Locations" value={organization.meeting_locations} />
+                  <EditableField field="meeting_frequency" label="Frequency" value={organization.meeting_frequency} {...editableFieldProps} />
+                  <EditableField field="meeting_times" label="Times" value={organization.meeting_times} {...editableFieldProps} />
+                  <EditableField field="meeting_locations" label="Locations" value={organization.meeting_locations} {...editableFieldProps} />
                 </div>
               </div>
 
@@ -1032,10 +1058,10 @@ export default function OrgDashboardPage() {
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
                 <h3 className="text-sm font-semibold text-gray-800 mb-4">Dues & Requirements</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <EditableField field="dues_required" label="Dues Required" value={organization.dues_required} placeholder="Yes/No" />
-                  <EditableField field="dues_cost" label="Dues Amount" value={organization.dues_cost} placeholder="$XX per semester" />
-                  <EditableField field="application_required" label="Application Required" value={organization.application_required} placeholder="Yes/No" />
-                  <EditableField field="time_commitment" label="Time Commitment" value={organization.time_commitment} placeholder="X hours/week" />
+                  <EditableField field="dues_required" label="Dues Required" value={organization.dues_required} placeholder="Yes/No" {...editableFieldProps} />
+                  <EditableField field="dues_cost" label="Dues Amount" value={organization.dues_cost} placeholder="$XX per semester" {...editableFieldProps} />
+                  <EditableField field="application_required" label="Application Required" value={organization.application_required} placeholder="Yes/No" {...editableFieldProps} />
+                  <EditableField field="time_commitment" label="Time Commitment" value={organization.time_commitment} placeholder="X hours/week" {...editableFieldProps} />
                 </div>
               </div>
 
@@ -1043,8 +1069,8 @@ export default function OrgDashboardPage() {
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
                 <h3 className="text-sm font-semibold text-gray-800 mb-4">Organization Info</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <EditableField field="member_count" label="Member Count" value={organization.member_count} />
-                  <EditableField field="club_type" label="Club Type" value={organization.club_type} />
+                  <EditableField field="member_count" label="Member Count" value={organization.member_count} {...editableFieldProps} />
+                  <EditableField field="club_type" label="Club Type" value={organization.club_type} {...editableFieldProps} />
                 </div>
               </div>
 
@@ -1052,9 +1078,9 @@ export default function OrgDashboardPage() {
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
                 <h3 className="text-sm font-semibold text-gray-800 mb-4">Culture & Benefits</h3>
                 <div className="space-y-4">
-                  <EditableField field="club_culture_style" label="Club Culture" value={organization.club_culture_style} type="textarea" />
-                  <EditableField field="offered_skills_or_benefits" label="Skills & Benefits" value={organization.offered_skills_or_benefits} type="textarea" />
-                  <EditableField field="new_member_onboarding_process" label="Onboarding Process" value={organization.new_member_onboarding_process} type="textarea" />
+                  <EditableField field="club_culture_style" label="Club Culture" value={organization.club_culture_style} type="textarea" {...editableFieldProps} />
+                  <EditableField field="offered_skills_or_benefits" label="Skills & Benefits" value={organization.offered_skills_or_benefits} type="textarea" {...editableFieldProps} />
+                  <EditableField field="new_member_onboarding_process" label="Onboarding Process" value={organization.new_member_onboarding_process} type="textarea" {...editableFieldProps} />
                 </div>
               </div>
             </motion.div>
@@ -1326,7 +1352,7 @@ export default function OrgDashboardPage() {
 
               {/* Inclusivity */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
-                <EditableField field="inclusivity_focus" label="Inclusivity Focus" value={organization.inclusivity_focus} type="textarea" placeholder="Describe your organization's inclusivity initiatives..." />
+                <EditableField field="inclusivity_focus" label="Inclusivity Focus" value={organization.inclusivity_focus} type="textarea" placeholder="Describe your organization's inclusivity initiatives..." {...editableFieldProps} />
               </div>
             </motion.div>
           )}
