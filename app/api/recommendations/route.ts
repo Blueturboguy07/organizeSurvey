@@ -14,8 +14,10 @@ const execFileAsync = promisify(execFile)
 // Get search API URL from environment (Render service)
 const SEARCH_API_URL = process.env.SEARCH_API_URL
 
-// Force dynamic rendering
+// Force dynamic rendering - no caching at all
 export const dynamic = 'force-dynamic'
+export const revalidate = 0
+export const fetchCache = 'force-no-store'
 
 export async function GET(request: NextRequest) {
   try {
@@ -228,8 +230,8 @@ export async function GET(request: NextRequest) {
         return true
       })
 
-    // Include debug info in response
-    return NextResponse.json({ 
+    // Include debug info in response - with no-cache headers
+    const response = NextResponse.json({ 
       recommendations,
       _debug: {
         apiUserId: user.id,
@@ -240,9 +242,18 @@ export async function GET(request: NextRequest) {
         queryUpdatedAt: userQuery.updated_at,
         totalResults: searchResults.length,
         filteredResults: recommendations.length,
-        usingFreshClient: true
+        usingFreshClient: true,
+        timestamp: Date.now()
       }
     })
+    
+    // Add headers to prevent ANY caching
+    response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate')
+    response.headers.set('Pragma', 'no-cache')
+    response.headers.set('Expires', '0')
+    response.headers.set('Surrogate-Control', 'no-store')
+    
+    return response
   } catch (error: any) {
     console.error('Recommendations API error:', error)
     return NextResponse.json(
