@@ -112,11 +112,18 @@ export async function GET(request: NextRequest) {
     const userData = userQuery.user_demographics || {}
     const query = userQuery.latest_cleansed_query
 
+    console.log('🔎 [RecommendationsAPI] ════════════════════════════════════')
+    console.log('🔎 [RecommendationsAPI] 📤 QUERY BEING SENT TO SEARCH:')
+    console.log('🔎 [RecommendationsAPI] Full query:', query)
+    console.log('🔎 [RecommendationsAPI] Query length:', query.length)
+    console.log('🔎 [RecommendationsAPI] ════════════════════════════════════')
+
     // Perform search using the same logic as /api/search
     let searchResults: any[] = []
 
     // If SEARCH_API_URL is set, use Render API service
     if (SEARCH_API_URL) {
+      console.log('🔎 [RecommendationsAPI] Using external SEARCH_API_URL')
       try {
         const response = await fetch(`${SEARCH_API_URL}/search`, {
           method: 'POST',
@@ -214,6 +221,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ 
       recommendations,
       _debug: {
+        fullQuerySentToSearch: query,
         queryUsed: userQuery.latest_cleansed_query.substring(0, 150) + '...',
         queryLength: userQuery.latest_cleansed_query.length,
         totalResults: searchResults.length,

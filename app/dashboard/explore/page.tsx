@@ -136,11 +136,14 @@ export default function ExplorePage() {
       const results = data.recommendations || []
       
       console.log('🎯 [ExplorePage] ✅ Received', results.length, 'recommendations')
-      console.log('🎯 [ExplorePage] 🔴 API DEBUG INFO - QUERY USED BY SERVER:')
-      console.log('🎯 [ExplorePage] Server query:', data._debug?.queryUsed)
-      console.log('🎯 [ExplorePage] Server query length:', data._debug?.queryLength)
-      console.log('🎯 [ExplorePage] Compare with frontend query:', userQuery?.latest_cleansed_query?.substring(0, 150) + '...')
-      console.log('🎯 [ExplorePage] QUERIES MATCH:', data._debug?.queryUsed === (userQuery?.latest_cleansed_query?.substring(0, 150) + '...'))
+      console.log('🎯 [ExplorePage] ════════════════════════════════════════════════')
+      console.log('🎯 [ExplorePage] 🔴 FULL QUERY SENT TO SEARCH API:')
+      console.log('🎯 [ExplorePage]', data._debug?.fullQuerySentToSearch)
+      console.log('🎯 [ExplorePage] ════════════════════════════════════════════════')
+      console.log('🎯 [ExplorePage] 💻 FRONTEND QUERY:')
+      console.log('🎯 [ExplorePage]', userQuery?.latest_cleansed_query)
+      console.log('🎯 [ExplorePage] ════════════════════════════════════════════════')
+      console.log('🎯 [ExplorePage] QUERIES MATCH:', data._debug?.fullQuerySentToSearch === userQuery?.latest_cleansed_query)
       setAllResults(results)
       applyFilters(results, selectedFilter)
     } catch (err: any) {
