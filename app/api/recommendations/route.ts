@@ -215,7 +215,19 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Filter out joined and saved organizations - no longer limited to 20, return all results
+    // Get all org_accounts to determine which orgs are on platform
+    const { data: orgAccounts } = await freshSupabase
+      .from('org_accounts')
+      .select('organization_id, email_verified, is_active')
+    
+    // Create a set of organization IDs that are on platform (verified and active)
+    const onPlatformOrgIds = new Set(
+      (orgAccounts || [])
+        .filter((acc: any) => acc.email_verified && acc.is_active)
+        .map((acc: any) => acc.organization_id)
+    )
+
+    // Filter out joined and saved organizations, and add is_on_platform status
     const recommendations = searchResults
       .filter((org: any) => {
         // Filter out if organization ID matches a joined or saved org
@@ -229,6 +241,11 @@ export async function GET(request: NextRequest) {
         }
         return true
       })
+      .map((org: any) => ({
+        ...org,
+        // Determine is_on_platform based on org_accounts table
+        is_on_platform: org.id ? onPlatformOrgIds.has(org.id) : false
+      }))
 
     // Include debug info in response - with no-cache headers
     const response = NextResponse.json({ 

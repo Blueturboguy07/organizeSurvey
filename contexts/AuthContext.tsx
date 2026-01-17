@@ -229,20 +229,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (!user) return { success: false, error: 'Not authenticated' }
     
     try {
-      // First check if the organization is on platform
-      const { data: org, error: orgError } = await supabase
-        .from('organizations')
-        .select('is_on_platform')
-        .eq('id', organizationId)
+      // Check if the organization has an active, verified account (meaning they're on platform)
+      const { data: orgAccount, error: orgAccountError } = await supabase
+        .from('org_accounts')
+        .select('id, email_verified, is_active')
+        .eq('organization_id', organizationId)
         .single()
 
-      if (orgError) {
-        console.error('Error checking organization:', orgError)
-        return { success: false, error: 'Organization not found' }
-      }
+      // If no org_account exists or it's not verified/active, org is not on platform
+      const isOnPlatform = orgAccount && orgAccount.email_verified && orgAccount.is_active
 
-      // Only allow joining if org is on platform
-      if (!org.is_on_platform) {
+      if (!isOnPlatform) {
         return { success: false, error: 'This organization is not on the platform yet. You can save it for later instead.' }
       }
 

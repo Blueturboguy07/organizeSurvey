@@ -76,11 +76,24 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: error.message }, { status: 500 })
     }
 
-    // Flatten the response to include org details at top level
+    // Get org_accounts to determine which orgs are on platform
+    const { data: orgAccounts } = await supabase
+      .from('org_accounts')
+      .select('organization_id, email_verified, is_active')
+    
+    const onPlatformOrgIds = new Set(
+      (orgAccounts || [])
+        .filter((acc: any) => acc.email_verified && acc.is_active)
+        .map((acc: any) => acc.organization_id)
+    )
+
+    // Flatten the response and add is_on_platform based on org_accounts
     const joinedOrgs = (data || []).map((item: any) => ({
       ...item.organizations,
       joined_at: item.joined_at,
-      join_record_id: item.id
+      join_record_id: item.id,
+      // Override is_on_platform based on org_accounts table
+      is_on_platform: item.organizations?.id ? onPlatformOrgIds.has(item.organizations.id) : false
     }))
 
     return NextResponse.json({ organizations: joinedOrgs })
