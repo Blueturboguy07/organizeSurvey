@@ -56,6 +56,9 @@ export default function OrgCard({
   const requiresApplication = org.application_required_bool ?? 
     (org.application_required?.toLowerCase() === 'yes')
 
+  // Debug: log platform status
+  console.log(`🏢 [OrgCard] "${org.name}" - is_on_platform:`, org.is_on_platform, '→ isOnPlatform:', isOnPlatform)
+
   const handleJoin = async (e: React.MouseEvent) => {
     e.stopPropagation()
     setActionLoading('join')
