@@ -137,6 +137,13 @@ export default function ExplorePage() {
       
       console.log('🎯 [ExplorePage] ✅ Received', results.length, 'recommendations')
       console.log('🎯 [ExplorePage] ════════════════════════════════════════════════')
+      console.log('🎯 [ExplorePage] 👤 USER ID CHECK:')
+      console.log('🎯 [ExplorePage] API user ID:', data._debug?.apiUserId)
+      console.log('🎯 [ExplorePage] API user email:', data._debug?.apiUserEmail)
+      console.log('🎯 [ExplorePage] Frontend user ID:', user?.id)
+      console.log('🎯 [ExplorePage] Frontend user email:', user?.email)
+      console.log('🎯 [ExplorePage] 🔑 USER IDs MATCH:', data._debug?.apiUserId === user?.id)
+      console.log('🎯 [ExplorePage] ════════════════════════════════════════════════')
       console.log('🎯 [ExplorePage] 🔴 FULL QUERY SENT TO SEARCH API:')
       console.log('🎯 [ExplorePage]', data._debug?.fullQuerySentToSearch)
       console.log('🎯 [ExplorePage] ════════════════════════════════════════════════')

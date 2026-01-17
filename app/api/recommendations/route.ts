@@ -221,6 +221,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ 
       recommendations,
       _debug: {
+        apiUserId: user.id,
+        apiUserEmail: user.email,
         fullQuerySentToSearch: query,
         queryUsed: userQuery.latest_cleansed_query.substring(0, 150) + '...',
         queryLength: userQuery.latest_cleansed_query.length,
