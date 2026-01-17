@@ -48,17 +48,28 @@ export async function GET(request: NextRequest) {
     }
 
     // Get user's survey query and demographics
+    // Create a FRESH Supabase client for this request to avoid any caching
+    const freshSupabase = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    )
+    
     console.log('🔎 [RecommendationsAPI] Fetching user query for user:', user.id)
-    const { data: userQuery, error: queryError } = await supabaseAdmin
+    console.log('🔎 [RecommendationsAPI] Using FRESH Supabase client (not singleton)')
+    
+    const { data: userQuery, error: queryError } = await freshSupabase
       .from('user_queries')
-      .select('latest_cleansed_query, user_demographics')
+      .select('latest_cleansed_query, user_demographics, updated_at')
       .eq('user_id', user.id)
+      .order('updated_at', { ascending: false })
+      .limit(1)
       .single()
 
     console.log('🔎 [RecommendationsAPI] Query fetch result:', {
       hasData: !!userQuery,
       queryPreview: userQuery?.latest_cleansed_query?.substring(0, 100) + '...',
       queryLength: userQuery?.latest_cleansed_query?.length,
+      updatedAt: userQuery?.updated_at,
       error: queryError?.message || null
     })
 
@@ -226,8 +237,10 @@ export async function GET(request: NextRequest) {
         fullQuerySentToSearch: query,
         queryUsed: userQuery.latest_cleansed_query.substring(0, 150) + '...',
         queryLength: userQuery.latest_cleansed_query.length,
+        queryUpdatedAt: userQuery.updated_at,
         totalResults: searchResults.length,
-        filteredResults: recommendations.length
+        filteredResults: recommendations.length,
+        usingFreshClient: true
       }
     })
   } catch (error: any) {
