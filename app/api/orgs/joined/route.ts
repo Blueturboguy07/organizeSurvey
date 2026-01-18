@@ -65,6 +65,7 @@ export async function GET(request: Request) {
           member_count,
           administrative_contact_info,
           is_on_platform,
+          is_application_based,
           application_required_bool
         )
       `)

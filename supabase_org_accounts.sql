@@ -38,9 +38,11 @@ CREATE INDEX IF NOT EXISTS idx_org_accounts_verification_token ON org_accounts(v
 -- Enable Row Level Security
 ALTER TABLE org_accounts ENABLE ROW LEVEL SECURITY;
 
--- Policy: Users can read their own org account
-CREATE POLICY "Users can read own org account" ON org_accounts
-    FOR SELECT USING (auth.uid() = user_id);
+-- Policy: Authenticated users can read org accounts (to check platform status)
+-- This allows users to verify if an org is on platform before joining
+DROP POLICY IF EXISTS "Users can read own org account" ON org_accounts;
+CREATE POLICY "Authenticated users can read org accounts" ON org_accounts
+    FOR SELECT USING (auth.uid() IS NOT NULL);
 
 -- Policy: Users can update their own org account
 CREATE POLICY "Users can update own org account" ON org_accounts

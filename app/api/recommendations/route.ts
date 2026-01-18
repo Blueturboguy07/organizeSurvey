@@ -227,6 +227,22 @@ export async function GET(request: NextRequest) {
         .map((acc: any) => acc.organization_id)
     )
 
+    // Get is_application_based status for all orgs in search results
+    const searchOrgIds = searchResults.map((org: any) => org.id).filter(Boolean)
+    const applicationBasedOrgIds = new Set<string>()
+    
+    if (searchOrgIds.length > 0) {
+      const { data: orgSettings } = await freshSupabase
+        .from('organizations')
+        .select('id, is_application_based')
+        .in('id', searchOrgIds)
+        .eq('is_application_based', true)
+      
+      if (orgSettings) {
+        orgSettings.forEach((org: any) => applicationBasedOrgIds.add(org.id))
+      }
+    }
+
     // Filter out joined and saved organizations, and add is_on_platform status
     const recommendations = searchResults
       .filter((org: any) => {
@@ -244,7 +260,9 @@ export async function GET(request: NextRequest) {
       .map((org: any) => ({
         ...org,
         // Determine is_on_platform based on org_accounts table
-        is_on_platform: org.id ? onPlatformOrgIds.has(org.id) : false
+        is_on_platform: org.id ? onPlatformOrgIds.has(org.id) : false,
+        // Determine is_application_based from organizations table
+        is_application_based: org.id ? applicationBasedOrgIds.has(org.id) : false
       }))
 
     // Include debug info in response - with no-cache headers

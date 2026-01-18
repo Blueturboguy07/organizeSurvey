@@ -24,6 +24,7 @@ interface Organization {
   member_count?: string
   administrative_contact_info?: string
   is_on_platform?: boolean
+  is_application_based?: boolean
   application_required_bool?: boolean
   relevance_score?: number
   joined_at?: string
@@ -53,21 +54,24 @@ export default function OrgCard({
   const isJoined = joinedOrgIds.has(org.id)
   const isSaved = savedOrgIds.has(org.id)
   const isOnPlatform = org.is_on_platform === true // Only true if explicitly set to true
-  const requiresApplication = org.application_required_bool ?? 
-    (org.application_required?.toLowerCase() === 'yes')
+  const isApplicationBased = org.is_application_based === true
+  const [applicationSuccess, setApplicationSuccess] = useState<string | null>(null)
 
   // Debug: log platform status
-  console.log(`🏢 [OrgCard] "${org.name}" - is_on_platform:`, org.is_on_platform, '→ isOnPlatform:', isOnPlatform)
+  console.log(`🏢 [OrgCard] "${org.name}" - is_on_platform:`, org.is_on_platform, '→ isOnPlatform:', isOnPlatform, 'is_application_based:', isApplicationBased)
 
   const handleJoin = async (e: React.MouseEvent) => {
     e.stopPropagation()
     setActionLoading('join')
     setActionError(null)
+    setApplicationSuccess(null)
     
     const result = await joinOrg(org.id)
     
     if (!result.success) {
       setActionError(result.error || 'Failed to join')
+    } else if (result.applied) {
+      setApplicationSuccess('Application submitted! The organization will review your request.')
     }
     setActionLoading(null)
   }
@@ -192,6 +196,9 @@ export default function OrgCard({
             {actionError && (
               <span className="text-xs text-red-600 mr-2">{actionError}</span>
             )}
+            {applicationSuccess && (
+              <span className="text-xs text-green-600 mr-2">{applicationSuccess}</span>
+            )}
             
             {isJoined ? (
               <motion.button
@@ -203,19 +210,16 @@ export default function OrgCard({
               >
                 {actionLoading === 'leave' ? 'Leaving...' : 'Leave'}
               </motion.button>
-            ) : isOnPlatform ? (
-              requiresApplication ? (
+            ) : isOnPlatform && !applicationSuccess ? (
+              isApplicationBased ? (
                 <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    // TODO: Implement application flow
-                    alert('Application flow coming soon!')
-                  }}
-                  className="px-3 py-1.5 text-sm font-medium text-tamu-maroon border border-tamu-maroon rounded-lg hover:bg-tamu-maroon hover:text-white transition-colors"
+                  onClick={handleJoin}
+                  disabled={actionLoading !== null}
+                  className="px-3 py-1.5 text-sm font-medium text-tamu-maroon border border-tamu-maroon rounded-lg hover:bg-tamu-maroon hover:text-white transition-colors disabled:opacity-50"
                 >
-                  Apply
+                  {actionLoading === 'join' ? 'Applying...' : 'Apply'}
                 </motion.button>
               ) : (
                 <motion.button
@@ -333,9 +337,12 @@ export default function OrgCard({
 
                 {/* Actions in Modal */}
                 {showActions && (
-                  <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg">
+                  <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-lg flex-wrap">
                     {actionError && (
                       <span className="text-sm text-red-600">{actionError}</span>
+                    )}
+                    {applicationSuccess && (
+                      <span className="text-sm text-green-600">{applicationSuccess}</span>
                     )}
                     
                     {isJoined ? (
@@ -348,18 +355,16 @@ export default function OrgCard({
                       >
                         {actionLoading === 'leave' ? 'Leaving...' : 'Leave Organization'}
                       </motion.button>
-                    ) : isOnPlatform ? (
-                      requiresApplication ? (
+                    ) : isOnPlatform && !applicationSuccess ? (
+                      isApplicationBased ? (
                         <motion.button
                           whileHover={{ scale: 1.02 }}
                           whileTap={{ scale: 0.98 }}
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            alert('Application flow coming soon!')
-                          }}
-                          className="px-4 py-2 text-sm font-medium text-tamu-maroon border border-tamu-maroon rounded-lg hover:bg-tamu-maroon hover:text-white transition-colors"
+                          onClick={handleJoin}
+                          disabled={actionLoading !== null}
+                          className="px-4 py-2 text-sm font-medium text-tamu-maroon border border-tamu-maroon rounded-lg hover:bg-tamu-maroon hover:text-white transition-colors disabled:opacity-50"
                         >
-                          Apply to Join
+                          {actionLoading === 'join' ? 'Applying...' : 'Apply to Join'}
                         </motion.button>
                       ) : (
                         <motion.button
@@ -372,9 +377,9 @@ export default function OrgCard({
                           {actionLoading === 'join' ? 'Joining...' : 'Join Organization'}
                         </motion.button>
                       )
-                    ) : (
+                    ) : !applicationSuccess ? (
                       <span className="text-sm text-gray-500">This organization is not on the platform yet</span>
-                    )}
+                    ) : null}
                     
                     {!isJoined && (
                       isSaved ? (

@@ -224,8 +224,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [user, fetchSavedOrgs])
 
-  // Action: Join an organization
-  const joinOrg = useCallback(async (organizationId: string): Promise<{ success: boolean; error?: string }> => {
+  // Action: Join an organization (or apply if application-based)
+  const joinOrg = useCallback(async (organizationId: string): Promise<{ success: boolean; error?: string; applied?: boolean }> => {
     if (!user) return { success: false, error: 'Not authenticated' }
     
     try {
@@ -243,6 +243,53 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return { success: false, error: 'This organization is not on the platform yet. You can save it for later instead.' }
       }
 
+      // Check if the organization is application-based
+      const { data: orgData, error: orgError } = await supabase
+        .from('organizations')
+        .select('is_application_based')
+        .eq('id', organizationId)
+        .single()
+
+      if (orgError) {
+        console.error('Error fetching organization:', orgError)
+        return { success: false, error: 'Failed to check organization settings' }
+      }
+
+      // If application-based, create an application instead of joining directly
+      if (orgData?.is_application_based) {
+        // Check if already applied
+        const { data: existingApp } = await supabase
+          .from('applications')
+          .select('id')
+          .eq('user_id', user.id)
+          .eq('organization_id', organizationId)
+          .single()
+
+        if (existingApp) {
+          return { success: false, error: 'You have already applied to this organization' }
+        }
+
+        // Create application
+        const { error: appError } = await supabase
+          .from('applications')
+          .insert({
+            user_id: user.id,
+            organization_id: organizationId,
+            status: 'waiting'
+          })
+
+        if (appError) {
+          if (appError.code === '23505') {
+            return { success: false, error: 'You have already applied to this organization' }
+          }
+          console.error('Error creating application:', appError)
+          return { success: false, error: appError.message }
+        }
+
+        return { success: true, applied: true }
+      }
+
+      // Direct join (not application-based)
       const { error } = await supabase
         .from('user_joined_organizations')
         .insert({

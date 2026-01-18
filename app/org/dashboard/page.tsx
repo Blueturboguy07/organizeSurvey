@@ -39,6 +39,7 @@ interface Organization {
   inclusivity_focus: string | null
   expected_member_traits: string | null
   national_local_affiliation: string | null
+  is_application_based: boolean | null
   updated_at: string
 }
 
@@ -213,6 +214,8 @@ export default function OrgDashboardPage() {
   const [lastUpdated, setLastUpdated] = useState<string | null>(null)
   const [activeTab, setActiveTab] = useState<ActiveTab>('about')
   const [isContentExpanded, setIsContentExpanded] = useState(false)
+  const [isApplicationBased, setIsApplicationBased] = useState(false)
+  const [applicationToggleSaving, setApplicationToggleSaving] = useState(false)
   
   // Editing states
   const [editingField, setEditingField] = useState<string | null>(null)
@@ -290,6 +293,7 @@ export default function OrgDashboardPage() {
 
       setOrganization(orgData)
       setLastUpdated(orgData.updated_at)
+      setIsApplicationBased(orgData.is_application_based ?? false)
       
       // Initialize "Other" input visibility based on existing data
       const standardGenders = ['all', 'male', 'female', 'nan']
@@ -566,6 +570,34 @@ export default function OrgDashboardPage() {
     router.push('/login')
   }
 
+  // Toggle application-based setting
+  const toggleApplicationBased = async () => {
+    if (!organization) return
+    
+    setApplicationToggleSaving(true)
+    setError('')
+    
+    try {
+      const newValue = !isApplicationBased
+      
+      const { error: updateError } = await supabase
+        .from('organizations')
+        .update({ is_application_based: newValue })
+        .eq('id', organization.id)
+      
+      if (updateError) throw updateError
+      
+      setIsApplicationBased(newValue)
+      setOrganization(prev => prev ? { ...prev, is_application_based: newValue } : null)
+      setSaveSuccess(newValue ? 'Application-based joining enabled' : 'Direct joining enabled')
+      setTimeout(() => setSaveSuccess(''), 2000)
+    } catch (err: any) {
+      setError(err.message || 'Failed to update setting')
+    } finally {
+      setApplicationToggleSaving(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-white to-gray-50 flex items-center justify-center">
@@ -713,6 +745,46 @@ export default function OrgDashboardPage() {
                   />
                 </motion.svg>
               </motion.button>
+            </div>
+          </div>
+        </motion.div>
+
+        {/* Application Settings Panel */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 mb-6"
+        >
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-sm font-semibold text-gray-800 mb-1">Membership Settings</h3>
+              <p className="text-xs text-gray-500">
+                {isApplicationBased 
+                  ? 'Users must apply to join. You can review applications below.'
+                  : 'Users can join your organization directly without applying.'}
+              </p>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className={`text-sm font-medium ${isApplicationBased ? 'text-gray-400' : 'text-green-600'}`}>
+                Direct Join
+              </span>
+              <button
+                onClick={toggleApplicationBased}
+                disabled={applicationToggleSaving}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-tamu-maroon focus:ring-offset-2 ${
+                  isApplicationBased ? 'bg-tamu-maroon' : 'bg-gray-300'
+                } ${applicationToggleSaving ? 'opacity-50 cursor-not-allowed' : ''}`}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    isApplicationBased ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
+              <span className={`text-sm font-medium ${isApplicationBased ? 'text-tamu-maroon' : 'text-gray-400'}`}>
+                Application
+              </span>
             </div>
           </div>
         </motion.div>
