@@ -675,7 +675,7 @@ export default function OrgDashboardPage() {
   }
 
   // Update application status
-  const updateApplicationStatus = async (applicationId: string, newStatus: Application['status'], userId?: string) => {
+  const updateApplicationStatus = async (applicationId: string, newStatus: Application['status']) => {
     if (!organization) return
     
     try {
@@ -693,27 +693,8 @@ export default function OrgDashboardPage() {
         return
       }
       
-      // If accepted, automatically add user to the organization
-      if (newStatus === 'accepted' && userId) {
-        const { error: joinError } = await supabase
-          .from('user_joined_organizations')
-          .insert({
-            user_id: userId,
-            organization_id: organization.id
-          })
-        
-        if (joinError) {
-          // Check if already joined (duplicate key error)
-          if (joinError.code === '23505') {
-            console.log('User already a member')
-          } else {
-            console.error('Error adding user to org:', joinError)
-            setError('Status updated but failed to add user to organization')
-            return
-          }
-        }
-        
-        setSaveSuccess('Application accepted! User has been added to the organization.')
+      if (newStatus === 'accepted') {
+        setSaveSuccess('Application accepted! User can now join the organization.')
       } else {
         setSaveSuccess(`Application status updated to ${newStatus}`)
       }
@@ -1050,7 +1031,7 @@ export default function OrgDashboardPage() {
                                 {APPLICATION_STATUSES.map((status) => (
                                   <button
                                     key={status.value}
-                                    onClick={() => updateApplicationStatus(app.id, status.value, app.user_id)}
+                                    onClick={() => updateApplicationStatus(app.id, status.value)}
                                     disabled={app.status === status.value}
                                     className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
                                       app.status === status.value
