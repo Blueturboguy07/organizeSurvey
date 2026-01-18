@@ -46,7 +46,7 @@ export default function OrgCard({
   variant = 'default',
   onOrgUpdate
 }: OrgCardProps) {
-  const { joinedOrgIds, savedOrgIds, appliedOrgIds, joinOrg, leaveOrg, saveOrg, unsaveOrg, userProfile } = useAuth()
+  const { user, joinedOrgIds, savedOrgIds, appliedOrgIds, joinOrg, leaveOrg, saveOrg, unsaveOrg, userProfile } = useAuth()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isApplicationModalOpen, setIsApplicationModalOpen] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
@@ -61,7 +61,7 @@ export default function OrgCard({
 
   // Application form state
   const [appFormName, setAppFormName] = useState(userProfile?.name || '')
-  const [appFormEmail, setAppFormEmail] = useState('')
+  const [appFormEmail, setAppFormEmail] = useState(user?.email || '')
   const [appFormWhyJoin, setAppFormWhyJoin] = useState('')
 
   // Debug: log platform status
@@ -69,9 +69,9 @@ export default function OrgCard({
 
   const handleApplyClick = (e: React.MouseEvent) => {
     e.stopPropagation()
-    // Pre-fill name from profile if available
+    // Pre-fill name and email from profile/auth
     setAppFormName(userProfile?.name || '')
-    setAppFormEmail('')
+    setAppFormEmail(user?.email || '')
     setAppFormWhyJoin('')
     setActionError(null)
     setIsApplicationModalOpen(true)
