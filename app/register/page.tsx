@@ -355,6 +355,17 @@ export default function RegisterPage() {
               Sign in
             </Link>
           </p>
+          
+          {/* Support Contact */}
+          <p className="text-center text-xs text-gray-400 mt-4">
+            Having trouble?{' '}
+            <a 
+              href="mailto:mannbellani1@tamu.edu" 
+              className="text-tamu-maroon hover:underline"
+            >
+              Contact support
+            </a>
+          </p>
         </div>
       </motion.div>
     </div>

@@ -319,6 +319,17 @@ function OrgSetupContent() {
             </motion.button>
           </form>
         )}
+        
+        {/* Support Contact */}
+        <p className="text-center text-xs text-gray-400 mt-6">
+          Having trouble?{' '}
+          <a 
+            href="mailto:mannbellani1@tamu.edu" 
+            className="text-tamu-maroon hover:underline"
+          >
+            Contact support
+          </a>
+        </p>
       </motion.div>
     </div>
   )

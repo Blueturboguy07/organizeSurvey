@@ -1762,6 +1762,19 @@ export default function OrgDashboardPage() {
             </motion.div>
           )}
         </AnimatePresence>
+        
+        {/* Support Contact */}
+        <div className="mt-8 text-center">
+          <p className="text-xs text-gray-400">
+            Need help?{' '}
+            <a 
+              href="mailto:mannbellani1@tamu.edu" 
+              className="text-tamu-maroon hover:underline"
+            >
+              Contact support
+            </a>
+          </p>
+        </div>
       </main>
 
       {/* Share Modal */}
