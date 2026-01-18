@@ -696,7 +696,7 @@ export default function OrgDashboardPage() {
       // If accepted, automatically add user to the organization
       if (newStatus === 'accepted' && userId) {
         const { error: joinError } = await supabase
-          .from('user_joined_orgs')
+          .from('user_joined_organizations')
           .insert({
             user_id: userId,
             organization_id: organization.id

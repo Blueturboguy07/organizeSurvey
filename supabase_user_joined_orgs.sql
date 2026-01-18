@@ -47,6 +47,19 @@ CREATE POLICY "Users can delete own joined organizations"
   FOR DELETE
   USING (auth.uid() = user_id);
 
+-- Org account owners can insert members when accepting applications
+DROP POLICY IF EXISTS "Org owners can add members" ON public.user_joined_organizations;
+CREATE POLICY "Org owners can add members"
+  ON public.user_joined_organizations
+  FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM org_accounts 
+      WHERE org_accounts.organization_id = user_joined_organizations.organization_id 
+      AND org_accounts.user_id = auth.uid()
+    )
+  );
+
 -- Enable real-time for this table
 -- Real-time subscriptions allow clients to listen for INSERT, UPDATE, DELETE events
 -- This is required for the dashboard to update recommendations in real-time
