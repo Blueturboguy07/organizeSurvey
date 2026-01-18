@@ -23,7 +23,10 @@ CREATE INDEX IF NOT EXISTS idx_organizations_application_based ON public.organiz
 -- Applications Table
 -- ============================================================================
 
-CREATE TABLE IF NOT EXISTS applications (
+-- Drop and recreate to add new columns (or use ALTER TABLE if you have existing data)
+DROP TABLE IF EXISTS applications;
+
+CREATE TABLE applications (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     
     -- User applying
@@ -31,6 +34,11 @@ CREATE TABLE IF NOT EXISTS applications (
     
     -- Organization being applied to
     organization_id UUID NOT NULL REFERENCES organizations(id) ON DELETE CASCADE,
+    
+    -- Application form data
+    applicant_name TEXT NOT NULL,
+    applicant_email TEXT NOT NULL,
+    why_join TEXT NOT NULL,
     
     -- Status (only 'waiting' for now, can expand later)
     status TEXT NOT NULL DEFAULT 'waiting' CHECK (status IN ('waiting')),
@@ -77,7 +85,6 @@ CREATE POLICY "Service role full access on applications" ON applications
     FOR ALL USING (auth.role() = 'service_role');
 
 -- ============================================================================
--- Enable realtime for applications (optional)
+-- Enable realtime for applications
 -- ============================================================================
--- ALTER PUBLICATION supabase_realtime ADD TABLE applications;
-
+ALTER PUBLICATION supabase_realtime ADD TABLE applications;

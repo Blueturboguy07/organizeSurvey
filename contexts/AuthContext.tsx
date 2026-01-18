@@ -72,7 +72,7 @@ interface AuthContextType {
   appliedOrgIdsLoading: boolean
   refreshAppliedOrgs: () => Promise<void>
   // Actions
-  joinOrg: (organizationId: string) => Promise<{ success: boolean; error?: string; applied?: boolean }>
+  joinOrg: (organizationId: string, applicationData?: { name: string; email: string; whyJoin: string }) => Promise<{ success: boolean; error?: string; applied?: boolean }>
   leaveOrg: (organizationId: string) => Promise<{ success: boolean; error?: string }>
   saveOrg: (organizationId: string) => Promise<{ success: boolean; error?: string }>
   unsaveOrg: (organizationId: string) => Promise<{ success: boolean; error?: string }>
@@ -268,7 +268,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user, fetchAppliedOrgs])
 
   // Action: Join an organization (or apply if application-based)
-  const joinOrg = useCallback(async (organizationId: string): Promise<{ success: boolean; error?: string; applied?: boolean }> => {
+  const joinOrg = useCallback(async (organizationId: string, applicationData?: { name: string; email: string; whyJoin: string }): Promise<{ success: boolean; error?: string; applied?: boolean }> => {
     if (!user) return { success: false, error: 'Not authenticated' }
     
     try {
@@ -300,6 +300,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       // If application-based, create an application instead of joining directly
       if (orgData?.is_application_based) {
+        // Require application data for application-based orgs
+        if (!applicationData) {
+          return { success: false, error: 'Application data required for this organization' }
+        }
+
         // Check if already applied
         const { data: existingApp } = await supabase
           .from('applications')
@@ -312,12 +317,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return { success: false, error: 'You have already applied to this organization' }
         }
 
-        // Create application
+        // Create application with form data
         const { error: appError } = await supabase
           .from('applications')
           .insert({
             user_id: user.id,
             organization_id: organizationId,
+            applicant_name: applicationData.name,
+            applicant_email: applicationData.email,
+            why_join: applicationData.whyJoin,
             status: 'waiting'
           })
 

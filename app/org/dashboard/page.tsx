@@ -113,6 +113,15 @@ const RACES = ['All', 'Asian', 'Black', 'Hispanic', 'White', 'South Asian', 'Pac
 
 type ActiveTab = 'about' | 'details' | 'membership'
 
+interface Application {
+  id: string
+  applicant_name: string
+  applicant_email: string
+  why_join: string
+  status: string
+  created_at: string
+}
+
 // Extracted EditableField component to prevent re-creation on every render
 const EditableField = ({ 
   field, 
@@ -216,6 +225,11 @@ export default function OrgDashboardPage() {
   const [isContentExpanded, setIsContentExpanded] = useState(false)
   const [isApplicationBased, setIsApplicationBased] = useState(false)
   const [applicationToggleSaving, setApplicationToggleSaving] = useState(false)
+  
+  // Applications state
+  const [applications, setApplications] = useState<Application[]>([])
+  const [applicationsLoading, setApplicationsLoading] = useState(false)
+  const [showApplicationsList, setShowApplicationsList] = useState(false)
   
   // Editing states
   const [editingField, setEditingField] = useState<string | null>(null)
@@ -360,6 +374,63 @@ export default function OrgDashboardPage() {
       }
     }
   }, [fetchOrganization, supabase])
+
+  // Fetch and subscribe to applications (realtime)
+  useEffect(() => {
+    if (!organization?.id) return
+
+    let applicationsChannel: RealtimeChannel | null = null
+
+    const fetchApplications = async () => {
+      setApplicationsLoading(true)
+      const { data, error } = await supabase
+        .from('applications')
+        .select('id, applicant_name, applicant_email, why_join, status, created_at')
+        .eq('organization_id', organization.id)
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        console.error('Error fetching applications:', error)
+      } else {
+        setApplications(data || [])
+      }
+      setApplicationsLoading(false)
+    }
+
+    fetchApplications()
+
+    // Subscribe to realtime changes
+    applicationsChannel = supabase
+      .channel(`applications-${organization.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'applications',
+          filter: `organization_id=eq.${organization.id}`
+        },
+        (payload) => {
+          console.log('📋 Applications realtime update:', payload)
+          if (payload.eventType === 'INSERT') {
+            setApplications(prev => [payload.new as Application, ...prev])
+          } else if (payload.eventType === 'DELETE') {
+            setApplications(prev => prev.filter(app => app.id !== payload.old.id))
+          } else if (payload.eventType === 'UPDATE') {
+            setApplications(prev => prev.map(app => 
+              app.id === payload.new.id ? payload.new as Application : app
+            ))
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      if (applicationsChannel) {
+        supabase.removeChannel(applicationsChannel)
+      }
+    }
+  }, [organization?.id, supabase])
 
   // Save a single field
   const saveField = async (field: keyof Organization, value: string | null) => {
@@ -788,6 +859,104 @@ export default function OrgDashboardPage() {
             </div>
           </div>
         </motion.div>
+
+        {/* Applications Panel - Only show when application-based */}
+        {isApplicationBased && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 mb-6"
+          >
+            <div 
+              className="flex items-center justify-between cursor-pointer"
+              onClick={() => setShowApplicationsList(!showApplicationsList)}
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
+                  <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-sm font-semibold text-gray-800">Pending Applications</h3>
+                  <p className="text-xs text-gray-500">
+                    {applicationsLoading ? 'Loading...' : `${applications.length} application${applications.length !== 1 ? 's' : ''} waiting for review`}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                {applications.length > 0 && (
+                  <span className="px-2.5 py-1 bg-orange-100 text-orange-700 text-sm font-semibold rounded-full">
+                    {applications.length}
+                  </span>
+                )}
+                <motion.svg
+                  animate={{ rotate: showApplicationsList ? 180 : 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="w-5 h-5 text-gray-400"
+                  fill="none"
+                  stroke="currentColor"
+                  viewBox="0 0 24 24"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </motion.svg>
+              </div>
+            </div>
+
+            {/* Applications List */}
+            <AnimatePresence>
+              {showApplicationsList && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  exit={{ opacity: 0, height: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="mt-4 pt-4 border-t border-gray-100"
+                >
+                  {applications.length === 0 ? (
+                    <p className="text-sm text-gray-500 text-center py-4">
+                      No applications yet. When users apply, they&apos;ll appear here.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {applications.map((app, index) => (
+                        <motion.div
+                          key={app.id}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: index * 0.05 }}
+                          className="p-3 bg-gray-50 rounded-lg"
+                        >
+                          <div className="flex items-start justify-between">
+                            <div>
+                              <h4 className="font-medium text-gray-800">{app.applicant_name}</h4>
+                              <p className="text-xs text-gray-500 mt-0.5">{app.applicant_email}</p>
+                            </div>
+                            <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-xs font-medium rounded">
+                              {app.status}
+                            </span>
+                          </div>
+                          <div className="mt-2 pt-2 border-t border-gray-200">
+                            <p className="text-xs text-gray-500 font-medium mb-1">Why they want to join:</p>
+                            <p className="text-sm text-gray-700">{app.why_join}</p>
+                          </div>
+                          <p className="text-xs text-gray-400 mt-2">
+                            Applied {new Date(app.created_at).toLocaleDateString()} at {new Date(app.created_at).toLocaleTimeString()}
+                          </p>
+                        </motion.div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 mt-4 pt-3 border-t border-gray-100">
+                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                    <span className="text-xs text-gray-500">Real-time updates enabled</span>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        )}
 
         {/* Collapsible Content */}
         <AnimatePresence>
