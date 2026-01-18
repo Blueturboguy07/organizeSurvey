@@ -35,7 +35,7 @@ export default function PublicOrgPage() {
   const orgId = params.id as string
   const supabase = createClientComponentClient()
   
-  const { user, session, joinedOrgIds, appliedOrgIds, joinOrg, loading: authLoading } = useAuth()
+  const { user, session, joinedOrgIds, appliedOrgIds, joinOrg, loading: userAuthLoading } = useAuth()
   
   const [org, setOrg] = useState<Organization | null>(null)
   const [loading, setLoading] = useState(true)
@@ -253,7 +253,7 @@ export default function PublicOrgPage() {
     }
   }
 
-  if (loading || authLoading) {
+  if (loading || userAuthLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-white to-gray-50 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-tamu-maroon"></div>
