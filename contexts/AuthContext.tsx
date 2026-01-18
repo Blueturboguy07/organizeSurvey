@@ -207,6 +207,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Fetch applied organizations
   const fetchAppliedOrgs = useCallback(async (userId: string) => {
+    console.log('📋 [AuthContext] fetchAppliedOrgs called for userId:', userId)
     setAppliedOrgIdsLoading(true)
     try {
       const { data, error } = await supabase
@@ -214,14 +215,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .select('organization_id')
         .eq('user_id', userId)
 
-      if (error && error.code !== 'PGRST116' && error.code !== '42P01') {
-        console.error('Error fetching applied organizations:', error)
+      console.log('📋 [AuthContext] fetchAppliedOrgs response:', { data, error, dataLength: data?.length })
+
+      if (error) {
+        console.error('📋 [AuthContext] Error fetching applied organizations:', error)
+        // Don't fail silently for RLS errors
+        if (error.code !== 'PGRST116' && error.code !== '42P01') {
+          console.error('Error fetching applied organizations:', error)
+        }
       }
       
       const orgIds = new Set((data || []).map((app: { organization_id: string }) => app.organization_id))
+      console.log('📋 [AuthContext] Applied org IDs:', Array.from(orgIds))
       setAppliedOrgIds(orgIds)
     } catch (err) {
-      console.error('Failed to fetch applied organizations:', err)
+      console.error('📋 [AuthContext] Failed to fetch applied organizations:', err)
       setAppliedOrgIds(new Set())
     } finally {
       setAppliedOrgIdsLoading(false)
@@ -495,7 +503,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })
 
     return () => subscription.unsubscribe()
-  }, [router, supabase.auth, fetchUserQuery, fetchUserProfile, fetchJoinedOrgs, fetchSavedOrgs])
+  }, [router, supabase.auth, fetchUserQuery, fetchUserProfile, fetchJoinedOrgs, fetchSavedOrgs, fetchAppliedOrgs])
 
   // Real-time subscription for user_queries
   useEffect(() => {
