@@ -1,24 +1,51 @@
-import { NextResponse } from 'next/server'
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs'
+import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
+import { NextResponse } from 'next/server'
+
+// Force dynamic rendering since we use cookies
+export const dynamic = 'force-dynamic'
 
 // GET: Fetch org settings
 export async function GET(request: Request) {
   try {
-    const cookieStore = cookies()
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    const cookieStore = await cookies()
     
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value
+          },
+        },
+      }
+    )
+
+    // Get the user from auth header or session
+    const authHeader = request.headers.get('Authorization')
+    let userId: string | null = null
+
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.substring(7)
+      const { data: { user }, error } = await supabase.auth.getUser(token)
+      if (error || !user) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+      userId = user.id
+    } else {
+      const { data: { user }, error } = await supabase.auth.getUser()
+      if (error || !user) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+      userId = user.id
     }
 
     // Get org account for this user
     const { data: orgAccount, error: orgAccountError } = await supabase
       .from('org_accounts')
       .select('organization_id')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .single()
 
     if (orgAccountError || !orgAccount) {
@@ -51,13 +78,37 @@ export async function GET(request: Request) {
 // PATCH: Update org settings
 export async function PATCH(request: Request) {
   try {
-    const cookieStore = cookies()
-    const supabase = createRouteHandlerClient({ cookies: () => cookieStore })
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser()
+    const cookieStore = await cookies()
     
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const supabase = createServerClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      {
+        cookies: {
+          get(name: string) {
+            return cookieStore.get(name)?.value
+          },
+        },
+      }
+    )
+
+    // Get the user from auth header or session
+    const authHeader = request.headers.get('Authorization')
+    let userId: string | null = null
+
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.substring(7)
+      const { data: { user }, error } = await supabase.auth.getUser(token)
+      if (error || !user) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+      userId = user.id
+    } else {
+      const { data: { user }, error } = await supabase.auth.getUser()
+      if (error || !user) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+      }
+      userId = user.id
     }
 
     const body = await request.json()
@@ -71,7 +122,7 @@ export async function PATCH(request: Request) {
     const { data: orgAccount, error: orgAccountError } = await supabase
       .from('org_accounts')
       .select('organization_id')
-      .eq('user_id', user.id)
+      .eq('user_id', userId)
       .single()
 
     if (orgAccountError || !orgAccount) {
@@ -99,4 +150,3 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 })
   }
 }
-
