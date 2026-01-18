@@ -246,7 +246,10 @@ CREATE TRIGGER update_application_drafts_updated_at
     EXECUTE FUNCTION update_updated_at_column();
 
 -- ============================================================================
--- Enable realtime for drafts (so autosave works smoothly)
+-- Enable realtime for all form-related tables
 -- ============================================================================
--- ALTER PUBLICATION supabase_realtime ADD TABLE application_drafts;
+ALTER PUBLICATION supabase_realtime ADD TABLE org_forms;
+ALTER PUBLICATION supabase_realtime ADD TABLE form_questions;
+ALTER PUBLICATION supabase_realtime ADD TABLE application_responses;
+ALTER PUBLICATION supabase_realtime ADD TABLE application_drafts;
 

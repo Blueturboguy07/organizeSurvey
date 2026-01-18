@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { createClientComponentClient } from '@/lib/supabase'
+import { RealtimeChannel } from '@supabase/supabase-js'
 
 interface FormQuestion {
   id: string
@@ -123,6 +124,58 @@ export default function FormBuilder({ organizationId }: FormBuilderProps) {
     fetchForm()
   }, [fetchForm])
 
+  // Realtime subscription for questions
+  const channelRef = useRef<RealtimeChannel | null>(null)
+  
+  useEffect(() => {
+    if (!form) return
+    
+    // Subscribe to realtime changes on form_questions
+    const channel = supabase
+      .channel(`form_questions_${form.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'form_questions',
+          filter: `form_id=eq.${form.id}`
+        },
+        (payload) => {
+          console.log('📝 Form questions realtime event:', payload.eventType)
+          
+          if (payload.eventType === 'INSERT') {
+            const newQ = payload.new as FormQuestion
+            setQuestions(prev => {
+              // Avoid duplicates
+              if (prev.some(q => q.id === newQ.id)) return prev
+              return [...prev, newQ].sort((a, b) => a.order_index - b.order_index)
+            })
+          } else if (payload.eventType === 'UPDATE') {
+            const updatedQ = payload.new as FormQuestion
+            setQuestions(prev => 
+              prev.map(q => q.id === updatedQ.id ? updatedQ : q)
+                .sort((a, b) => a.order_index - b.order_index)
+            )
+          } else if (payload.eventType === 'DELETE') {
+            const deletedId = payload.old?.id
+            if (deletedId) {
+              setQuestions(prev => prev.filter(q => q.id !== deletedId))
+            }
+          }
+        }
+      )
+      .subscribe()
+    
+    channelRef.current = channel
+    
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current)
+      }
+    }
+  }, [form, supabase])
+
   // Add new question
   const handleAddQuestion = async () => {
     if (!form || !newQuestion.question_text.trim()) {
@@ -149,7 +202,7 @@ export default function FormBuilder({ organizationId }: FormBuilderProps) {
       
       if (error) throw error
       
-      setQuestions([...questions, data])
+      // Realtime will add the question to state
       setNewQuestion({
         question_text: '',
         question_type: 'short_text',
@@ -179,9 +232,7 @@ export default function FormBuilder({ organizationId }: FormBuilderProps) {
       
       if (error) throw error
       
-      setQuestions(questions.map(q => 
-        q.id === questionId ? { ...q, ...updates } : q
-      ))
+      // Realtime will update the question in state
       setEditingQuestionId(null)
       setSuccess('Question updated!')
       setTimeout(() => setSuccess(null), 2000)
@@ -207,7 +258,7 @@ export default function FormBuilder({ organizationId }: FormBuilderProps) {
       
       if (error) throw error
       
-      setQuestions(questions.filter(q => q.id !== questionId))
+      // Realtime will remove the question from state
       setSuccess('Question deleted!')
       setTimeout(() => setSuccess(null), 2000)
     } catch (err: any) {

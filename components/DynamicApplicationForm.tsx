@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { motion } from 'framer-motion'
 import { createClientComponentClient } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
+import { RealtimeChannel } from '@supabase/supabase-js'
 
 interface FormQuestion {
   id: string
@@ -107,6 +108,62 @@ export default function DynamicApplicationForm({
     
     fetchForm()
   }, [organizationId, supabase])
+
+  // Realtime subscription for form questions (updates while form is open)
+  const channelRef = useRef<RealtimeChannel | null>(null)
+  
+  useEffect(() => {
+    if (!form) return
+    
+    const channel = supabase
+      .channel(`applicant_form_${form.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'form_questions',
+          filter: `form_id=eq.${form.id}`
+        },
+        (payload) => {
+          console.log('📋 Form questions updated in realtime:', payload.eventType)
+          
+          if (payload.eventType === 'INSERT') {
+            const newQ = payload.new as FormQuestion
+            setQuestions(prev => {
+              if (prev.some(q => q.id === newQ.id)) return prev
+              return [...prev, newQ].sort((a, b) => a.order_index - b.order_index)
+            })
+          } else if (payload.eventType === 'UPDATE') {
+            const updatedQ = payload.new as FormQuestion
+            setQuestions(prev => 
+              prev.map(q => q.id === updatedQ.id ? updatedQ : q)
+                .sort((a, b) => a.order_index - b.order_index)
+            )
+          } else if (payload.eventType === 'DELETE') {
+            const deletedId = payload.old?.id
+            if (deletedId) {
+              setQuestions(prev => prev.filter(q => q.id !== deletedId))
+              // Also remove response for deleted question
+              setResponses(prev => {
+                const newResponses = { ...prev }
+                delete newResponses[deletedId]
+                return newResponses
+              })
+            }
+          }
+        }
+      )
+      .subscribe()
+    
+    channelRef.current = channel
+    
+    return () => {
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current)
+      }
+    }
+  }, [form, supabase])
 
   // Load draft on mount
   useEffect(() => {
