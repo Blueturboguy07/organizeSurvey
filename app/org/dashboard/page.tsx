@@ -230,6 +230,7 @@ export default function OrgDashboardPage() {
   const [applications, setApplications] = useState<Application[]>([])
   const [applicationsLoading, setApplicationsLoading] = useState(false)
   const [showApplicationsList, setShowApplicationsList] = useState(false)
+  const [linkCopied, setLinkCopied] = useState(false)
   
   // Editing states
   const [editingField, setEditingField] = useState<string | null>(null)
@@ -641,6 +642,19 @@ export default function OrgDashboardPage() {
     router.push('/login')
   }
 
+  // Copy share link
+  const handleCopyShareLink = async () => {
+    if (!organization) return
+    const shareUrl = `${window.location.origin}/org/${organization.id}`
+    try {
+      await navigator.clipboard.writeText(shareUrl)
+      setLinkCopied(true)
+      setTimeout(() => setLinkCopied(false), 2000)
+    } catch (err) {
+      console.error('Failed to copy:', err)
+    }
+  }
+
   // Toggle application-based setting
   const toggleApplicationBased = async () => {
     if (!organization) return
@@ -783,39 +797,65 @@ export default function OrgDashboardPage() {
                   )}
                 </div>
               </div>
-              <motion.button
-                onClick={() => setIsContentExpanded(!isContentExpanded)}
-                whileHover={{ scale: 1.05, y: -2 }}
-                whileTap={{ scale: 0.95 }}
-                className="ml-4 px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition-all backdrop-blur-sm flex items-center gap-2 shadow-lg"
-              >
-                <motion.span
-                  animate={{ opacity: isContentExpanded ? 0.8 : 1 }}
-                  transition={{ duration: 0.2 }}
+              <div className="flex items-center gap-2">
+                {/* Share Link Button */}
+                <motion.button
+                  onClick={handleCopyShareLink}
+                  whileHover={{ scale: 1.05, y: -2 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition-all backdrop-blur-sm flex items-center gap-2 shadow-lg"
                 >
-                  {isContentExpanded ? 'Hide Info' : 'Edit Info'}
-                </motion.span>
-                <motion.svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 16 16"
-                  fill="none"
-                  xmlns="http://www.w3.org/2000/svg"
-                  animate={{ rotate: isContentExpanded ? 180 : 0 }}
-                  transition={{ 
-                    duration: 0.4,
-                    ease: [0.34, 1.56, 0.64, 1]
-                  }}
+                  {linkCopied ? (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                      </svg>
+                      Copied!
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                      </svg>
+                      Share
+                    </>
+                  )}
+                </motion.button>
+                {/* Edit Info Button */}
+                <motion.button
+                  onClick={() => setIsContentExpanded(!isContentExpanded)}
+                  whileHover={{ scale: 1.05, y: -2 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition-all backdrop-blur-sm flex items-center gap-2 shadow-lg"
                 >
-                  <path
-                    d="M4 6L8 10L12 6"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-                </motion.svg>
-              </motion.button>
+                  <motion.span
+                    animate={{ opacity: isContentExpanded ? 0.8 : 1 }}
+                    transition={{ duration: 0.2 }}
+                  >
+                    {isContentExpanded ? 'Hide Info' : 'Edit Info'}
+                  </motion.span>
+                  <motion.svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 16 16"
+                    fill="none"
+                    xmlns="http://www.w3.org/2000/svg"
+                    animate={{ rotate: isContentExpanded ? 180 : 0 }}
+                    transition={{ 
+                      duration: 0.4,
+                      ease: [0.34, 1.56, 0.64, 1]
+                    }}
+                  >
+                    <path
+                      d="M4 6L8 10L12 6"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    />
+                  </motion.svg>
+                </motion.button>
+              </div>
             </div>
           </div>
         </motion.div>
