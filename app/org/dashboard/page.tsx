@@ -118,9 +118,17 @@ interface Application {
   applicant_name: string
   applicant_email: string
   why_join: string
-  status: string
+  status: 'waiting' | 'interview' | 'accepted' | 'rejected'
   created_at: string
+  status_updated_at: string
 }
+
+const APPLICATION_STATUSES = [
+  { value: 'waiting', label: 'Waiting', color: 'bg-orange-100 text-orange-700', icon: '⏳' },
+  { value: 'interview', label: 'Interview', color: 'bg-blue-100 text-blue-700', icon: '📅' },
+  { value: 'accepted', label: 'Accepted', color: 'bg-green-100 text-green-700', icon: '✓' },
+  { value: 'rejected', label: 'Rejected', color: 'bg-red-100 text-red-700', icon: '✗' },
+] as const
 
 // Extracted EditableField component to prevent re-creation on every render
 const EditableField = ({ 
@@ -391,7 +399,7 @@ export default function OrgDashboardPage() {
       setApplicationsLoading(true)
       const { data, error } = await supabase
         .from('applications')
-        .select('id, applicant_name, applicant_email, why_join, status, created_at')
+        .select('id, applicant_name, applicant_email, why_join, status, created_at, status_updated_at')
         .eq('organization_id', organization.id)
         .order('created_at', { ascending: false })
 
@@ -662,6 +670,29 @@ export default function OrgDashboardPage() {
       setTimeout(() => setLinkCopied(false), 2000)
     } catch (err) {
       console.error('Failed to copy:', err)
+    }
+  }
+
+  // Update application status
+  const updateApplicationStatus = async (applicationId: string, newStatus: Application['status']) => {
+    try {
+      const { error } = await supabase
+        .from('applications')
+        .update({ 
+          status: newStatus,
+          status_updated_at: new Date().toISOString()
+        })
+        .eq('id', applicationId)
+      
+      if (error) {
+        console.error('Error updating application status:', error)
+        setError('Failed to update application status')
+      } else {
+        setSaveSuccess(`Application status updated to ${newStatus}`)
+        setTimeout(() => setSaveSuccess(''), 2000)
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to update status')
     }
   }
 
@@ -959,32 +990,58 @@ export default function OrgDashboardPage() {
                     </p>
                   ) : (
                     <div className="space-y-3">
-                      {applications.map((app, index) => (
-                        <motion.div
-                          key={app.id}
-                          initial={{ opacity: 0, x: -10 }}
-                          animate={{ opacity: 1, x: 0 }}
-                          transition={{ delay: index * 0.05 }}
-                          className="p-3 bg-gray-50 rounded-lg"
-                        >
-                          <div className="flex items-start justify-between">
-                            <div>
-                              <h4 className="font-medium text-gray-800">{app.applicant_name}</h4>
-                              <p className="text-xs text-gray-500 mt-0.5">{app.applicant_email}</p>
+                      {applications.map((app, index) => {
+                        const currentStatus = APPLICATION_STATUSES.find(s => s.value === app.status) || APPLICATION_STATUSES[0]
+                        return (
+                          <motion.div
+                            key={app.id}
+                            initial={{ opacity: 0, x: -10 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{ delay: index * 0.05 }}
+                            className="p-4 bg-gray-50 rounded-lg border border-gray-100"
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex-1 min-w-0">
+                                <h4 className="font-medium text-gray-800">{app.applicant_name}</h4>
+                                <p className="text-xs text-gray-500 mt-0.5">{app.applicant_email}</p>
+                              </div>
+                              <span className={`px-2.5 py-1 text-xs font-medium rounded-full whitespace-nowrap ${currentStatus.color}`}>
+                                {currentStatus.icon} {currentStatus.label}
+                              </span>
                             </div>
-                            <span className="px-2 py-0.5 bg-orange-100 text-orange-700 text-xs font-medium rounded">
-                              {app.status}
-                            </span>
-                          </div>
-                          <div className="mt-2 pt-2 border-t border-gray-200">
-                            <p className="text-xs text-gray-500 font-medium mb-1">Why they want to join:</p>
-                            <p className="text-sm text-gray-700">{app.why_join}</p>
-                          </div>
-                          <p className="text-xs text-gray-400 mt-2">
-                            Applied {new Date(app.created_at).toLocaleDateString()} at {new Date(app.created_at).toLocaleTimeString()}
-                          </p>
-                        </motion.div>
-                      ))}
+                            
+                            <div className="mt-3 pt-3 border-t border-gray-200">
+                              <p className="text-xs text-gray-500 font-medium mb-1">Why they want to join:</p>
+                              <p className="text-sm text-gray-700">{app.why_join}</p>
+                            </div>
+                            
+                            {/* Status Change Buttons */}
+                            <div className="mt-4 pt-3 border-t border-gray-200">
+                              <p className="text-xs text-gray-500 font-medium mb-2">Change Status:</p>
+                              <div className="flex flex-wrap gap-2">
+                                {APPLICATION_STATUSES.map((status) => (
+                                  <button
+                                    key={status.value}
+                                    onClick={() => updateApplicationStatus(app.id, status.value)}
+                                    disabled={app.status === status.value}
+                                    className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                                      app.status === status.value
+                                        ? `${status.color} ring-2 ring-offset-1 ring-gray-300 cursor-default`
+                                        : 'bg-white border border-gray-200 text-gray-600 hover:border-gray-400 hover:bg-gray-50'
+                                    }`}
+                                  >
+                                    {status.icon} {status.label}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            
+                            <p className="text-xs text-gray-400 mt-3">
+                              Applied {new Date(app.created_at).toLocaleDateString()} at {new Date(app.created_at).toLocaleTimeString()}
+                            </p>
+                          </motion.div>
+                        )
+                      })}
                     </div>
                   )}
                   <div className="flex items-center gap-2 mt-4 pt-3 border-t border-gray-100">

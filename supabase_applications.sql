@@ -40,8 +40,11 @@ CREATE TABLE applications (
     applicant_email TEXT NOT NULL,
     why_join TEXT NOT NULL,
     
-    -- Status (only 'waiting' for now, can expand later)
-    status TEXT NOT NULL DEFAULT 'waiting' CHECK (status IN ('waiting')),
+    -- Status: waiting, interview, accepted, rejected
+    status TEXT NOT NULL DEFAULT 'waiting' CHECK (status IN ('waiting', 'interview', 'accepted', 'rejected')),
+    
+    -- Status change tracking
+    status_updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     
     -- Timestamps
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -73,6 +76,16 @@ CREATE POLICY "Users can delete own applications" ON applications
 -- Policy: Org account owners can read applications to their org
 CREATE POLICY "Org owners can read applications" ON applications
     FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM org_accounts 
+            WHERE org_accounts.organization_id = applications.organization_id 
+            AND org_accounts.user_id = auth.uid()
+        )
+    );
+
+-- Policy: Org account owners can update application status
+CREATE POLICY "Org owners can update application status" ON applications
+    FOR UPDATE USING (
         EXISTS (
             SELECT 1 FROM org_accounts 
             WHERE org_accounts.organization_id = applications.organization_id 

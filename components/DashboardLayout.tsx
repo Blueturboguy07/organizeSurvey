@@ -15,10 +15,11 @@ const NAV_ITEMS = [
   { href: '/dashboard', label: 'My Orgs', icon: 'users' },
   { href: '/dashboard/explore', label: 'Explore', icon: 'compass' },
   { href: '/dashboard/saved', label: 'Saved', icon: 'bookmark' },
+  { href: '/dashboard/applications', label: 'Applications', icon: 'clipboard' },
 ]
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
-  const { user, signOut, userProfile, userProfileLoading, joinedOrgIds, savedOrgIds } = useAuth()
+  const { user, signOut, userProfile, userProfileLoading, joinedOrgIds, savedOrgIds, appliedOrgIds } = useAuth()
   const pathname = usePathname()
   const router = useRouter()
   const [imageError, setImageError] = useState(false)
@@ -61,6 +62,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
           </svg>
         )
+      case 'clipboard':
+        return (
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+          </svg>
+        )
       default:
         return null
     }
@@ -69,6 +76,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const getBadgeCount = (href: string) => {
     if (href === '/dashboard') return joinedOrgIds.size
     if (href === '/dashboard/saved') return savedOrgIds.size
+    if (href === '/dashboard/applications') return appliedOrgIds.size
     return 0
   }
 
