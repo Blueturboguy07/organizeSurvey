@@ -7,6 +7,7 @@ import { createClientComponentClient } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import Image from 'next/image'
 import Link from 'next/link'
+import DynamicApplicationForm from '@/components/DynamicApplicationForm'
 
 interface Organization {
   id: string
@@ -54,9 +55,6 @@ export default function PublicOrgPage() {
   
   // Application form states
   const [showApplicationForm, setShowApplicationForm] = useState(false)
-  const [appFormName, setAppFormName] = useState('')
-  const [appFormEmail, setAppFormEmail] = useState('')
-  const [appFormWhyJoin, setAppFormWhyJoin] = useState('')
   const [applyLoading, setApplyLoading] = useState(false)
   const [applyError, setApplyError] = useState<string | null>(null)
   const [applySuccess, setApplySuccess] = useState(false)
@@ -103,13 +101,6 @@ export default function PublicOrgPage() {
     fetchOrg()
   }, [orgId, supabase])
 
-  // Pre-fill application form when user is logged in
-  useEffect(() => {
-    if (user) {
-      setAppFormEmail(user.email || '')
-    }
-  }, [user])
-
   const isJoined = org ? joinedOrgIds.has(org.id) : false
   const isApplied = org ? appliedOrgIds.has(org.id) : false
   const isApplicationBased = org?.is_application_based === true
@@ -123,9 +114,6 @@ export default function PublicOrgPage() {
     
     if (isApplicationBased) {
       // Show application form
-      setAppFormName('')
-      setAppFormEmail(user.email || '')
-      setAppFormWhyJoin('')
       setShowApplicationForm(true)
     } else {
       // Direct join
@@ -150,22 +138,16 @@ export default function PublicOrgPage() {
     setApplyLoading(false)
   }
 
-  const handleSubmitApplication = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmitApplication = async (data: { name: string; email: string; whyJoin: string; customResponses: Record<string, string | string[]> }) => {
     if (!org) return
-    
-    if (!appFormName.trim() || !appFormEmail.trim() || !appFormWhyJoin.trim()) {
-      setApplyError('Please fill in all fields')
-      return
-    }
     
     setApplyLoading(true)
     setApplyError(null)
     
     const result = await joinOrg(org.id, {
-      name: appFormName.trim(),
-      email: appFormEmail.trim(),
-      whyJoin: appFormWhyJoin.trim()
+      name: data.name,
+      email: data.email,
+      whyJoin: data.whyJoin
     })
     
     if (result.success) {
@@ -715,79 +697,23 @@ export default function PublicOrgPage() {
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-xl shadow-xl max-w-md w-full overflow-hidden"
+              className="bg-white rounded-xl shadow-xl max-w-lg w-full max-h-[90vh] overflow-hidden flex flex-col"
             >
-              <div className="bg-gradient-to-r from-tamu-maroon to-tamu-maroon-light p-4 text-white">
+              <div className="bg-gradient-to-r from-tamu-maroon to-tamu-maroon-light p-4 text-white flex-shrink-0">
                 <h2 className="text-xl font-bold">Apply to {org.name}</h2>
                 <p className="text-sm text-white/80 mt-1">Fill out the form below to submit your application</p>
               </div>
 
-              <form onSubmit={handleSubmitApplication} className="p-4 space-y-4">
-                {applyError && (
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
-                    {applyError}
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Your Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={appFormName}
-                    onChange={(e) => setAppFormName(e.target.value)}
-                    placeholder="Enter your full name"
-                    className="w-full p-2 border border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none focus:ring-1 focus:ring-tamu-maroon"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Email <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="email"
-                    value={appFormEmail}
-                    onChange={(e) => setAppFormEmail(e.target.value)}
-                    placeholder="your@email.com"
-                    className="w-full p-2 border border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none focus:ring-1 focus:ring-tamu-maroon"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Why do you want to join? <span className="text-red-500">*</span>
-                  </label>
-                  <textarea
-                    value={appFormWhyJoin}
-                    onChange={(e) => setAppFormWhyJoin(e.target.value)}
-                    placeholder="Tell us why you're interested in joining..."
-                    rows={4}
-                    className="w-full p-2 border border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none focus:ring-1 focus:ring-tamu-maroon resize-none"
-                    required
-                  />
-                </div>
-
-                <div className="flex gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowApplicationForm(false)}
-                    className="flex-1 px-4 py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={applyLoading}
-                    className="flex-1 px-4 py-2 text-sm font-medium bg-tamu-maroon text-white rounded-lg hover:bg-tamu-maroon-light transition-colors disabled:opacity-50"
-                  >
-                    {applyLoading ? 'Submitting...' : 'Submit Application'}
-                  </button>
-                </div>
-              </form>
+              <div className="p-4 overflow-y-auto flex-1">
+                <DynamicApplicationForm
+                  organizationId={org.id}
+                  organizationName={org.name}
+                  onSubmit={handleSubmitApplication}
+                  onCancel={() => setShowApplicationForm(false)}
+                  loading={applyLoading}
+                  error={applyError}
+                />
+              </div>
             </motion.div>
           </motion.div>
         )}

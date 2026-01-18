@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/contexts/AuthContext'
+import DynamicApplicationForm from '@/components/DynamicApplicationForm'
 
 interface Organization {
   id: string
@@ -46,7 +47,7 @@ export default function OrgCard({
   variant = 'default',
   onOrgUpdate
 }: OrgCardProps) {
-  const { user, joinedOrgIds, savedOrgIds, appliedOrgIds, joinOrg, leaveOrg, saveOrg, unsaveOrg, userProfile } = useAuth()
+  const { user, joinedOrgIds, savedOrgIds, appliedOrgIds, joinOrg, leaveOrg, saveOrg, unsaveOrg } = useAuth()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isApplicationModalOpen, setIsApplicationModalOpen] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
@@ -59,41 +60,29 @@ export default function OrgCard({
   const isApplicationBased = org.is_application_based === true
   const [applicationSuccess, setApplicationSuccess] = useState<string | null>(null)
 
-  // Application form state
-  const [appFormName, setAppFormName] = useState(userProfile?.name || '')
-  const [appFormEmail, setAppFormEmail] = useState(user?.email || '')
-  const [appFormWhyJoin, setAppFormWhyJoin] = useState('')
 
   // Debug: log platform status
   console.log(`🏢 [OrgCard] "${org.name}" - is_on_platform:`, org.is_on_platform, '→ isOnPlatform:', isOnPlatform, 'is_application_based:', isApplicationBased)
 
   const handleApplyClick = (e: React.MouseEvent) => {
     e.stopPropagation()
-    // Pre-fill name and email from profile/auth
-    setAppFormName(userProfile?.name || '')
-    setAppFormEmail(user?.email || '')
-    setAppFormWhyJoin('')
     setActionError(null)
     setIsApplicationModalOpen(true)
   }
 
-  const handleSubmitApplication = async (e: React.FormEvent) => {
-    e.preventDefault()
-    
-    if (!appFormName.trim() || !appFormEmail.trim() || !appFormWhyJoin.trim()) {
-      setActionError('Please fill in all fields')
-      return
-    }
-
+  const handleSubmitApplication = async (data: { name: string; email: string; whyJoin: string; customResponses: Record<string, string | string[]> }) => {
     setActionLoading('apply')
     setActionError(null)
     setApplicationSuccess(null)
     
     const result = await joinOrg(org.id, {
-      name: appFormName.trim(),
-      email: appFormEmail.trim(),
-      whyJoin: appFormWhyJoin.trim()
+      name: data.name,
+      email: data.email,
+      whyJoin: data.whyJoin
     })
+    
+    // TODO: Store custom responses in application_responses table
+    // For now, we're just using the basic fields
     
     if (!result.success) {
       setActionError(result.error || 'Failed to submit application')
@@ -572,79 +561,23 @@ export default function OrgCard({
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.9 }}
               onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-lg shadow-xl max-w-md w-full overflow-hidden"
+              className="bg-white rounded-lg shadow-xl max-w-lg w-full max-h-[90vh] overflow-hidden flex flex-col"
             >
-              <div className="bg-gradient-to-r from-tamu-maroon to-tamu-maroon-light p-4 text-white">
+              <div className="bg-gradient-to-r from-tamu-maroon to-tamu-maroon-light p-4 text-white flex-shrink-0">
                 <h2 className="text-xl font-bold">Apply to {org.name}</h2>
                 <p className="text-sm text-white/80 mt-1">Fill out the form below to submit your application</p>
               </div>
 
-              <form onSubmit={handleSubmitApplication} className="p-4 space-y-4">
-                {actionError && (
-                  <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
-                    {actionError}
-                  </div>
-                )}
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Your Name <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={appFormName}
-                    onChange={(e) => setAppFormName(e.target.value)}
-                    placeholder="Enter your full name"
-                    className="w-full p-2 border border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none focus:ring-1 focus:ring-tamu-maroon"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Email <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    type="email"
-                    value={appFormEmail}
-                    onChange={(e) => setAppFormEmail(e.target.value)}
-                    placeholder="your@email.com"
-                    className="w-full p-2 border border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none focus:ring-1 focus:ring-tamu-maroon"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Why do you want to join? <span className="text-red-500">*</span>
-                  </label>
-                  <textarea
-                    value={appFormWhyJoin}
-                    onChange={(e) => setAppFormWhyJoin(e.target.value)}
-                    placeholder="Tell us why you're interested in joining this organization..."
-                    rows={4}
-                    className="w-full p-2 border border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none focus:ring-1 focus:ring-tamu-maroon resize-none"
-                    required
-                  />
-                </div>
-
-                <div className="flex gap-3 pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setIsApplicationModalOpen(false)}
-                    className="flex-1 px-4 py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={actionLoading === 'apply'}
-                    className="flex-1 px-4 py-2 text-sm font-medium bg-tamu-maroon text-white rounded-lg hover:bg-tamu-maroon-light transition-colors disabled:opacity-50"
-                  >
-                    {actionLoading === 'apply' ? 'Submitting...' : 'Submit Application'}
-                  </button>
-                </div>
-              </form>
+              <div className="p-4 overflow-y-auto flex-1">
+                <DynamicApplicationForm
+                  organizationId={org.id}
+                  organizationName={org.name}
+                  onSubmit={handleSubmitApplication}
+                  onCancel={() => setIsApplicationModalOpen(false)}
+                  loading={actionLoading === 'apply'}
+                  error={actionError}
+                />
+              </div>
             </motion.div>
           </motion.div>
         )}
