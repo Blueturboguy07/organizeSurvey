@@ -46,13 +46,14 @@ export default function OrgCard({
   variant = 'default',
   onOrgUpdate
 }: OrgCardProps) {
-  const { joinedOrgIds, savedOrgIds, joinOrg, leaveOrg, saveOrg, unsaveOrg } = useAuth()
+  const { joinedOrgIds, savedOrgIds, appliedOrgIds, joinOrg, leaveOrg, saveOrg, unsaveOrg } = useAuth()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
 
   const isJoined = joinedOrgIds.has(org.id)
   const isSaved = savedOrgIds.has(org.id)
+  const isApplied = appliedOrgIds.has(org.id)
   const isOnPlatform = org.is_on_platform === true // Only true if explicitly set to true
   const isApplicationBased = org.is_application_based === true
   const [applicationSuccess, setApplicationSuccess] = useState<string | null>(null)
@@ -210,7 +211,11 @@ export default function OrgCard({
               >
                 {actionLoading === 'leave' ? 'Leaving...' : 'Leave'}
               </motion.button>
-            ) : isOnPlatform && !applicationSuccess ? (
+            ) : isApplied || applicationSuccess ? (
+              <span className="px-3 py-1.5 text-sm font-medium text-orange-600 bg-orange-50 border border-orange-200 rounded-lg">
+                Applied - Waiting
+              </span>
+            ) : isOnPlatform ? (
               isApplicationBased ? (
                 <motion.button
                   whileHover={{ scale: 1.02 }}
@@ -355,7 +360,11 @@ export default function OrgCard({
                       >
                         {actionLoading === 'leave' ? 'Leaving...' : 'Leave Organization'}
                       </motion.button>
-                    ) : isOnPlatform && !applicationSuccess ? (
+                    ) : isApplied || applicationSuccess ? (
+                      <span className="px-4 py-2 text-sm font-medium text-orange-600 bg-orange-50 border border-orange-200 rounded-lg">
+                        Applied - Waiting for Review
+                      </span>
+                    ) : isOnPlatform ? (
                       isApplicationBased ? (
                         <motion.button
                           whileHover={{ scale: 1.02 }}
@@ -377,9 +386,9 @@ export default function OrgCard({
                           {actionLoading === 'join' ? 'Joining...' : 'Join Organization'}
                         </motion.button>
                       )
-                    ) : !applicationSuccess ? (
+                    ) : (
                       <span className="text-sm text-gray-500">This organization is not on the platform yet</span>
-                    ) : null}
+                    )}
                     
                     {!isJoined && (
                       isSaved ? (

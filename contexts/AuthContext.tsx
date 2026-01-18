@@ -67,6 +67,10 @@ interface AuthContextType {
   savedOrgIds: Set<string>
   savedOrgIdsLoading: boolean
   refreshSavedOrgs: () => Promise<void>
+  // Applied organizations data
+  appliedOrgIds: Set<string>
+  appliedOrgIdsLoading: boolean
+  refreshAppliedOrgs: () => Promise<void>
   // Actions
   joinOrg: (organizationId: string) => Promise<{ success: boolean; error?: string; applied?: boolean }>
   leaveOrg: (organizationId: string) => Promise<{ success: boolean; error?: string }>
@@ -88,6 +92,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [joinedOrgIdsLoading, setJoinedOrgIdsLoading] = useState(false)
   const [savedOrgIds, setSavedOrgIds] = useState<Set<string>>(new Set())
   const [savedOrgIdsLoading, setSavedOrgIdsLoading] = useState(false)
+  const [appliedOrgIds, setAppliedOrgIds] = useState<Set<string>>(new Set())
+  const [appliedOrgIdsLoading, setAppliedOrgIdsLoading] = useState(false)
   const router = useRouter()
   const supabase = createClientComponentClient()
 
@@ -199,6 +205,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [supabase])
 
+  // Fetch applied organizations
+  const fetchAppliedOrgs = useCallback(async (userId: string) => {
+    setAppliedOrgIdsLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('applications')
+        .select('organization_id')
+        .eq('user_id', userId)
+
+      if (error && error.code !== 'PGRST116' && error.code !== '42P01') {
+        console.error('Error fetching applied organizations:', error)
+      }
+      
+      const orgIds = new Set((data || []).map((app: { organization_id: string }) => app.organization_id))
+      setAppliedOrgIds(orgIds)
+    } catch (err) {
+      console.error('Failed to fetch applied organizations:', err)
+      setAppliedOrgIds(new Set())
+    } finally {
+      setAppliedOrgIdsLoading(false)
+    }
+  }, [supabase])
+
   // Manual refresh functions
   const refreshUserQuery = useCallback(async () => {
     if (user) {
@@ -223,6 +252,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       await fetchSavedOrgs(user.id)
     }
   }, [user, fetchSavedOrgs])
+
+  const refreshAppliedOrgs = useCallback(async () => {
+    if (user) {
+      await fetchAppliedOrgs(user.id)
+    }
+  }, [user, fetchAppliedOrgs])
 
   // Action: Join an organization (or apply if application-based)
   const joinOrg = useCallback(async (organizationId: string): Promise<{ success: boolean; error?: string; applied?: boolean }> => {
@@ -286,6 +321,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return { success: false, error: appError.message }
         }
 
+        // Update local state
+        setAppliedOrgIds(prev => new Set([...prev, organizationId]))
+        
         return { success: true, applied: true }
       }
 
@@ -423,6 +461,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         fetchUserProfile(session.user.id)
         fetchJoinedOrgs(session.user.id)
         fetchSavedOrgs(session.user.id)
+        fetchAppliedOrgs(session.user.id)
       }
     })
 
@@ -440,11 +479,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         fetchUserProfile(session.user.id)
         fetchJoinedOrgs(session.user.id)
         fetchSavedOrgs(session.user.id)
+        fetchAppliedOrgs(session.user.id)
       } else {
         setUserQuery(null)
         setUserProfile(null)
         setJoinedOrgIds(new Set())
         setSavedOrgIds(new Set())
+        setAppliedOrgIds(new Set())
       }
       
       // Redirect to login if signed out
@@ -706,6 +747,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       savedOrgIds,
       savedOrgIdsLoading,
       refreshSavedOrgs,
+      appliedOrgIds,
+      appliedOrgIdsLoading,
+      refreshAppliedOrgs,
       joinOrg,
       leaveOrg,
       saveOrg,
