@@ -231,6 +231,7 @@ export default function OrgDashboardPage() {
   const [applicationsLoading, setApplicationsLoading] = useState(false)
   const [showApplicationsList, setShowApplicationsList] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
+  const [showShareModal, setShowShareModal] = useState(false)
   
   // Editing states
   const [editingField, setEditingField] = useState<string | null>(null)
@@ -642,10 +643,26 @@ export default function OrgDashboardPage() {
     router.push('/login')
   }
 
+  // Generate URL-friendly slug from org name
+  const generateSlug = (name: string): string => {
+    return name
+      .toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, '') // Remove special characters
+      .replace(/\s+/g, '-') // Replace spaces with hyphens
+      .replace(/-+/g, '-') // Replace multiple hyphens with single
+      .trim()
+  }
+
+  // Get the share URL
+  const getShareUrl = () => {
+    if (!organization) return ''
+    const slug = generateSlug(organization.name)
+    return `${window.location.origin}/apply/${slug}`
+  }
+
   // Copy share link
   const handleCopyShareLink = async () => {
-    if (!organization) return
-    const shareUrl = `${window.location.origin}/org/${organization.id}`
+    const shareUrl = getShareUrl()
     try {
       await navigator.clipboard.writeText(shareUrl)
       setLinkCopied(true)
@@ -800,26 +817,15 @@ export default function OrgDashboardPage() {
               <div className="flex items-center gap-2">
                 {/* Share Link Button */}
                 <motion.button
-                  onClick={handleCopyShareLink}
+                  onClick={() => setShowShareModal(true)}
                   whileHover={{ scale: 1.05, y: -2 }}
                   whileTap={{ scale: 0.95 }}
                   className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition-all backdrop-blur-sm flex items-center gap-2 shadow-lg"
                 >
-                  {linkCopied ? (
-                    <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                      </svg>
-                      Copied!
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-                      </svg>
-                      Share
-                    </>
-                  )}
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                  </svg>
+                  Share
                 </motion.button>
                 {/* Edit Info Button */}
                 <motion.button
@@ -1642,6 +1648,88 @@ export default function OrgDashboardPage() {
           )}
         </AnimatePresence>
       </main>
+
+      {/* Share Modal */}
+      <AnimatePresence>
+        {showShareModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            onClick={() => setShowShareModal(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold text-gray-800">Share Your Organization</h3>
+                <button
+                  onClick={() => setShowShareModal(false)}
+                  className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                >
+                  <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              <p className="text-sm text-gray-600 mb-4">
+                Share this link with potential members so they can view and apply to your organization.
+              </p>
+
+              {/* Link Display */}
+              <div className="bg-gray-50 rounded-lg p-3 mb-4">
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 overflow-hidden">
+                    <p className="text-xs text-gray-500 mb-1">Application Link</p>
+                    <p className="text-sm font-mono text-tamu-maroon truncate">
+                      {getShareUrl()}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Copy Button */}
+              <motion.button
+                onClick={handleCopyShareLink}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className={`w-full py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2 ${
+                  linkCopied 
+                    ? 'bg-green-600 text-white' 
+                    : 'bg-tamu-maroon text-white hover:bg-tamu-maroon-light'
+                }`}
+              >
+                {linkCopied ? (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    Copied to Clipboard!
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
+                    </svg>
+                    Copy Link
+                  </>
+                )}
+              </motion.button>
+
+              <p className="text-xs text-gray-400 text-center mt-3">
+                Anyone with this link can view your organization&apos;s page
+              </p>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }
