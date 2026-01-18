@@ -68,7 +68,7 @@ interface AuthContextType {
   savedOrgIdsLoading: boolean
   refreshSavedOrgs: () => Promise<void>
   // Actions
-  joinOrg: (organizationId: string) => Promise<{ success: boolean; error?: string }>
+  joinOrg: (organizationId: string) => Promise<{ success: boolean; error?: string; applied?: boolean }>
   leaveOrg: (organizationId: string) => Promise<{ success: boolean; error?: string }>
   saveOrg: (organizationId: string) => Promise<{ success: boolean; error?: string }>
   unsaveOrg: (organizationId: string) => Promise<{ success: boolean; error?: string }>
