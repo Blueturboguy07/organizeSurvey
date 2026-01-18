@@ -232,6 +232,7 @@ export default function OrgDashboardPage() {
   const [showApplicationsList, setShowApplicationsList] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
   const [showShareModal, setShowShareModal] = useState(false)
+  const [orgSlug, setOrgSlug] = useState<string | null>(null)
   
   // Editing states
   const [editingField, setEditingField] = useState<string | null>(null)
@@ -285,7 +286,7 @@ export default function OrgDashboardPage() {
 
       const { data: orgAccount, error: orgAccountError } = await supabase
         .from('org_accounts')
-        .select('organization_id')
+        .select('organization_id, slug')
         .eq('user_id', user.id)
         .single()
 
@@ -294,6 +295,9 @@ export default function OrgDashboardPage() {
         setLoading(false)
         return
       }
+      
+      // Set the slug for sharing
+      setOrgSlug(orgAccount.slug)
 
       const { data: orgData, error: orgError } = await supabase
         .from('organizations')
@@ -643,21 +647,10 @@ export default function OrgDashboardPage() {
     router.push('/login')
   }
 
-  // Generate URL-friendly slug from org name
-  const generateSlug = (name: string): string => {
-    return name
-      .toLowerCase()
-      .replace(/[^a-z0-9\s-]/g, '') // Remove special characters
-      .replace(/\s+/g, '-') // Replace spaces with hyphens
-      .replace(/-+/g, '-') // Replace multiple hyphens with single
-      .trim()
-  }
-
-  // Get the share URL
+  // Get the share URL using the stored slug
   const getShareUrl = () => {
-    if (!organization) return ''
-    const slug = generateSlug(organization.name)
-    return `${window.location.origin}/apply/${slug}`
+    if (!orgSlug) return ''
+    return `${window.location.origin}/apply/${orgSlug}`
   }
 
   // Copy share link

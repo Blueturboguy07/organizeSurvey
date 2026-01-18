@@ -16,6 +16,9 @@ CREATE TABLE IF NOT EXISTS org_accounts (
     -- Contact email (from organization's administrative_contact_info)
     email TEXT NOT NULL,
     
+    -- URL-friendly slug for public sharing (e.g., "texas-am-engineering-club")
+    slug TEXT UNIQUE,
+    
     -- Verification status
     email_verified BOOLEAN DEFAULT FALSE,
     verification_token TEXT,
@@ -34,6 +37,7 @@ CREATE INDEX IF NOT EXISTS idx_org_accounts_user_id ON org_accounts(user_id);
 CREATE INDEX IF NOT EXISTS idx_org_accounts_organization_id ON org_accounts(organization_id);
 CREATE INDEX IF NOT EXISTS idx_org_accounts_email ON org_accounts(email);
 CREATE INDEX IF NOT EXISTS idx_org_accounts_verification_token ON org_accounts(verification_token);
+CREATE INDEX IF NOT EXISTS idx_org_accounts_slug ON org_accounts(slug);
 
 -- Enable Row Level Security
 ALTER TABLE org_accounts ENABLE ROW LEVEL SECURITY;

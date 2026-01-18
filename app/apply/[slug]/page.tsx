@@ -29,15 +29,6 @@ interface Organization {
   is_application_based: boolean | null
 }
 
-// Generate URL-friendly slug from org name (must match dashboard logic)
-const generateSlug = (name: string): string => {
-  return name
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .trim()
-}
 
 export default function PublicApplyPage() {
   const params = useParams()
@@ -71,7 +62,7 @@ export default function PublicApplyPage() {
   const [applyError, setApplyError] = useState<string | null>(null)
   const [applySuccess, setApplySuccess] = useState(false)
 
-  // Fetch organization data by matching slug
+  // Fetch organization data by slug lookup in org_accounts
   useEffect(() => {
     const fetchOrg = async () => {
       if (!slug) return
@@ -80,36 +71,35 @@ export default function PublicApplyPage() {
       setError(null)
       
       try {
-        // Fetch all organizations and find the one matching the slug
-        const { data: orgs, error: orgsError } = await supabase
-          .from('organizations')
-          .select('*')
+        // Look up org_account by slug directly
+        const { data: orgAccount, error: accountError } = await supabase
+          .from('org_accounts')
+          .select('organization_id, email_verified, is_active')
+          .eq('slug', slug)
+          .single()
         
-        if (orgsError) {
-          setError('Failed to load organizations')
-          setLoading(false)
-          return
-        }
-        
-        // Find org where slugified name matches the URL slug
-        const matchedOrg = orgs?.find(o => generateSlug(o.name) === slug)
-        
-        if (!matchedOrg) {
+        if (accountError || !orgAccount) {
           setError('Organization not found')
           setLoading(false)
           return
         }
         
-        setOrg(matchedOrg)
+        setIsOnPlatform(orgAccount.email_verified && orgAccount.is_active)
         
-        // Check if on platform
-        const { data: orgAccount } = await supabase
-          .from('org_accounts')
-          .select('id, email_verified, is_active')
-          .eq('organization_id', matchedOrg.id)
+        // Fetch the organization details
+        const { data: orgData, error: orgError } = await supabase
+          .from('organizations')
+          .select('*')
+          .eq('id', orgAccount.organization_id)
           .single()
         
-        setIsOnPlatform(orgAccount?.email_verified && orgAccount?.is_active)
+        if (orgError || !orgData) {
+          setError('Organization not found')
+          setLoading(false)
+          return
+        }
+        
+        setOrg(orgData)
       } catch (err) {
         setError('Failed to load organization')
       } finally {

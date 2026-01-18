@@ -2,6 +2,37 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { createClient } from '@supabase/supabase-js'
 
+// Generate URL-friendly slug from org name
+function generateSlug(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .trim()
+}
+
+// Ensure slug is unique by appending a number if needed
+async function getUniqueSlug(baseSlug: string): Promise<string> {
+  let slug = baseSlug
+  let counter = 1
+  
+  while (true) {
+    const { data } = await supabaseAdmin
+      .from('org_accounts')
+      .select('id')
+      .eq('slug', slug)
+      .single()
+    
+    if (!data) {
+      return slug
+    }
+    
+    slug = `${baseSlug}-${counter}`
+    counter++
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const { organizationId, organizationName, email, password } = await request.json()
@@ -93,6 +124,10 @@ export async function POST(request: Request) {
       )
     }
 
+    // Generate unique slug from organization name
+    const baseSlug = generateSlug(organizationName || 'organization')
+    const uniqueSlug = await getUniqueSlug(baseSlug)
+
     // Create or update org account record
     if (existingAccount) {
       // Update existing record
@@ -102,6 +137,7 @@ export async function POST(request: Request) {
           email: normalizedEmail,
           user_id: signUpData.user.id,
           email_verified: false,
+          slug: uniqueSlug,
         })
         .eq('id', existingAccount.id)
 
@@ -117,6 +153,7 @@ export async function POST(request: Request) {
           email: normalizedEmail,
           user_id: signUpData.user.id,
           email_verified: false,
+          slug: uniqueSlug,
         })
 
       if (insertError) {
