@@ -115,6 +115,7 @@ type ActiveTab = 'about' | 'details' | 'membership'
 
 interface Application {
   id: string
+  user_id: string
   applicant_name: string
   applicant_email: string
   why_join: string
@@ -399,7 +400,7 @@ export default function OrgDashboardPage() {
       setApplicationsLoading(true)
       const { data, error } = await supabase
         .from('applications')
-        .select('id, applicant_name, applicant_email, why_join, status, created_at, status_updated_at')
+        .select('id, user_id, applicant_name, applicant_email, why_join, status, created_at, status_updated_at')
         .eq('organization_id', organization.id)
         .order('created_at', { ascending: false })
 
@@ -674,7 +675,9 @@ export default function OrgDashboardPage() {
   }
 
   // Update application status
-  const updateApplicationStatus = async (applicationId: string, newStatus: Application['status']) => {
+  const updateApplicationStatus = async (applicationId: string, newStatus: Application['status'], userId?: string) => {
+    if (!organization) return
+    
     try {
       const { error } = await supabase
         .from('applications')
@@ -687,10 +690,35 @@ export default function OrgDashboardPage() {
       if (error) {
         console.error('Error updating application status:', error)
         setError('Failed to update application status')
+        return
+      }
+      
+      // If accepted, automatically add user to the organization
+      if (newStatus === 'accepted' && userId) {
+        const { error: joinError } = await supabase
+          .from('user_joined_orgs')
+          .insert({
+            user_id: userId,
+            organization_id: organization.id
+          })
+        
+        if (joinError) {
+          // Check if already joined (duplicate key error)
+          if (joinError.code === '23505') {
+            console.log('User already a member')
+          } else {
+            console.error('Error adding user to org:', joinError)
+            setError('Status updated but failed to add user to organization')
+            return
+          }
+        }
+        
+        setSaveSuccess('Application accepted! User has been added to the organization.')
       } else {
         setSaveSuccess(`Application status updated to ${newStatus}`)
-        setTimeout(() => setSaveSuccess(''), 2000)
       }
+      
+      setTimeout(() => setSaveSuccess(''), 3000)
     } catch (err: any) {
       setError(err.message || 'Failed to update status')
     }
@@ -1022,7 +1050,7 @@ export default function OrgDashboardPage() {
                                 {APPLICATION_STATUSES.map((status) => (
                                   <button
                                     key={status.value}
-                                    onClick={() => updateApplicationStatus(app.id, status.value)}
+                                    onClick={() => updateApplicationStatus(app.id, status.value, app.user_id)}
                                     disabled={app.status === status.value}
                                     className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
                                       app.status === status.value
