@@ -123,6 +123,8 @@ interface Application {
   status: 'waiting' | 'interview' | 'accepted' | 'rejected'
   created_at: string
   status_updated_at: string
+  internal_notes: string | null
+  rank: number | null
 }
 
 const APPLICATION_STATUSES = [
@@ -244,6 +246,17 @@ export default function OrgDashboardPage() {
   const [linkCopied, setLinkCopied] = useState(false)
   const [showShareModal, setShowShareModal] = useState(false)
   const [orgSlug, setOrgSlug] = useState<string | null>(null)
+  
+  // Application review tools state
+  const [statusFilter, setStatusFilter] = useState<'all' | 'waiting' | 'interview' | 'accepted' | 'rejected'>('all')
+  const [sortBy, setSortBy] = useState<'date' | 'rank' | 'name'>('date')
+  const [selectedApplication, setSelectedApplication] = useState<Application | null>(null)
+  const [editingNotes, setEditingNotes] = useState<string | null>(null)
+  const [notesValue, setNotesValue] = useState('')
+  const [savingNotes, setSavingNotes] = useState(false)
+  const [editingRank, setEditingRank] = useState<string | null>(null)
+  const [rankValue, setRankValue] = useState<string>('')
+  const [savingRank, setSavingRank] = useState(false)
   
   // Editing states
   const [editingField, setEditingField] = useState<string | null>(null)
@@ -402,7 +415,7 @@ export default function OrgDashboardPage() {
       setApplicationsLoading(true)
       const { data, error } = await supabase
         .from('applications')
-        .select('id, user_id, applicant_name, applicant_email, why_join, status, created_at, status_updated_at')
+        .select('id, user_id, applicant_name, applicant_email, why_join, status, created_at, status_updated_at, internal_notes, rank')
         .eq('organization_id', organization.id)
         .order('created_at', { ascending: false })
 
@@ -707,6 +720,83 @@ export default function OrgDashboardPage() {
     }
   }
 
+  // Save internal notes for an application
+  const saveInternalNotes = async (applicationId: string, notes: string) => {
+    setSavingNotes(true)
+    try {
+      const { error } = await supabase
+        .from('applications')
+        .update({ internal_notes: notes })
+        .eq('id', applicationId)
+      
+      if (error) {
+        console.error('Error saving notes:', error)
+        setError('Failed to save notes')
+      } else {
+        setEditingNotes(null)
+        setSaveSuccess('Notes saved')
+        setTimeout(() => setSaveSuccess(''), 2000)
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to save notes')
+    }
+    setSavingNotes(false)
+  }
+
+  // Update candidate rank
+  const updateCandidateRank = async (applicationId: string, rank: number | null) => {
+    setSavingRank(true)
+    try {
+      const { error } = await supabase
+        .from('applications')
+        .update({ rank })
+        .eq('id', applicationId)
+      
+      if (error) {
+        console.error('Error updating rank:', error)
+        setError('Failed to update rank')
+      } else {
+        setEditingRank(null)
+        setSaveSuccess('Rank updated')
+        setTimeout(() => setSaveSuccess(''), 2000)
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to update rank')
+    }
+    setSavingRank(false)
+  }
+
+  // Get filtered and sorted applications
+  const getFilteredApplications = () => {
+    let filtered = [...applications]
+    
+    // Apply status filter
+    if (statusFilter !== 'all') {
+      filtered = filtered.filter(app => app.status === statusFilter)
+    }
+    
+    // Apply sort
+    switch (sortBy) {
+      case 'rank':
+        filtered.sort((a, b) => {
+          if (a.rank === null && b.rank === null) return 0
+          if (a.rank === null) return 1
+          if (b.rank === null) return -1
+          return a.rank - b.rank
+        })
+        break
+      case 'name':
+        filtered.sort((a, b) => a.applicant_name.localeCompare(b.applicant_name))
+        break
+      case 'date':
+      default:
+        filtered.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        break
+    }
+    
+    return filtered
+  }
+
   // Toggle application-based setting
   const toggleApplicationBased = async () => {
     if (!organization) return
@@ -863,39 +953,39 @@ export default function OrgDashboardPage() {
                   Share
                 </motion.button>
                 {/* Edit Info Button */}
-                <motion.button
-                  onClick={() => setIsContentExpanded(!isContentExpanded)}
-                  whileHover={{ scale: 1.05, y: -2 }}
-                  whileTap={{ scale: 0.95 }}
+              <motion.button
+                onClick={() => setIsContentExpanded(!isContentExpanded)}
+                whileHover={{ scale: 1.05, y: -2 }}
+                whileTap={{ scale: 0.95 }}
                   className="px-4 py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition-all backdrop-blur-sm flex items-center gap-2 shadow-lg"
+              >
+                <motion.span
+                  animate={{ opacity: isContentExpanded ? 0.8 : 1 }}
+                  transition={{ duration: 0.2 }}
                 >
-                  <motion.span
-                    animate={{ opacity: isContentExpanded ? 0.8 : 1 }}
-                    transition={{ duration: 0.2 }}
-                  >
-                    {isContentExpanded ? 'Hide Info' : 'Edit Info'}
-                  </motion.span>
-                  <motion.svg
-                    width="16"
-                    height="16"
-                    viewBox="0 0 16 16"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                    animate={{ rotate: isContentExpanded ? 180 : 0 }}
-                    transition={{ 
-                      duration: 0.4,
-                      ease: [0.34, 1.56, 0.64, 1]
-                    }}
-                  >
-                    <path
-                      d="M4 6L8 10L12 6"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    />
-                  </motion.svg>
-                </motion.button>
+                  {isContentExpanded ? 'Hide Info' : 'Edit Info'}
+                </motion.span>
+                <motion.svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  xmlns="http://www.w3.org/2000/svg"
+                  animate={{ rotate: isContentExpanded ? 180 : 0 }}
+                  transition={{ 
+                    duration: 0.4,
+                    ease: [0.34, 1.56, 0.64, 1]
+                  }}
+                >
+                  <path
+                    d="M4 6L8 10L12 6"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </motion.svg>
+              </motion.button>
               </div>
             </div>
           </div>
@@ -949,10 +1039,7 @@ export default function OrgDashboardPage() {
             transition={{ delay: 0.15 }}
             className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 mb-6"
           >
-            <div 
-              className="flex items-center justify-between cursor-pointer"
-              onClick={() => setShowApplicationsList(!showApplicationsList)}
-            >
+            <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 bg-orange-100 rounded-full flex items-center justify-center">
                   <svg className="w-5 h-5 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -960,110 +1047,313 @@ export default function OrgDashboardPage() {
                   </svg>
                 </div>
                 <div>
-                  <h3 className="text-sm font-semibold text-gray-800">Pending Applications</h3>
+                  <h3 className="text-sm font-semibold text-gray-800">Applications</h3>
                   <p className="text-xs text-gray-500">
-                    {applicationsLoading ? 'Loading...' : `${applications.length} application${applications.length !== 1 ? 's' : ''} waiting for review`}
+                    {applicationsLoading ? 'Loading...' : `${applications.length} total application${applications.length !== 1 ? 's' : ''}`}
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                {applications.length > 0 && (
-                  <span className="px-2.5 py-1 bg-orange-100 text-orange-700 text-sm font-semibold rounded-full">
-                    {applications.length}
-                  </span>
-                )}
-                <motion.svg
-                  animate={{ rotate: showApplicationsList ? 180 : 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="w-5 h-5 text-gray-400"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </motion.svg>
+              <div className="flex items-center gap-2">
+                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                <span className="text-xs text-gray-400">Real-time</span>
               </div>
             </div>
 
-            {/* Applications List */}
-            <AnimatePresence>
-              {showApplicationsList && (
-                <motion.div
-                  initial={{ opacity: 0, height: 0 }}
-                  animate={{ opacity: 1, height: 'auto' }}
-                  exit={{ opacity: 0, height: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="mt-4 pt-4 border-t border-gray-100"
-                >
-                  {applications.length === 0 ? (
-                    <p className="text-sm text-gray-500 text-center py-4">
-                      No applications yet. When users apply, they&apos;ll appear here.
-                    </p>
-                  ) : (
-                    <div className="space-y-3">
-                      {applications.map((app, index) => {
-                        const currentStatus = APPLICATION_STATUSES.find(s => s.value === app.status) || APPLICATION_STATUSES[0]
-                        return (
-                          <motion.div
-                            key={app.id}
-                            initial={{ opacity: 0, x: -10 }}
-                            animate={{ opacity: 1, x: 0 }}
-                            transition={{ delay: index * 0.05 }}
-                            className="p-4 bg-gray-50 rounded-lg border border-gray-100"
-                          >
-                            <div className="flex items-start justify-between gap-3">
-                              <div className="flex-1 min-w-0">
-                                <h4 className="font-medium text-gray-800">{app.applicant_name}</h4>
-                                <p className="text-xs text-gray-500 mt-0.5">{app.applicant_email}</p>
-                              </div>
-                              <span className={`px-2.5 py-1 text-xs font-medium rounded-full whitespace-nowrap ${currentStatus.color}`}>
-                                {currentStatus.icon} {currentStatus.label}
-                              </span>
+            {/* Filter and Sort Controls */}
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <div className="flex flex-wrap gap-3 items-center justify-between">
+                {/* Status Filter Tabs */}
+                <div className="flex flex-wrap gap-1">
+                  <button
+                    onClick={() => setStatusFilter('all')}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                      statusFilter === 'all'
+                        ? 'bg-gray-800 text-white'
+                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                    }`}
+                  >
+                    All ({applications.length})
+                  </button>
+                  {APPLICATION_STATUSES.map((status) => {
+                    const count = applications.filter(a => a.status === status.value).length
+                    return (
+                      <button
+                        key={status.value}
+                        onClick={() => setStatusFilter(status.value as typeof statusFilter)}
+                        className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                          statusFilter === status.value
+                            ? status.color
+                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                        }`}
+                      >
+                        {status.icon} {status.label} ({count})
+                      </button>
+                    )
+                  })}
+                </div>
+                
+                {/* Sort Dropdown */}
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-gray-500">Sort by:</span>
+                  <select
+                    value={sortBy}
+                    onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
+                    className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 focus:outline-none focus:border-tamu-maroon"
+                  >
+                    <option value="date">Date Applied</option>
+                    <option value="rank">Rank</option>
+                    <option value="name">Name</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Applications List - Preview Cards */}
+            <div className="mt-4 space-y-2">
+              {getFilteredApplications().length === 0 ? (
+                <p className="text-sm text-gray-500 text-center py-6">
+                  {applications.length === 0 
+                    ? "No applications yet. When users apply, they'll appear here."
+                    : "No applications match the current filter."}
+                </p>
+              ) : (
+                getFilteredApplications().map((app, index) => {
+                  const currentStatus = APPLICATION_STATUSES.find(s => s.value === app.status) || APPLICATION_STATUSES[0]
+                  return (
+                    <motion.div
+                      key={app.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.03 }}
+                      onClick={() => setSelectedApplication(app)}
+                      className="p-3 bg-gray-50 rounded-lg border border-gray-100 hover:border-tamu-maroon/30 hover:bg-gray-100 cursor-pointer transition-all group"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          {/* Rank Badge */}
+                          <div className="w-8 h-8 rounded-full bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
+                            {app.rank !== null ? (
+                              <span className="text-xs font-bold text-tamu-maroon">#{app.rank}</span>
+                            ) : (
+                              <span className="text-xs text-gray-400">—</span>
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2">
+                              <h4 className="font-medium text-gray-800 truncate">{app.applicant_name}</h4>
+                              {app.internal_notes && (
+                                <svg className="w-4 h-4 text-yellow-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                  <path d="M18 5v8a2 2 0 01-2 2h-5l-5 4v-4H4a2 2 0 01-2-2V5a2 2 0 012-2h12a2 2 0 012 2zM7 8H5v2h2V8zm2 0v2h2V8H9zm6 0h-2v2h2V8z" />
+                                </svg>
+                              )}
                             </div>
-                            
-                            <div className="mt-3 pt-3 border-t border-gray-200">
-                              <p className="text-xs text-gray-500 font-medium mb-1">Why they want to join:</p>
-                              <p className="text-sm text-gray-700">{app.why_join}</p>
-                            </div>
-                            
-                            {/* Status Change Buttons */}
-                            <div className="mt-4 pt-3 border-t border-gray-200">
-                              <p className="text-xs text-gray-500 font-medium mb-2">Change Status:</p>
-                              <div className="flex flex-wrap gap-2">
-                                {APPLICATION_STATUSES.map((status) => (
-                                  <button
-                                    key={status.value}
-                                    onClick={() => updateApplicationStatus(app.id, status.value)}
-                                    disabled={app.status === status.value}
-                                    className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
-                                      app.status === status.value
-                                        ? `${status.color} ring-2 ring-offset-1 ring-gray-300 cursor-default`
-                                        : 'bg-white border border-gray-200 text-gray-600 hover:border-gray-400 hover:bg-gray-50'
-                                    }`}
-                                  >
-                                    {status.icon} {status.label}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                            
-                            <p className="text-xs text-gray-400 mt-3">
-                              Applied {new Date(app.created_at).toLocaleDateString()} at {new Date(app.created_at).toLocaleTimeString()}
-                            </p>
-                          </motion.div>
-                        )
-                      })}
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2 mt-4 pt-3 border-t border-gray-100">
-                    <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                    <span className="text-xs text-gray-500">Real-time updates enabled</span>
-                  </div>
-                </motion.div>
+                            <p className="text-xs text-gray-500 truncate">{app.applicant_email}</p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${currentStatus.color}`}>
+                            {currentStatus.icon} {currentStatus.label}
+                          </span>
+                          <svg className="w-4 h-4 text-gray-400 group-hover:text-tamu-maroon transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )
+                })
               )}
-            </AnimatePresence>
+            </div>
           </motion.div>
         )}
+
+        {/* Application Detail Modal */}
+        <AnimatePresence>
+          {selectedApplication && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+              onClick={() => setSelectedApplication(null)}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="bg-white rounded-xl shadow-xl max-w-2xl w-full max-h-[90vh] overflow-y-auto"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {/* Header */}
+                <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-full bg-tamu-maroon/10 flex items-center justify-center">
+                      <span className="text-lg font-bold text-tamu-maroon">
+                        {selectedApplication.applicant_name.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                    <div>
+                      <h2 className="font-semibold text-gray-800">{selectedApplication.applicant_name}</h2>
+                      <p className="text-sm text-gray-500">{selectedApplication.applicant_email}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setSelectedApplication(null)}
+                    className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                  >
+                    <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Content */}
+                <div className="p-6 space-y-6">
+                  {/* Status & Rank Row */}
+                  <div className="flex flex-wrap gap-4">
+                    {/* Status Section */}
+                    <div className="flex-1 min-w-[200px]">
+                      <p className="text-xs text-gray-500 font-medium mb-2">Status</p>
+                      <div className="flex flex-wrap gap-2">
+                        {APPLICATION_STATUSES.map((status) => (
+                          <button
+                            key={status.value}
+                            onClick={() => {
+                              updateApplicationStatus(selectedApplication.id, status.value)
+                              setSelectedApplication({ ...selectedApplication, status: status.value })
+                            }}
+                            className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${
+                              selectedApplication.status === status.value
+                                ? `${status.color} ring-2 ring-offset-1 ring-gray-300`
+                                : 'bg-white border border-gray-200 text-gray-600 hover:border-gray-400 hover:bg-gray-50'
+                            }`}
+                          >
+                            {status.icon} {status.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    
+                    {/* Rank Section */}
+                    <div className="w-32">
+                      <p className="text-xs text-gray-500 font-medium mb-2">Rank</p>
+                      {editingRank === selectedApplication.id ? (
+                        <div className="flex gap-2">
+                          <input
+                            type="number"
+                            min="1"
+                            value={rankValue}
+                            onChange={(e) => setRankValue(e.target.value)}
+                            className="w-16 px-2 py-1.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-tamu-maroon"
+                            placeholder="#"
+                            autoFocus
+                          />
+                          <button
+                            onClick={() => {
+                              const newRank = rankValue ? parseInt(rankValue) : null
+                              updateCandidateRank(selectedApplication.id, newRank)
+                              setSelectedApplication({ ...selectedApplication, rank: newRank })
+                            }}
+                            disabled={savingRank}
+                            className="px-2 py-1.5 bg-tamu-maroon text-white text-xs rounded-lg hover:bg-tamu-maroon-light disabled:opacity-50"
+                          >
+                            {savingRank ? '...' : '✓'}
+                          </button>
+                          <button
+                            onClick={() => setEditingRank(null)}
+                            className="px-2 py-1.5 bg-gray-200 text-gray-600 text-xs rounded-lg hover:bg-gray-300"
+                          >
+                            ✗
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => {
+                            setEditingRank(selectedApplication.id)
+                            setRankValue(selectedApplication.rank?.toString() || '')
+                          }}
+                          className="px-3 py-1.5 bg-gray-100 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-200 transition-colors"
+                        >
+                          {selectedApplication.rank !== null ? `#${selectedApplication.rank}` : 'Set Rank'}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Why They Want to Join */}
+                  <div>
+                    <p className="text-xs text-gray-500 font-medium mb-2">Why they want to join</p>
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedApplication.why_join}</p>
+                    </div>
+                  </div>
+
+                  {/* Internal Notes - Only visible to org */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs text-gray-500 font-medium">Internal Notes</p>
+                      <span className="text-xs text-yellow-600 bg-yellow-50 px-2 py-0.5 rounded">Only visible to you</span>
+                    </div>
+                    {editingNotes === selectedApplication.id ? (
+                      <div className="space-y-2">
+                        <textarea
+                          value={notesValue}
+                          onChange={(e) => setNotesValue(e.target.value)}
+                          rows={4}
+                          className="w-full px-3 py-2 text-sm border border-gray-300 rounded-lg focus:outline-none focus:border-tamu-maroon resize-none"
+                          placeholder="Add private notes about this candidate..."
+                          autoFocus
+                        />
+                        <div className="flex gap-2 justify-end">
+                          <button
+                            onClick={() => setEditingNotes(null)}
+                            className="px-3 py-1.5 text-xs font-medium text-gray-600 bg-gray-100 rounded-lg hover:bg-gray-200"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            onClick={() => {
+                              saveInternalNotes(selectedApplication.id, notesValue)
+                              setSelectedApplication({ ...selectedApplication, internal_notes: notesValue })
+                            }}
+                            disabled={savingNotes}
+                            className="px-3 py-1.5 text-xs font-medium text-white bg-tamu-maroon rounded-lg hover:bg-tamu-maroon-light disabled:opacity-50"
+                          >
+                            {savingNotes ? 'Saving...' : 'Save Notes'}
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div
+                        onClick={() => {
+                          setEditingNotes(selectedApplication.id)
+                          setNotesValue(selectedApplication.internal_notes || '')
+                        }}
+                        className="bg-yellow-50 border border-yellow-100 rounded-lg p-4 cursor-pointer hover:border-yellow-200 transition-colors min-h-[80px]"
+                      >
+                        {selectedApplication.internal_notes ? (
+                          <p className="text-sm text-gray-700 whitespace-pre-wrap">{selectedApplication.internal_notes}</p>
+                        ) : (
+                          <p className="text-sm text-gray-400 italic">Click to add notes...</p>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Meta Info */}
+                  <div className="pt-4 border-t border-gray-100">
+                    <p className="text-xs text-gray-400">
+                      Applied on {new Date(selectedApplication.created_at).toLocaleDateString()} at {new Date(selectedApplication.created_at).toLocaleTimeString()}
+                      {selectedApplication.status_updated_at && selectedApplication.status_updated_at !== selectedApplication.created_at && (
+                        <> · Status updated {new Date(selectedApplication.status_updated_at).toLocaleDateString()}</>
+                      )}
+                    </p>
+                  </div>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Form Builder Panel - Only show when application-based */}
         {isApplicationBased && organization && (

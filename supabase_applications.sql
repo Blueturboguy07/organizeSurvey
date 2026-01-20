@@ -101,3 +101,36 @@ CREATE POLICY "Service role full access on applications" ON applications
 -- Enable realtime for applications
 -- ============================================================================
 ALTER PUBLICATION supabase_realtime ADD TABLE applications;
+
+-- ============================================================================
+-- Add internal notes and ranking columns to applications
+-- ============================================================================
+
+-- Internal notes - only visible to org owners
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+    AND table_name = 'applications' 
+    AND column_name = 'internal_notes'
+  ) THEN
+    ALTER TABLE public.applications ADD COLUMN internal_notes TEXT DEFAULT '';
+  END IF;
+END $$;
+
+-- Numeric ranking for candidate comparison (lower = better, null = unranked)
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns 
+    WHERE table_schema = 'public' 
+    AND table_name = 'applications' 
+    AND column_name = 'rank'
+  ) THEN
+    ALTER TABLE public.applications ADD COLUMN rank INTEGER DEFAULT NULL;
+  END IF;
+END $$;
+
+-- Create index on rank for sorting
+CREATE INDEX IF NOT EXISTS idx_applications_rank ON applications(rank);
