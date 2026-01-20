@@ -37,6 +37,17 @@ export default function RegisterPage() {
     return tamuEmailRegex.test(email)
   }
 
+  // Password requirements
+  const passwordRequirements = [
+    { id: 'length', label: 'At least 8 characters', test: (p: string) => p.length >= 8 },
+    { id: 'uppercase', label: 'One uppercase letter', test: (p: string) => /[A-Z]/.test(p) },
+    { id: 'lowercase', label: 'One lowercase letter', test: (p: string) => /[a-z]/.test(p) },
+    { id: 'number', label: 'One number', test: (p: string) => /[0-9]/.test(p) },
+    { id: 'symbol', label: 'One special character (!@#$%^&*)', test: (p: string) => /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(p) },
+  ]
+
+  const isPasswordValid = passwordRequirements.every(req => req.test(password))
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
@@ -50,8 +61,8 @@ export default function RegisterPage() {
     }
 
     // Validate password strength
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters long')
+    if (!isPasswordValid) {
+      setError('Password does not meet all requirements')
       setLoading(false)
       return
     }
@@ -275,7 +286,7 @@ export default function RegisterPage() {
                 required
                 minLength={8}
                 className="w-full p-3 pr-10 border-2 border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none"
-                placeholder="At least 8 characters"
+                placeholder="Create a strong password"
               />
               <button
                 type="button"
@@ -295,9 +306,40 @@ export default function RegisterPage() {
                 )}
               </button>
             </div>
-            <p className="text-xs text-gray-500 mt-1">
-              Must be at least 8 characters long
-            </p>
+            
+            {/* Password Requirements Checklist */}
+            <div className="mt-3 space-y-1.5">
+              {passwordRequirements.map((req) => {
+                const isMet = req.test(password)
+                return (
+                  <div
+                    key={req.id}
+                    className={`flex items-center gap-2 text-xs transition-all duration-200 ${
+                      password.length === 0 
+                        ? 'text-gray-400' 
+                        : isMet 
+                          ? 'text-green-600' 
+                          : 'text-gray-500'
+                    }`}
+                  >
+                    <div className={`w-4 h-4 rounded-full flex items-center justify-center transition-all duration-200 ${
+                      password.length === 0
+                        ? 'border border-gray-300'
+                        : isMet
+                          ? 'bg-green-500'
+                          : 'border border-gray-300'
+                    }`}>
+                      {password.length > 0 && isMet && (
+                        <svg className="w-2.5 h-2.5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                        </svg>
+                      )}
+                    </div>
+                    <span>{req.label}</span>
+                  </div>
+                )
+              })}
+            </div>
           </div>
 
           <div>
@@ -337,11 +379,11 @@ export default function RegisterPage() {
 
           <motion.button
             type="submit"
-            disabled={loading}
-            whileHover={{ scale: loading ? 1 : 1.02 }}
-            whileTap={{ scale: loading ? 1 : 0.98 }}
+            disabled={loading || !isPasswordValid}
+            whileHover={{ scale: loading || !isPasswordValid ? 1 : 1.02 }}
+            whileTap={{ scale: loading || !isPasswordValid ? 1 : 0.98 }}
             className={`w-full py-3 bg-tamu-maroon text-white rounded-lg font-semibold transition-all ${
-              loading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-tamu-maroon-light'
+              loading || !isPasswordValid ? 'opacity-50 cursor-not-allowed' : 'hover:bg-tamu-maroon-light'
             }`}
           >
             {loading ? 'Creating Account...' : 'Create Account'}
