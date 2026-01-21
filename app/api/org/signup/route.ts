@@ -72,18 +72,43 @@ export async function POST(request: Request) {
     const existingUser = existingUsers?.users?.find(u => u.email === normalizedEmail)
 
     if (existingUser) {
-      // User exists - check if already an org account
-      if (existingUser.user_metadata?.is_org_account) {
+      // Check if user is verified (has confirmed their email)
+      const isVerified = !!existingUser.email_confirmed_at
+
+      if (isVerified) {
+        // User exists and is verified - can't overwrite
+        if (existingUser.user_metadata?.is_org_account) {
+          return NextResponse.json(
+            { error: 'This email is already registered as an organization account. Please sign in.' },
+            { status: 400 }
+          )
+        }
+        
         return NextResponse.json(
-          { error: 'This email is already registered as an organization account' },
+          { error: 'This email is already registered. Please use a different email or contact support.' },
           { status: 400 }
         )
       }
+
+      // User exists but is NOT verified - delete them to allow re-registration
+      console.log(`Deleting unverified org user: ${existingUser.id}`)
       
-      return NextResponse.json(
-        { error: 'This email is already registered. Please use a different email or contact support.' },
-        { status: 400 }
-      )
+      // Delete org account record first (if exists)
+      await supabaseAdmin
+        .from('org_accounts')
+        .delete()
+        .eq('user_id', existingUser.id)
+
+      // Delete the auth user
+      const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(existingUser.id)
+      
+      if (deleteError) {
+        console.error('Error deleting unverified user:', deleteError)
+        return NextResponse.json(
+          { error: 'Failed to process registration. Please try again.' },
+          { status: 500 }
+        )
+      }
     }
 
     // Build the redirect URL for email verification
