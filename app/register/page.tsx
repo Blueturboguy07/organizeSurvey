@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
+import { createClientComponentClient } from '@/lib/supabase'
 import { useAuth } from '@/contexts/AuthContext'
 import Link from 'next/link'
 import Image from 'next/image'
@@ -20,6 +21,7 @@ export default function RegisterPage() {
   const [resending, setResending] = useState(false)
   const [resendMessage, setResendMessage] = useState('')
   const router = useRouter()
+  const supabase = createClientComponentClient()
   // Use AuthContext for real-time auth state (redirect if already logged in)
   const { user, loading: authLoading } = useAuth()
 
@@ -73,24 +75,35 @@ export default function RegisterPage() {
     }
 
     try {
-      // Sign up user via API (handles soft account deletion for unverified users)
-      const response = await fetch('/api/user/signup', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: email.toLowerCase().trim(),
-          password,
-          name: name.trim(),
-        }),
+      // Sign up user
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: email.toLowerCase().trim(),
+        password,
+        options: {
+          data: {
+            name: name.trim(),
+          },
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
       })
 
-      const result = await response.json()
+      if (signUpError) throw signUpError
 
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to create account')
+      if (data.user) {
+        setSuccess(true)
+        // Create user profile in user_profiles table
+        const { error: profileError } = await supabase
+          .from('user_profiles')
+          .insert({
+            id: data.user.id,
+            email: email.toLowerCase().trim(),
+            name: name.trim(),
+          })
+
+        if (profileError && !profileError.message.includes('duplicate')) {
+          console.error('Profile creation error:', profileError)
+        }
       }
-
-      setSuccess(true)
     } catch (err: any) {
       setError(err.message || 'An error occurred during registration')
     } finally {
