@@ -22,6 +22,27 @@ interface Application {
   rank: number | null
 }
 
+interface FormQuestion {
+  id: string
+  question_text: string
+  question_type: 'short_text' | 'long_text' | 'multiple_choice'
+  is_required: boolean
+  order_index: number
+  settings: {
+    word_limit?: number
+    options?: string[]
+    allow_multiple?: boolean
+  }
+}
+
+interface ApplicationResponse {
+  id: string
+  application_id: string
+  question_id: string
+  response_text: string | null
+  response_options: string[] | null
+}
+
 const APPLICATION_STATUSES = [
   { value: 'waiting', label: 'Waiting', color: 'bg-orange-100 text-orange-700', dotColor: 'bg-orange-500', icon: '⏳' },
   { value: 'interview', label: 'Interview', color: 'bg-blue-100 text-blue-700', dotColor: 'bg-blue-500', icon: '📅' },
@@ -40,6 +61,11 @@ export default function OrgApplicationsPage() {
   const [applications, setApplications] = useState<Application[]>([])
   const [applicationsLoading, setApplicationsLoading] = useState(false)
   const [showFormBuilder, setShowFormBuilder] = useState(false)
+  
+  // Form questions and responses
+  const [formQuestions, setFormQuestions] = useState<FormQuestion[]>([])
+  const [applicationResponses, setApplicationResponses] = useState<ApplicationResponse[]>([])
+  const [responsesLoading, setResponsesLoading] = useState(false)
   
   // Sidebar state
   const [statusFilter, setStatusFilter] = useState<'all' | 'waiting' | 'interview' | 'accepted' | 'rejected'>('all')
@@ -93,6 +119,26 @@ export default function OrgApplicationsPage() {
 
       setOrganizationId(orgAccount.organization_id)
       setOrganizationName(orgData?.name || 'Organization')
+      
+      // Fetch form questions for this org
+      const { data: formData } = await supabase
+        .from('org_forms')
+        .select('id')
+        .eq('organization_id', orgAccount.organization_id)
+        .single()
+      
+      if (formData) {
+        const { data: questionsData } = await supabase
+          .from('form_questions')
+          .select('*')
+          .eq('form_id', formData.id)
+          .order('order_index', { ascending: true })
+        
+        if (questionsData) {
+          setFormQuestions(questionsData)
+        }
+      }
+      
       setLoading(false)
     } catch (err: any) {
       setError(err.message || 'Failed to load')
@@ -284,13 +330,27 @@ export default function OrgApplicationsPage() {
     return filtered
   }
 
-  // When selecting an application, reset editing states
-  const handleSelectApplication = (app: Application) => {
+  // When selecting an application, reset editing states and fetch responses
+  const handleSelectApplication = async (app: Application) => {
     setSelectedApplication(app)
     setEditingNotes(false)
     setEditingRank(false)
     setNotesValue(app.internal_notes || '')
     setRankValue(app.rank?.toString() || '')
+    
+    // Fetch responses for this application
+    setResponsesLoading(true)
+    const { data: responsesData, error: responsesError } = await supabase
+      .from('application_responses')
+      .select('*')
+      .eq('application_id', app.id)
+    
+    if (responsesError) {
+      console.error('Error fetching responses:', responsesError)
+    } else {
+      setApplicationResponses(responsesData || [])
+    }
+    setResponsesLoading(false)
   }
 
   const handleSignOut = async () => {
@@ -639,12 +699,73 @@ export default function OrgApplicationsPage() {
                 </div>
               </div>
 
-              {/* Why They Want to Join */}
+              {/* Application Responses */}
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
-                <p className="text-sm text-gray-500 font-medium mb-3">Why they want to join</p>
-                <div className="bg-gray-50 rounded-lg p-4">
-                  <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">{selectedApplication.why_join}</p>
-                </div>
+                <p className="text-sm text-gray-500 font-medium mb-4">Application Responses</p>
+                
+                {responsesLoading ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-tamu-maroon"></div>
+                  </div>
+                ) : formQuestions.length > 0 ? (
+                  <div className="space-y-4">
+                    {formQuestions.map((question, index) => {
+                      const response = applicationResponses.find(r => r.question_id === question.id)
+                      const questionTypeIcon = question.question_type === 'short_text' ? '📝' 
+                        : question.question_type === 'long_text' ? '📄' 
+                        : '☑️'
+                      
+                      return (
+                        <div key={question.id} className="border-b border-gray-100 pb-4 last:border-0 last:pb-0">
+                          <div className="flex items-start gap-2 mb-2">
+                            <span className="text-sm">{questionTypeIcon}</span>
+                            <div className="flex-1">
+                              <p className="text-sm font-medium text-gray-700">
+                                {index + 1}. {question.question_text}
+                                {question.is_required && <span className="text-red-500 ml-1">*</span>}
+                              </p>
+                              {question.question_type === 'long_text' && question.settings?.word_limit && (
+                                <p className="text-xs text-gray-400 mt-0.5">Max {question.settings.word_limit} words</p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="bg-gray-50 rounded-lg p-3 ml-6">
+                            {response ? (
+                              question.question_type === 'multiple_choice' ? (
+                                <div className="flex flex-wrap gap-2">
+                                  {(response.response_options || []).map((opt, i) => (
+                                    <span key={i} className="px-2 py-1 bg-tamu-maroon/10 text-tamu-maroon text-sm rounded-md">
+                                      {opt}
+                                    </span>
+                                  ))}
+                                  {(!response.response_options || response.response_options.length === 0) && (
+                                    <span className="text-gray-400 italic text-sm">No selection</span>
+                                  )}
+                                </div>
+                              ) : (
+                                <p className="text-gray-700 whitespace-pre-wrap text-sm leading-relaxed">
+                                  {response.response_text || <span className="text-gray-400 italic">No response</span>}
+                                </p>
+                              )
+                            ) : (
+                              <span className="text-gray-400 italic text-sm">No response provided</span>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  // Fallback to legacy why_join if no custom questions
+                  <div>
+                    <p className="text-xs text-gray-400 mb-2">Why they want to join (default question)</p>
+                    <div className="bg-gray-50 rounded-lg p-4">
+                      <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">
+                        {selectedApplication.why_join || <span className="text-gray-400 italic">No response</span>}
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Internal Notes */}
