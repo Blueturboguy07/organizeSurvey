@@ -340,6 +340,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         // Save custom responses to application_responses table
+        console.log('📝 Application created with ID:', appData?.id)
+        console.log('📝 Custom responses to save:', applicationData.customResponses)
+        
         if (applicationData.customResponses && appData?.id) {
           const responses = Object.entries(applicationData.customResponses)
             .filter(([key]) => key !== 'default_why_join') // Skip the default field
@@ -350,16 +353,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               response_options: Array.isArray(response) ? response : null
             }))
 
+          console.log('📝 Formatted responses for DB:', responses)
+
           if (responses.length > 0) {
-            const { error: responsesError } = await supabase
+            const { data: insertedResponses, error: responsesError } = await supabase
               .from('application_responses')
               .insert(responses)
+              .select()
 
             if (responsesError) {
-              console.error('Error saving application responses:', responsesError)
+              console.error('❌ Error saving application responses:', responsesError)
               // Don't fail the application if responses fail to save
+            } else {
+              console.log('✅ Responses saved successfully:', insertedResponses)
             }
+          } else {
+            console.log('⚠️ No responses to save (empty after filtering)')
           }
+        } else {
+          console.log('⚠️ No customResponses or no appData.id', { 
+            hasCustomResponses: !!applicationData.customResponses, 
+            appId: appData?.id 
+          })
         }
 
         // Update local state

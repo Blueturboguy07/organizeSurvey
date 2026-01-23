@@ -135,6 +135,7 @@ export default function OrgApplicationsPage() {
           .order('order_index', { ascending: true })
         
         if (questionsData) {
+          console.log('📝 Form questions loaded:', questionsData)
           setFormQuestions(questionsData)
         }
       }
@@ -340,6 +341,7 @@ export default function OrgApplicationsPage() {
     
     // Fetch responses for this application
     setResponsesLoading(true)
+    console.log('🔍 Fetching responses for application:', app.id)
     const { data: responsesData, error: responsesError } = await supabase
       .from('application_responses')
       .select('*')
@@ -348,6 +350,8 @@ export default function OrgApplicationsPage() {
     if (responsesError) {
       console.error('Error fetching responses:', responsesError)
     } else {
+      console.log('📋 Responses fetched:', responsesData)
+      console.log('📋 Form questions:', formQuestions)
       setApplicationResponses(responsesData || [])
     }
     setResponsesLoading(false)
