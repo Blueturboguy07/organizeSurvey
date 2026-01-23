@@ -72,7 +72,7 @@ interface AuthContextType {
   appliedOrgIdsLoading: boolean
   refreshAppliedOrgs: () => Promise<void>
   // Actions
-  joinOrg: (organizationId: string, applicationData?: { name: string; email: string; whyJoin: string }) => Promise<{ success: boolean; error?: string; applied?: boolean }>
+  joinOrg: (organizationId: string, applicationData?: { name: string; email: string; whyJoin: string; customResponses?: Record<string, string | string[]> }) => Promise<{ success: boolean; error?: string; applied?: boolean }>
   leaveOrg: (organizationId: string) => Promise<{ success: boolean; error?: string }>
   saveOrg: (organizationId: string) => Promise<{ success: boolean; error?: string }>
   unsaveOrg: (organizationId: string) => Promise<{ success: boolean; error?: string }>
@@ -268,7 +268,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user, fetchAppliedOrgs])
 
   // Action: Join an organization (or apply if application-based)
-  const joinOrg = useCallback(async (organizationId: string, applicationData?: { name: string; email: string; whyJoin: string }): Promise<{ success: boolean; error?: string; applied?: boolean }> => {
+  const joinOrg = useCallback(async (organizationId: string, applicationData?: { name: string; email: string; whyJoin: string; customResponses?: Record<string, string | string[]> }): Promise<{ success: boolean; error?: string; applied?: boolean }> => {
     if (!user) return { success: false, error: 'Not authenticated' }
     
     try {
@@ -318,7 +318,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         }
 
         // Create application with form data
-        const { error: appError } = await supabase
+        const { data: appData, error: appError } = await supabase
           .from('applications')
           .insert({
             user_id: user.id,
@@ -328,6 +328,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             why_join: applicationData.whyJoin,
             status: 'waiting'
           })
+          .select('id')
+          .single()
 
         if (appError) {
           if (appError.code === '23505') {
@@ -335,6 +337,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
           console.error('Error creating application:', appError)
           return { success: false, error: appError.message }
+        }
+
+        // Save custom responses to application_responses table
+        if (applicationData.customResponses && appData?.id) {
+          const responses = Object.entries(applicationData.customResponses)
+            .filter(([key]) => key !== 'default_why_join') // Skip the default field
+            .map(([questionId, response]) => ({
+              application_id: appData.id,
+              question_id: questionId,
+              response_text: typeof response === 'string' ? response : null,
+              response_options: Array.isArray(response) ? response : null
+            }))
+
+          if (responses.length > 0) {
+            const { error: responsesError } = await supabase
+              .from('application_responses')
+              .insert(responses)
+
+            if (responsesError) {
+              console.error('Error saving application responses:', responsesError)
+              // Don't fail the application if responses fail to save
+            }
+          }
         }
 
         // Update local state

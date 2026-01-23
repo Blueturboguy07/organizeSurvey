@@ -147,7 +147,8 @@ export default function PublicOrgPage() {
     const result = await joinOrg(org.id, {
       name: data.name,
       email: data.email,
-      whyJoin: data.whyJoin
+      whyJoin: data.whyJoin,
+      customResponses: data.customResponses
     })
     
     if (result.success) {

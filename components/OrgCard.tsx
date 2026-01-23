@@ -78,11 +78,9 @@ export default function OrgCard({
     const result = await joinOrg(org.id, {
       name: data.name,
       email: data.email,
-      whyJoin: data.whyJoin
+      whyJoin: data.whyJoin,
+      customResponses: data.customResponses
     })
-    
-    // TODO: Store custom responses in application_responses table
-    // For now, we're just using the basic fields
     
     if (!result.success) {
       setActionError(result.error || 'Failed to submit application')
