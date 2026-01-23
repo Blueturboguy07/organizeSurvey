@@ -780,21 +780,10 @@ function QuestionField({
               </button>
             </div>
           ) : (
-            // No file selected - iOS-friendly file input
-            <div className={`relative flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg transition-all ${
-              error 
-                ? 'border-red-300 bg-red-50' 
-                : 'border-gray-300 bg-gray-50 active:border-tamu-maroon active:bg-tamu-maroon/5'
+            // Simple native file input - works on all devices including iPhone
+            <div className={`p-4 border rounded-lg ${
+              error ? 'border-red-300 bg-red-50' : 'border-gray-300 bg-gray-50'
             }`}>
-              {/* Visible file input for iOS compatibility - positioned to cover the entire area */}
-              <input
-                type="file"
-                accept=".pdf,application/pdf"
-                onChange={handleFileSelect}
-                disabled={isUploading}
-                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
-                style={{ fontSize: '16px' }} // Prevents iOS zoom on focus
-              />
               {isUploading ? (
                 <div className="flex items-center gap-2">
                   <div className="w-5 h-5 border-2 border-tamu-maroon border-t-transparent rounded-full animate-spin"></div>
@@ -802,11 +791,14 @@ function QuestionField({
                 </div>
               ) : (
                 <>
-                  <svg className="w-10 h-10 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-                  </svg>
-                  <p className="text-sm font-medium text-gray-600">Tap to upload PDF</p>
-                  <p className="text-xs text-gray-500 mt-1">Max {question.settings.max_size_mb || 10} MB</p>
+                  <input
+                    type="file"
+                    accept=".pdf,application/pdf"
+                    onChange={handleFileSelect}
+                    disabled={isUploading}
+                    className="block w-full text-sm text-gray-700 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-tamu-maroon file:text-white hover:file:bg-tamu-maroon-light file:cursor-pointer cursor-pointer"
+                  />
+                  <p className="text-xs text-gray-500 mt-2">PDF only • Max {question.settings.max_size_mb || 10} MB</p>
                 </>
               )}
             </div>
