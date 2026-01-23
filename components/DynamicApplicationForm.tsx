@@ -772,7 +772,7 @@ function QuestionField({
               <button
                 type="button"
                 onClick={handleRemoveFile}
-                className="p-1 text-gray-500 hover:text-red-600 hover:bg-red-100 rounded transition-colors"
+                className="p-2 text-gray-500 hover:text-red-600 hover:bg-red-100 rounded transition-colors"
               >
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -780,18 +780,20 @@ function QuestionField({
               </button>
             </div>
           ) : (
-            // No file selected
-            <label className={`flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg cursor-pointer transition-all ${
+            // No file selected - iOS-friendly file input
+            <div className={`relative flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg transition-all ${
               error 
-                ? 'border-red-300 bg-red-50 hover:border-red-400' 
-                : 'border-gray-300 bg-gray-50 hover:border-tamu-maroon hover:bg-tamu-maroon/5'
+                ? 'border-red-300 bg-red-50' 
+                : 'border-gray-300 bg-gray-50 active:border-tamu-maroon active:bg-tamu-maroon/5'
             }`}>
+              {/* Visible file input for iOS compatibility - positioned to cover the entire area */}
               <input
                 type="file"
-                accept="application/pdf"
+                accept=".pdf,application/pdf"
                 onChange={handleFileSelect}
-                className="hidden"
                 disabled={isUploading}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
+                style={{ fontSize: '16px' }} // Prevents iOS zoom on focus
               />
               {isUploading ? (
                 <div className="flex items-center gap-2">
@@ -803,11 +805,11 @@ function QuestionField({
                   <svg className="w-10 h-10 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                   </svg>
-                  <p className="text-sm font-medium text-gray-600">Click to upload PDF</p>
+                  <p className="text-sm font-medium text-gray-600">Tap to upload PDF</p>
                   <p className="text-xs text-gray-500 mt-1">Max {question.settings.max_size_mb || 10} MB</p>
                 </>
               )}
-            </label>
+            </div>
           )}
         </div>
       )}
