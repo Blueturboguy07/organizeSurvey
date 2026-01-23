@@ -59,6 +59,10 @@ export default function PublicApplyPage() {
   const [applyLoading, setApplyLoading] = useState(false)
   const [applyError, setApplyError] = useState<string | null>(null)
   const [applySuccess, setApplySuccess] = useState(false)
+  
+  // Custom form check
+  const [hasCustomForm, setHasCustomForm] = useState(false)
+  const [checkingForm, setCheckingForm] = useState(false)
 
   // Fetch organization data by slug lookup in org_accounts
   useEffect(() => {
@@ -111,6 +115,39 @@ export default function PublicApplyPage() {
   const isJoined = org ? joinedOrgIds.has(org.id) : false
   const isApplied = org ? appliedOrgIds.has(org.id) : false
   const isApplicationBased = org?.is_application_based === true
+
+  // Check if org has a custom form (for application-based orgs)
+  useEffect(() => {
+    if (!org?.id || !isApplicationBased) return
+    
+    const checkForCustomForm = async () => {
+      setCheckingForm(true)
+      try {
+        const { data: formData } = await supabase
+          .from('org_forms')
+          .select('id')
+          .eq('organization_id', org.id)
+          .single()
+        
+        if (formData) {
+          // Check if form has at least one question
+          const { count } = await supabase
+            .from('form_questions')
+            .select('id', { count: 'exact', head: true })
+            .eq('form_id', formData.id)
+          
+          setHasCustomForm((count || 0) > 0)
+        } else {
+          setHasCustomForm(false)
+        }
+      } catch (err) {
+        setHasCustomForm(false)
+      }
+      setCheckingForm(false)
+    }
+    
+    checkForCustomForm()
+  }, [org?.id, isApplicationBased, supabase])
 
   const handleJoinClick = () => {
     if (!user) {
@@ -378,6 +415,22 @@ export default function PublicApplyPage() {
               <p className="text-gray-600">This organization is not yet on the platform.</p>
               <p className="text-sm text-gray-500 mt-1">Check back later or contact them directly.</p>
             </div>
+          ) : isApplicationBased && !hasCustomForm ? (
+            <div className="text-center py-4">
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-lg">
+                {checkingForm ? (
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600"></div>
+                ) : (
+                  <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                )}
+                <span className="text-gray-600 font-medium">
+                  {checkingForm ? 'Checking...' : 'Applications Coming Soon'}
+                </span>
+              </div>
+              <p className="text-sm text-gray-500 mt-2">This organization is setting up their application form.</p>
+            </div>
           ) : (
             <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
               <div>
@@ -394,7 +447,7 @@ export default function PublicApplyPage() {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={handleJoinClick}
-                disabled={applyLoading}
+                disabled={applyLoading || checkingForm}
                 className="px-6 py-3 bg-tamu-maroon text-white rounded-lg font-semibold hover:bg-tamu-maroon-light transition-colors disabled:opacity-50 min-w-[140px]"
               >
                 {applyLoading ? 'Loading...' : isApplicationBased ? 'Apply Now' : 'Join Now'}

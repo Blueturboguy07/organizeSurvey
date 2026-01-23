@@ -1,8 +1,9 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/contexts/AuthContext'
+import { createClientComponentClient } from '@/lib/supabase'
 import DynamicApplicationForm from '@/components/DynamicApplicationForm'
 
 interface Organization {
@@ -48,10 +49,13 @@ export default function OrgCard({
   onOrgUpdate
 }: OrgCardProps) {
   const { user, joinedOrgIds, savedOrgIds, appliedOrgIds, joinOrg, leaveOrg, saveOrg, unsaveOrg } = useAuth()
+  const supabase = createClientComponentClient()
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [isApplicationModalOpen, setIsApplicationModalOpen] = useState(false)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
   const [actionError, setActionError] = useState<string | null>(null)
+  const [hasCustomForm, setHasCustomForm] = useState(false)
+  const [checkingForm, setCheckingForm] = useState(false)
 
   const isJoined = joinedOrgIds.has(org.id)
   const isSaved = savedOrgIds.has(org.id)
@@ -59,6 +63,39 @@ export default function OrgCard({
   const isOnPlatform = org.is_on_platform === true // Only true if explicitly set to true
   const isApplicationBased = org.is_application_based === true
   const [applicationSuccess, setApplicationSuccess] = useState<string | null>(null)
+
+  // Check if org has a custom form (for application-based orgs)
+  useEffect(() => {
+    if (!isApplicationBased || !org.id) return
+    
+    const checkForCustomForm = async () => {
+      setCheckingForm(true)
+      try {
+        const { data: formData } = await supabase
+          .from('org_forms')
+          .select('id')
+          .eq('organization_id', org.id)
+          .single()
+        
+        if (formData) {
+          // Check if form has at least one question
+          const { count } = await supabase
+            .from('form_questions')
+            .select('id', { count: 'exact', head: true })
+            .eq('form_id', formData.id)
+          
+          setHasCustomForm((count || 0) > 0)
+        } else {
+          setHasCustomForm(false)
+        }
+      } catch (err) {
+        setHasCustomForm(false)
+      }
+      setCheckingForm(false)
+    }
+    
+    checkForCustomForm()
+  }, [org.id, isApplicationBased, supabase])
 
 
   // Debug: log platform status
@@ -245,15 +282,21 @@ export default function OrgCard({
               </span>
             ) : isOnPlatform ? (
               isApplicationBased ? (
-                <motion.button
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
-                  onClick={handleApplyClick}
-                  disabled={actionLoading !== null}
-                  className="px-3 py-1.5 text-sm font-medium text-tamu-maroon border border-tamu-maroon rounded-lg hover:bg-tamu-maroon hover:text-white transition-colors disabled:opacity-50"
-                >
-                  Apply
-                </motion.button>
+                hasCustomForm ? (
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleApplyClick}
+                    disabled={actionLoading !== null || checkingForm}
+                    className="px-3 py-1.5 text-sm font-medium text-tamu-maroon border border-tamu-maroon rounded-lg hover:bg-tamu-maroon hover:text-white transition-colors disabled:opacity-50"
+                  >
+                    {checkingForm ? '...' : 'Apply'}
+                  </motion.button>
+                ) : (
+                  <span className="px-3 py-1.5 text-sm font-medium text-gray-500 bg-gray-100 border border-gray-200 rounded-lg">
+                    {checkingForm ? '...' : 'Apps Coming Soon'}
+                  </span>
+                )
               ) : (
                 <motion.button
                   whileHover={{ scale: 1.02 }}
@@ -394,15 +437,21 @@ export default function OrgCard({
                       </span>
                     ) : isOnPlatform ? (
                       isApplicationBased ? (
-                        <motion.button
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                          onClick={handleApplyClick}
-                          disabled={actionLoading !== null}
-                          className="px-4 py-2 text-sm font-medium text-tamu-maroon border border-tamu-maroon rounded-lg hover:bg-tamu-maroon hover:text-white transition-colors disabled:opacity-50"
-                        >
-                          Apply to Join
-                        </motion.button>
+                        hasCustomForm ? (
+                          <motion.button
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={handleApplyClick}
+                            disabled={actionLoading !== null || checkingForm}
+                            className="px-4 py-2 text-sm font-medium text-tamu-maroon border border-tamu-maroon rounded-lg hover:bg-tamu-maroon hover:text-white transition-colors disabled:opacity-50"
+                          >
+                            Apply to Join
+                          </motion.button>
+                        ) : (
+                          <span className="px-4 py-2 text-sm font-medium text-gray-500 bg-gray-100 border border-gray-200 rounded-lg">
+                            {checkingForm ? 'Checking...' : 'Applications Coming Soon'}
+                          </span>
+                        )
                       ) : (
                         <motion.button
                           whileHover={{ scale: 1.02 }}
