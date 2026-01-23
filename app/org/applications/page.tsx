@@ -657,11 +657,6 @@ export default function OrgApplicationsPage() {
                             <h4 className={`font-medium truncate ${isSelected ? 'text-tamu-maroon' : 'text-gray-800'}`}>
                               {app.applicant_name}
                             </h4>
-                            {app.reviewed && (
-                              <svg className="w-3.5 h-3.5 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
-                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                              </svg>
-                            )}
                             {app.internal_notes && (
                               <svg className="w-3.5 h-3.5 text-yellow-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                                 <path d="M18 5v8a2 2 0 01-2 2h-5l-5 4v-4H4a2 2 0 01-2-2V5a2 2 0 012-2h12a2 2 0 012 2z" />
@@ -676,6 +671,20 @@ export default function OrgApplicationsPage() {
                               {new Date(app.created_at).toLocaleDateString()}
                             </span>
                           </div>
+                        </div>
+                        
+                        {/* Reviewed Checkbox */}
+                        <div 
+                          className="flex-shrink-0"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={app.reviewed || false}
+                            onChange={() => toggleReviewed(app.id, app.reviewed || false)}
+                            className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500 cursor-pointer"
+                            title={app.reviewed ? 'Reviewed' : 'Mark as reviewed'}
+                          />
                         </div>
                       </div>
                     </motion.div>
