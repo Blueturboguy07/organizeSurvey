@@ -23,6 +23,16 @@ interface Application {
   responses: Record<string, string | string[]> | null
 }
 
+interface ApplicantDemographics {
+  gender: string
+  race: string
+  classification: string
+  sexuality: string
+  careerFields: string[]
+  engineeringTypes: string[]
+  religion: string
+}
+
 interface FormQuestion {
   id: string
   question_text: string
@@ -70,6 +80,8 @@ export default function OrgApplicationsPage() {
   const [editingRank, setEditingRank] = useState(false)
   const [rankValue, setRankValue] = useState<string>('')
   const [savingRank, setSavingRank] = useState(false)
+  const [applicantDemographics, setApplicantDemographics] = useState<ApplicantDemographics | null>(null)
+  const [demographicsLoading, setDemographicsLoading] = useState(false)
   
   const router = useRouter()
   const supabase = createClientComponentClient()
@@ -322,13 +334,40 @@ export default function OrgApplicationsPage() {
     return filtered
   }
 
-  // When selecting an application, reset editing states
+  // Fetch applicant demographics from user_queries
+  const fetchApplicantDemographics = async (userId: string) => {
+    setDemographicsLoading(true)
+    setApplicantDemographics(null)
+    
+    try {
+      const { data, error } = await supabase
+        .from('user_queries')
+        .select('user_demographics')
+        .eq('user_id', userId)
+        .single()
+      
+      if (error) {
+        console.log('No demographics found for user:', userId)
+      } else if (data?.user_demographics) {
+        setApplicantDemographics(data.user_demographics as ApplicantDemographics)
+      }
+    } catch (err) {
+      console.error('Error fetching demographics:', err)
+    }
+    
+    setDemographicsLoading(false)
+  }
+
+  // When selecting an application, reset editing states and fetch demographics
   const handleSelectApplication = (app: Application) => {
     setSelectedApplication(app)
     setEditingNotes(false)
     setEditingRank(false)
     setNotesValue(app.internal_notes || '')
     setRankValue(app.rank?.toString() || '')
+    
+    // Fetch demographic data for this applicant
+    fetchApplicantDemographics(app.user_id)
   }
 
   const handleSignOut = async () => {
@@ -566,8 +605,7 @@ export default function OrgApplicationsPage() {
                               </svg>
                             )}
                           </div>
-                          <p className="text-xs text-gray-500 truncate">{app.applicant_email}</p>
-                          <div className="flex items-center gap-2 mt-1.5">
+                          <div className="flex items-center gap-2 mt-1">
                             <span className={`w-2 h-2 rounded-full ${statusInfo.dotColor}`}></span>
                             <span className="text-xs text-gray-500">{statusInfo.label}</span>
                             <span className="text-xs text-gray-400">·</span>
@@ -652,6 +690,96 @@ export default function OrgApplicationsPage() {
                     )}
                   </div>
                 </div>
+              </div>
+
+              {/* Applicant Demographics */}
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+                <p className="text-sm text-gray-500 font-medium mb-4">Applicant Profile</p>
+                {demographicsLoading ? (
+                  <div className="flex items-center justify-center py-6">
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-tamu-maroon"></div>
+                  </div>
+                ) : applicantDemographics ? (
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Classification */}
+                    {applicantDemographics.classification && (
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Classification</p>
+                        <p className="text-sm font-medium text-gray-700">{applicantDemographics.classification}</p>
+                      </div>
+                    )}
+                    
+                    {/* Gender */}
+                    {applicantDemographics.gender && (
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Gender</p>
+                        <p className="text-sm font-medium text-gray-700">{applicantDemographics.gender}</p>
+                      </div>
+                    )}
+                    
+                    {/* Race/Ethnicity */}
+                    {applicantDemographics.race && (
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Race/Ethnicity</p>
+                        <p className="text-sm font-medium text-gray-700">{applicantDemographics.race}</p>
+                      </div>
+                    )}
+                    
+                    {/* Religion */}
+                    {applicantDemographics.religion && (
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Religion</p>
+                        <p className="text-sm font-medium text-gray-700">{applicantDemographics.religion}</p>
+                      </div>
+                    )}
+                    
+                    {/* Sexuality */}
+                    {applicantDemographics.sexuality && (
+                      <div className="bg-gray-50 rounded-lg p-3">
+                        <p className="text-xs text-gray-400 uppercase tracking-wide mb-1">Sexuality</p>
+                        <p className="text-sm font-medium text-gray-700">{applicantDemographics.sexuality}</p>
+                      </div>
+                    )}
+                    
+                    {/* Career Fields */}
+                    {applicantDemographics.careerFields && applicantDemographics.careerFields.length > 0 && (
+                      <div className="bg-gray-50 rounded-lg p-3 col-span-2">
+                        <p className="text-xs text-gray-400 uppercase tracking-wide mb-2">Career Fields of Interest</p>
+                        <div className="flex flex-wrap gap-2">
+                          {applicantDemographics.careerFields.map((field, idx) => (
+                            <span 
+                              key={idx} 
+                              className="px-2 py-1 bg-tamu-maroon/10 text-tamu-maroon text-xs font-medium rounded-md"
+                            >
+                              {field}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    
+                    {/* Engineering Types (if applicable) */}
+                    {applicantDemographics.engineeringTypes && applicantDemographics.engineeringTypes.length > 0 && (
+                      <div className="bg-gray-50 rounded-lg p-3 col-span-2">
+                        <p className="text-xs text-gray-400 uppercase tracking-wide mb-2">Engineering Focus</p>
+                        <div className="flex flex-wrap gap-2">
+                          {applicantDemographics.engineeringTypes.map((type, idx) => (
+                            <span 
+                              key={idx} 
+                              className="px-2 py-1 bg-blue-50 text-blue-700 text-xs font-medium rounded-md"
+                            >
+                              {type}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="bg-gray-50 rounded-lg p-4 text-center">
+                    <p className="text-sm text-gray-400">No profile data available</p>
+                  </div>
+                )}
               </div>
 
               {/* Status Section */}
