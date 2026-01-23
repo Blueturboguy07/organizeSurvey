@@ -335,40 +335,79 @@ export default function OrgApplicationsPage() {
   }
 
   // Fetch applicant demographics from user_queries
-  const fetchApplicantDemographics = async (userId: string) => {
-    setDemographicsLoading(true)
-    setApplicantDemographics(null)
-    
-    try {
-      const { data, error } = await supabase
-        .from('user_queries')
-        .select('user_demographics')
-        .eq('user_id', userId)
-        .single()
-      
-      if (error) {
-        console.log('No demographics found for user:', userId)
-      } else if (data?.user_demographics) {
-        setApplicantDemographics(data.user_demographics as ApplicantDemographics)
-      }
-    } catch (err) {
-      console.error('Error fetching demographics:', err)
-    }
-    
-    setDemographicsLoading(false)
-  }
-
-  // When selecting an application, reset editing states and fetch demographics
+  // When selecting an application, reset editing states
   const handleSelectApplication = (app: Application) => {
     setSelectedApplication(app)
     setEditingNotes(false)
     setEditingRank(false)
     setNotesValue(app.internal_notes || '')
     setRankValue(app.rank?.toString() || '')
-    
-    // Fetch demographic data for this applicant
-    fetchApplicantDemographics(app.user_id)
   }
+
+  // Realtime subscription for applicant demographics
+  useEffect(() => {
+    if (!selectedApplication) {
+      setApplicantDemographics(null)
+      return
+    }
+
+    const userId = selectedApplication.user_id
+    let demographicsChannel: RealtimeChannel | null = null
+
+    const fetchDemographics = async () => {
+      setDemographicsLoading(true)
+      try {
+        const { data, error } = await supabase
+          .from('user_queries')
+          .select('user_demographics')
+          .eq('user_id', userId)
+          .single()
+        
+        if (error) {
+          console.log('No demographics found for user:', userId)
+          setApplicantDemographics(null)
+        } else if (data?.user_demographics) {
+          setApplicantDemographics(data.user_demographics as ApplicantDemographics)
+        }
+      } catch (err) {
+        console.error('Error fetching demographics:', err)
+      }
+      setDemographicsLoading(false)
+    }
+
+    fetchDemographics()
+
+    // Subscribe to realtime changes for this user's demographics
+    demographicsChannel = supabase
+      .channel(`demographics-${userId}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_queries',
+          filter: `user_id=eq.${userId}`
+        },
+        (payload) => {
+          console.log('👤 Demographics realtime update:', payload)
+          if (payload.eventType === 'UPDATE' || payload.eventType === 'INSERT') {
+            const newData = payload.new as { user_demographics?: ApplicantDemographics }
+            if (newData.user_demographics) {
+              setApplicantDemographics(newData.user_demographics)
+            }
+          } else if (payload.eventType === 'DELETE') {
+            setApplicantDemographics(null)
+          }
+        }
+      )
+      .subscribe()
+
+    return () => {
+      if (demographicsChannel) {
+        supabase.removeChannel(demographicsChannel)
+      }
+    }
+  }, [selectedApplication, supabase])
 
   const handleSignOut = async () => {
     await supabase.auth.signOut()
