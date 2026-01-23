@@ -540,10 +540,10 @@ export default function OrgApplicationsPage() {
             initial={{ opacity: 0, height: 0 }}
             animate={{ opacity: 1, height: 'auto' }}
             exit={{ opacity: 0, height: 0 }}
-            className="bg-white border-b border-gray-200 overflow-hidden flex-shrink-0"
+            className="bg-white border-b border-gray-200 flex-shrink-0 max-h-[60vh] overflow-y-auto"
           >
             <div className="max-w-4xl mx-auto p-6">
-              <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center justify-between mb-4 sticky top-0 bg-white pb-2 -mt-2 pt-2 z-10">
                 <h2 className="text-lg font-semibold text-gray-800">Application Form Builder</h2>
                 <button
                   onClick={() => setShowFormBuilder(false)}
