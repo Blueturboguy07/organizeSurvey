@@ -9,13 +9,15 @@ import { RealtimeChannel } from '@supabase/supabase-js'
 interface FormQuestion {
   id: string
   question_text: string
-  question_type: 'short_text' | 'long_text' | 'multiple_choice'
+  question_type: 'short_text' | 'long_text' | 'multiple_choice' | 'file_upload'
   is_required: boolean
   order_index: number
   settings: {
     word_limit?: number
     options?: string[]
     allow_multiple?: boolean
+    accepted_types?: string[]
+    max_size_mb?: number
   }
 }
 
@@ -58,6 +60,8 @@ export default function DynamicApplicationForm({
   const [applicantName, setApplicantName] = useState('')
   const [applicantEmail, setApplicantEmail] = useState(user?.email || '')
   const [responses, setResponses] = useState<Record<string, string | string[]>>({})
+  const [fileUploads, setFileUploads] = useState<Record<string, File | null>>({})
+  const [uploadingFiles, setUploadingFiles] = useState<Record<string, boolean>>({})
   
   // Validation
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({})
@@ -284,9 +288,16 @@ export default function DynamicApplicationForm({
     // Validate custom questions
     for (const question of questions) {
       const response = responses[question.id]
+      const file = fileUploads[question.id]
       
       if (question.is_required) {
-        if (!response || (typeof response === 'string' && !response.trim()) || (Array.isArray(response) && response.length === 0)) {
+        if (question.question_type === 'file_upload') {
+          // For file uploads, check if file is selected or already uploaded (response has URL)
+          if (!file && (!response || (typeof response === 'string' && !response.trim()))) {
+            errors[question.id] = 'Please upload a file'
+            continue
+          }
+        } else if (!response || (typeof response === 'string' && !response.trim()) || (Array.isArray(response) && response.length === 0)) {
           errors[question.id] = 'This field is required'
           continue
         }
@@ -297,6 +308,17 @@ export default function DynamicApplicationForm({
         const wordCount = countWords(response)
         if (wordCount > question.settings.word_limit) {
           errors[question.id] = `Maximum ${question.settings.word_limit} words allowed (currently ${wordCount})`
+        }
+      }
+      
+      // Validate file type and size
+      if (question.question_type === 'file_upload' && file) {
+        const maxSize = (question.settings.max_size_mb || 10) * 1024 * 1024
+        if (file.size > maxSize) {
+          errors[question.id] = `File size must be less than ${question.settings.max_size_mb || 10} MB`
+        }
+        if (file.type !== 'application/pdf') {
+          errors[question.id] = 'Only PDF files are allowed'
         }
       }
     }
@@ -313,6 +335,43 @@ export default function DynamicApplicationForm({
     return Object.keys(errors).length === 0
   }
 
+  // Upload file to Supabase storage
+  const uploadFile = async (questionId: string, file: File): Promise<string | null> => {
+    if (!user) return null
+    
+    setUploadingFiles(prev => ({ ...prev, [questionId]: true }))
+    
+    try {
+      const fileExt = file.name.split('.').pop()
+      const fileName = `${user.id}/${questionId}_${Date.now()}.${fileExt}`
+      
+      const { data, error } = await supabase.storage
+        .from('application-files')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false
+        })
+      
+      if (error) {
+        console.error('File upload error:', error)
+        setValidationErrors(prev => ({ ...prev, [questionId]: 'Failed to upload file' }))
+        return null
+      }
+      
+      // Get the public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('application-files')
+        .getPublicUrl(fileName)
+      
+      return fileName // Store the path, not the public URL (for signed URLs later)
+    } catch (err) {
+      console.error('Upload error:', err)
+      return null
+    } finally {
+      setUploadingFiles(prev => ({ ...prev, [questionId]: false }))
+    }
+  }
+
   // Handle submit
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -321,27 +380,47 @@ export default function DynamicApplicationForm({
       return
     }
     
+    // Upload any pending files first
+    const finalResponses = { ...responses }
+    const fileQuestions = questions.filter(q => q.question_type === 'file_upload')
+    
+    for (const question of fileQuestions) {
+      const file = fileUploads[question.id]
+      if (file) {
+        const filePath = await uploadFile(question.id, file)
+        if (filePath) {
+          finalResponses[question.id] = filePath
+        } else {
+          // Upload failed, don't submit
+          return
+        }
+      }
+    }
+    
     // Get the "why join" text - either from custom questions or default
     let whyJoin = ''
     if (questions.length > 0) {
       // Use first long_text question as "why join" or concatenate all responses
       const longTextQ = questions.find(q => q.question_type === 'long_text')
-      if (longTextQ && responses[longTextQ.id]) {
-        whyJoin = responses[longTextQ.id] as string
+      if (longTextQ && finalResponses[longTextQ.id]) {
+        whyJoin = finalResponses[longTextQ.id] as string
       } else {
-        // Just use first response
-        const firstResponse = Object.values(responses)[0]
-        whyJoin = typeof firstResponse === 'string' ? firstResponse : JSON.stringify(firstResponse)
+        // Just use first non-file response
+        const firstResponse = Object.entries(finalResponses).find(([key]) => {
+          const q = questions.find(q => q.id === key)
+          return q && q.question_type !== 'file_upload'
+        })?.[1]
+        whyJoin = typeof firstResponse === 'string' ? firstResponse : ''
       }
     } else {
-      whyJoin = responses['default_why_join'] as string || ''
+      whyJoin = finalResponses['default_why_join'] as string || ''
     }
     
     await onSubmit({
       name: applicantName.trim(),
       email: applicantEmail.trim(),
       whyJoin,
-      customResponses: responses
+      customResponses: finalResponses
     })
     
     // Delete draft on successful submit
@@ -491,6 +570,9 @@ export default function DynamicApplicationForm({
             value={responses[question.id]}
             onChange={(value) => updateResponse(question.id, value)}
             error={validationErrors[question.id]}
+            file={fileUploads[question.id]}
+            onFileChange={(file) => setFileUploads(prev => ({ ...prev, [question.id]: file }))}
+            isUploading={uploadingFiles[question.id]}
           />
         ))
       ) : (
@@ -543,13 +625,19 @@ function QuestionField({
   index,
   value,
   onChange,
-  error
+  error,
+  file,
+  onFileChange,
+  isUploading
 }: {
   question: FormQuestion
   index: number
   value: string | string[] | undefined
   onChange: (value: string | string[]) => void
   error?: string
+  file?: File | null
+  onFileChange?: (file: File | null) => void
+  isUploading?: boolean
 }) {
   const countWords = (text: string): number => {
     return text.trim().split(/\s+/).filter(word => word.length > 0).length
@@ -560,6 +648,23 @@ function QuestionField({
     : 0
 
   const isOverLimit = question.settings.word_limit && wordCount > question.settings.word_limit
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0]
+    if (selectedFile && onFileChange) {
+      onFileChange(selectedFile)
+    }
+  }
+
+  const handleRemoveFile = () => {
+    if (onFileChange) {
+      onFileChange(null)
+    }
+    // Clear the response if it was previously uploaded
+    if (value) {
+      onChange('')
+    }
+  }
 
   return (
     <div>
@@ -641,6 +746,69 @@ function QuestionField({
               </label>
             )
           })}
+        </div>
+      )}
+
+      {question.question_type === 'file_upload' && (
+        <div className="mt-2">
+          {file || (value && typeof value === 'string' && value.includes('/')) ? (
+            // File selected or already uploaded
+            <div className={`flex items-center justify-between p-3 border rounded-lg ${
+              error ? 'border-red-300 bg-red-50' : 'border-green-300 bg-green-50'
+            }`}>
+              <div className="flex items-center gap-3">
+                <svg className="w-8 h-8 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                  <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                </svg>
+                <div>
+                  <p className="text-sm font-medium text-gray-700">
+                    {file ? file.name : 'File uploaded'}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {file ? `${(file.size / 1024 / 1024).toFixed(2)} MB` : 'PDF document'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={handleRemoveFile}
+                className="p-1 text-gray-500 hover:text-red-600 hover:bg-red-100 rounded transition-colors"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          ) : (
+            // No file selected
+            <label className={`flex flex-col items-center justify-center p-6 border-2 border-dashed rounded-lg cursor-pointer transition-all ${
+              error 
+                ? 'border-red-300 bg-red-50 hover:border-red-400' 
+                : 'border-gray-300 bg-gray-50 hover:border-tamu-maroon hover:bg-tamu-maroon/5'
+            }`}>
+              <input
+                type="file"
+                accept="application/pdf"
+                onChange={handleFileSelect}
+                className="hidden"
+                disabled={isUploading}
+              />
+              {isUploading ? (
+                <div className="flex items-center gap-2">
+                  <div className="w-5 h-5 border-2 border-tamu-maroon border-t-transparent rounded-full animate-spin"></div>
+                  <span className="text-sm text-gray-600">Uploading...</span>
+                </div>
+              ) : (
+                <>
+                  <svg className="w-10 h-10 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                  </svg>
+                  <p className="text-sm font-medium text-gray-600">Click to upload PDF</p>
+                  <p className="text-xs text-gray-500 mt-1">Max {question.settings.max_size_mb || 10} MB</p>
+                </>
+              )}
+            </label>
+          )}
         </div>
       )}
 

@@ -37,13 +37,15 @@ interface ApplicantDemographics {
 interface FormQuestion {
   id: string
   question_text: string
-  question_type: 'short_text' | 'long_text' | 'multiple_choice'
+  question_type: 'short_text' | 'long_text' | 'multiple_choice' | 'file_upload'
   is_required: boolean
   order_index: number
   settings: {
     word_limit?: number
     options?: string[]
     allow_multiple?: boolean
+    accepted_types?: string[]
+    max_size_mb?: number
   }
 }
 
@@ -927,6 +929,8 @@ export default function OrgApplicationsPage() {
                                     </span>
                                   ))}
                                 </div>
+                              ) : question.question_type === 'file_upload' && typeof response === 'string' ? (
+                                <FilePreview filePath={response} supabase={supabase} />
                               ) : (
                                 <p className="text-gray-700 whitespace-pre-wrap text-sm leading-relaxed">
                                   {typeof response === 'string' ? response : JSON.stringify(response)}
@@ -1038,6 +1042,103 @@ export default function OrgApplicationsPage() {
             Contact support
           </a>
         </p>
+      </div>
+    </div>
+  )
+}
+
+// File Preview Component for viewing uploaded files
+function FilePreview({ 
+  filePath, 
+  supabase 
+}: { 
+  filePath: string
+  supabase: ReturnType<typeof createClientComponentClient>
+}) {
+  const [fileUrl, setFileUrl] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(false)
+
+  useEffect(() => {
+    const getSignedUrl = async () => {
+      try {
+        // Create a signed URL for secure access
+        const { data, error: urlError } = await supabase.storage
+          .from('application-files')
+          .createSignedUrl(filePath, 3600) // 1 hour expiry
+        
+        if (urlError || !data) {
+          console.error('Error getting signed URL:', urlError)
+          setError(true)
+        } else {
+          setFileUrl(data.signedUrl)
+        }
+      } catch (err) {
+        console.error('Error:', err)
+        setError(true)
+      }
+      setLoading(false)
+    }
+    
+    getSignedUrl()
+  }, [filePath, supabase])
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 text-gray-500">
+        <div className="w-4 h-4 border-2 border-gray-300 border-t-transparent rounded-full animate-spin"></div>
+        <span className="text-sm">Loading file...</span>
+      </div>
+    )
+  }
+
+  if (error || !fileUrl) {
+    return (
+      <div className="flex items-center gap-2 text-red-500">
+        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+        </svg>
+        <span className="text-sm">Unable to load file</span>
+      </div>
+    )
+  }
+
+  const fileName = filePath.split('/').pop() || 'document.pdf'
+
+  return (
+    <div className="flex items-center justify-between">
+      <div className="flex items-center gap-3">
+        <svg className="w-8 h-8 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+          <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+        </svg>
+        <div>
+          <p className="text-sm font-medium text-gray-700">PDF Document</p>
+          <p className="text-xs text-gray-500">{fileName}</p>
+        </div>
+      </div>
+      <div className="flex items-center gap-2">
+        <a
+          href={fileUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="px-3 py-1.5 text-sm font-medium text-tamu-maroon border border-tamu-maroon rounded-lg hover:bg-tamu-maroon hover:text-white transition-colors flex items-center gap-1"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+          </svg>
+          View
+        </a>
+        <a
+          href={fileUrl}
+          download={fileName}
+          className="px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-100 transition-colors flex items-center gap-1"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+          </svg>
+          Download
+        </a>
       </div>
     </div>
   )

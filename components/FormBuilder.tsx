@@ -9,13 +9,15 @@ interface FormQuestion {
   id: string
   form_id: string
   question_text: string
-  question_type: 'short_text' | 'long_text' | 'multiple_choice'
+  question_type: 'short_text' | 'long_text' | 'multiple_choice' | 'file_upload'
   is_required: boolean
   order_index: number
   settings: {
     word_limit?: number
     options?: string[]
     allow_multiple?: boolean
+    accepted_types?: string[]
+    max_size_mb?: number
   }
 }
 
@@ -35,6 +37,7 @@ const QUESTION_TYPES = [
   { value: 'short_text', label: 'Short Text', icon: '📝', description: 'Single line answer' },
   { value: 'long_text', label: 'Long Text', icon: '📄', description: 'Multi-line answer with word limit' },
   { value: 'multiple_choice', label: 'Multiple Choice', icon: '☑️', description: 'Select from options' },
+  { value: 'file_upload', label: 'File Upload', icon: '📎', description: 'PDF file upload' },
 ] as const
 
 export default function FormBuilder({ organizationId }: FormBuilderProps) {
@@ -406,12 +409,14 @@ export default function FormBuilder({ organizationId }: FormBuilderProps) {
                     onClick={() => {
                       setNewQuestion({
                         ...newQuestion,
-                        question_type: type.value,
+                        question_type: type.value as FormQuestion['question_type'],
                         settings: type.value === 'long_text' 
                           ? { word_limit: 500 } 
                           : type.value === 'multiple_choice'
                             ? { options: ['Option 1', 'Option 2'], allow_multiple: false }
-                            : {}
+                            : type.value === 'file_upload'
+                              ? { accepted_types: ['application/pdf'], max_size_mb: 10 }
+                              : {}
                       })
                     }}
                     className={`p-3 rounded-lg border text-left transition-all ${
@@ -522,6 +527,20 @@ export default function FormBuilder({ organizationId }: FormBuilderProps) {
                   />
                   <span className="text-sm text-gray-700">Allow multiple selections</span>
                 </label>
+              </div>
+            )}
+
+            {newQuestion.question_type === 'file_upload' && (
+              <div className="mb-4">
+                <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                  <div className="flex items-center gap-2 text-gray-700">
+                    <svg className="w-5 h-5 text-red-500" fill="currentColor" viewBox="0 0 20 20">
+                      <path fillRule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4z" clipRule="evenodd" />
+                    </svg>
+                    <span className="text-sm font-medium">PDF files only</span>
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1">Max file size: 10 MB</p>
+                </div>
               </div>
             )}
 
@@ -749,6 +768,10 @@ function QuestionCard({
                   </span>
                 ))}
               </div>
+            )}
+            
+            {question.question_type === 'file_upload' && (
+              <p className="text-xs text-gray-500 mt-1">PDF upload (max 10 MB)</p>
             )}
           </div>
           
