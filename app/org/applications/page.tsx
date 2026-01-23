@@ -20,6 +20,7 @@ interface Application {
   status_updated_at: string
   internal_notes: string | null
   rank: number | null
+  responses: Record<string, string | string[]> | null
 }
 
 interface FormQuestion {
@@ -33,14 +34,6 @@ interface FormQuestion {
     options?: string[]
     allow_multiple?: boolean
   }
-}
-
-interface ApplicationResponse {
-  id: string
-  application_id: string
-  question_id: string
-  response_text: string | null
-  response_options: string[] | null
 }
 
 const APPLICATION_STATUSES = [
@@ -62,10 +55,8 @@ export default function OrgApplicationsPage() {
   const [applicationsLoading, setApplicationsLoading] = useState(false)
   const [showFormBuilder, setShowFormBuilder] = useState(false)
   
-  // Form questions and responses
+  // Form questions
   const [formQuestions, setFormQuestions] = useState<FormQuestion[]>([])
-  const [applicationResponses, setApplicationResponses] = useState<ApplicationResponse[]>([])
-  const [responsesLoading, setResponsesLoading] = useState(false)
   
   // Sidebar state
   const [statusFilter, setStatusFilter] = useState<'all' | 'waiting' | 'interview' | 'accepted' | 'rejected'>('all')
@@ -161,7 +152,7 @@ export default function OrgApplicationsPage() {
       setApplicationsLoading(true)
       const { data, error } = await supabase
         .from('applications')
-        .select('id, user_id, applicant_name, applicant_email, why_join, status, created_at, status_updated_at, internal_notes, rank')
+        .select('id, user_id, applicant_name, applicant_email, why_join, status, created_at, status_updated_at, internal_notes, rank, responses')
         .eq('organization_id', organizationId)
         .order('created_at', { ascending: false })
 
@@ -331,30 +322,13 @@ export default function OrgApplicationsPage() {
     return filtered
   }
 
-  // When selecting an application, reset editing states and fetch responses
-  const handleSelectApplication = async (app: Application) => {
+  // When selecting an application, reset editing states
+  const handleSelectApplication = (app: Application) => {
     setSelectedApplication(app)
     setEditingNotes(false)
     setEditingRank(false)
     setNotesValue(app.internal_notes || '')
     setRankValue(app.rank?.toString() || '')
-    
-    // Fetch responses for this application
-    setResponsesLoading(true)
-    console.log('🔍 Fetching responses for application:', app.id)
-    const { data: responsesData, error: responsesError } = await supabase
-      .from('application_responses')
-      .select('*')
-      .eq('application_id', app.id)
-    
-    if (responsesError) {
-      console.error('Error fetching responses:', responsesError)
-    } else {
-      console.log('📋 Responses fetched:', responsesData)
-      console.log('📋 Form questions:', formQuestions)
-      setApplicationResponses(responsesData || [])
-    }
-    setResponsesLoading(false)
   }
 
   const handleSignOut = async () => {
@@ -707,14 +681,12 @@ export default function OrgApplicationsPage() {
               <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
                 <p className="text-sm text-gray-500 font-medium mb-4">Application Responses</p>
                 
-                {responsesLoading ? (
-                  <div className="flex items-center justify-center py-8">
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-tamu-maroon"></div>
-                  </div>
-                ) : formQuestions.length > 0 ? (
+                {formQuestions.length > 0 ? (
                   <div className="space-y-4">
                     {formQuestions.map((question, index) => {
-                      const response = applicationResponses.find(r => r.question_id === question.id)
+                      // Get response from the JSON column
+                      const responses = selectedApplication.responses || {}
+                      const response = responses[question.id]
                       const questionTypeIcon = question.question_type === 'short_text' ? '📝' 
                         : question.question_type === 'long_text' ? '📄' 
                         : '☑️'
@@ -734,21 +706,18 @@ export default function OrgApplicationsPage() {
                             </div>
                           </div>
                           <div className="bg-gray-50 rounded-lg p-3 ml-6">
-                            {response ? (
+                            {response !== undefined && response !== null && response !== '' ? (
                               question.question_type === 'multiple_choice' ? (
                                 <div className="flex flex-wrap gap-2">
-                                  {(response.response_options || []).map((opt, i) => (
+                                  {(Array.isArray(response) ? response : [response]).map((opt, i) => (
                                     <span key={i} className="px-2 py-1 bg-tamu-maroon/10 text-tamu-maroon text-sm rounded-md">
                                       {opt}
                                     </span>
                                   ))}
-                                  {(!response.response_options || response.response_options.length === 0) && (
-                                    <span className="text-gray-400 italic text-sm">No selection</span>
-                                  )}
                                 </div>
                               ) : (
                                 <p className="text-gray-700 whitespace-pre-wrap text-sm leading-relaxed">
-                                  {response.response_text || <span className="text-gray-400 italic">No response</span>}
+                                  {typeof response === 'string' ? response : JSON.stringify(response)}
                                 </p>
                               )
                             ) : (

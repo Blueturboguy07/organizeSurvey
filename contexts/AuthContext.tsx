@@ -317,8 +317,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           return { success: false, error: 'You have already applied to this organization' }
         }
 
-        // Create application with form data
-        const { data: appData, error: appError } = await supabase
+        // Create application with form data including responses as JSON
+        const { error: appError } = await supabase
           .from('applications')
           .insert({
             user_id: user.id,
@@ -326,10 +326,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             applicant_name: applicationData.name,
             applicant_email: applicationData.email,
             why_join: applicationData.whyJoin,
-            status: 'waiting'
+            status: 'waiting',
+            responses: applicationData.customResponses || {}
           })
-          .select('id')
-          .single()
 
         if (appError) {
           if (appError.code === '23505') {
@@ -337,44 +336,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           }
           console.error('Error creating application:', appError)
           return { success: false, error: appError.message }
-        }
-
-        // Save custom responses to application_responses table
-        console.log('📝 Application created with ID:', appData?.id)
-        console.log('📝 Custom responses to save:', applicationData.customResponses)
-        
-        if (applicationData.customResponses && appData?.id) {
-          const responses = Object.entries(applicationData.customResponses)
-            .filter(([key]) => key !== 'default_why_join') // Skip the default field
-            .map(([questionId, response]) => ({
-              application_id: appData.id,
-              question_id: questionId,
-              response_text: typeof response === 'string' ? response : null,
-              response_options: Array.isArray(response) ? response : null
-            }))
-
-          console.log('📝 Formatted responses for DB:', responses)
-
-          if (responses.length > 0) {
-            const { data: insertedResponses, error: responsesError } = await supabase
-              .from('application_responses')
-              .insert(responses)
-              .select()
-
-            if (responsesError) {
-              console.error('❌ Error saving application responses:', responsesError)
-              // Don't fail the application if responses fail to save
-            } else {
-              console.log('✅ Responses saved successfully:', insertedResponses)
-            }
-          } else {
-            console.log('⚠️ No responses to save (empty after filtering)')
-          }
-        } else {
-          console.log('⚠️ No customResponses or no appData.id', { 
-            hasCustomResponses: !!applicationData.customResponses, 
-            appId: appData?.id 
-          })
         }
 
         // Update local state
