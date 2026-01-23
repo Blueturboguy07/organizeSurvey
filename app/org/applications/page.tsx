@@ -21,6 +21,7 @@ interface Application {
   internal_notes: string | null
   rank: number | null
   responses: Record<string, string | string[]> | null
+  reviewed: boolean
 }
 
 interface ApplicantDemographics {
@@ -164,7 +165,7 @@ export default function OrgApplicationsPage() {
       setApplicationsLoading(true)
       const { data, error } = await supabase
         .from('applications')
-        .select('id, user_id, applicant_name, applicant_email, why_join, status, created_at, status_updated_at, internal_notes, rank, responses')
+        .select('id, user_id, applicant_name, applicant_email, why_join, status, created_at, status_updated_at, internal_notes, rank, responses, reviewed')
         .eq('organization_id', organizationId)
         .order('created_at', { ascending: false })
 
@@ -251,6 +252,24 @@ export default function OrgApplicationsPage() {
       setTimeout(() => setSaveSuccess(''), 2000)
     } catch (err: any) {
       setError(err.message || 'Failed to update status')
+    }
+  }
+
+  // Toggle reviewed status
+  const toggleReviewed = async (applicationId: string, currentReviewed: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('applications')
+        .update({ reviewed: !currentReviewed })
+        .eq('id', applicationId)
+      
+      if (error) {
+        console.error('Error toggling reviewed:', error)
+        setError('Failed to update reviewed status')
+      }
+      // Realtime will handle the state update
+    } catch (err: any) {
+      setError(err.message || 'Failed to update reviewed status')
     }
   }
 
@@ -638,6 +657,11 @@ export default function OrgApplicationsPage() {
                             <h4 className={`font-medium truncate ${isSelected ? 'text-tamu-maroon' : 'text-gray-800'}`}>
                               {app.applicant_name}
                             </h4>
+                            {app.reviewed && (
+                              <svg className="w-3.5 h-3.5 text-green-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                              </svg>
+                            )}
                             {app.internal_notes && (
                               <svg className="w-3.5 h-3.5 text-yellow-500 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
                                 <path d="M18 5v8a2 2 0 01-2 2h-5l-5 4v-4H4a2 2 0 01-2-2V5a2 2 0 012-2h12a2 2 0 012 2z" />
@@ -681,6 +705,18 @@ export default function OrgApplicationsPage() {
                       <p className="text-xs text-gray-400 mt-1">
                         Applied {new Date(selectedApplication.created_at).toLocaleDateString()} at {new Date(selectedApplication.created_at).toLocaleTimeString()}
                       </p>
+                      {/* Reviewed Checkbox */}
+                      <label className="flex items-center gap-2 mt-2 cursor-pointer group">
+                        <input
+                          type="checkbox"
+                          checked={selectedApplication.reviewed || false}
+                          onChange={() => toggleReviewed(selectedApplication.id, selectedApplication.reviewed || false)}
+                          className="w-4 h-4 rounded border-gray-300 text-tamu-maroon focus:ring-tamu-maroon cursor-pointer"
+                        />
+                        <span className={`text-sm ${selectedApplication.reviewed ? 'text-green-600 font-medium' : 'text-gray-500 group-hover:text-gray-700'}`}>
+                          {selectedApplication.reviewed ? '✓ Reviewed' : 'Mark as reviewed'}
+                        </span>
+                      </label>
                     </div>
                   </div>
                   
