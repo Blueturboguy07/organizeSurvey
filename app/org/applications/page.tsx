@@ -110,6 +110,13 @@ export default function OrgApplicationsPage() {
   // Drag and drop state
   const [activeId, setActiveId] = useState<string | null>(null)
   
+  // Application settings state
+  const [acceptingApplications, setAcceptingApplications] = useState(true)
+  const [applicationDeadline, setApplicationDeadline] = useState<string>('')
+  const [applicationsReopenDate, setApplicationsReopenDate] = useState<string>('')
+  const [settingsLoading, setSettingsLoading] = useState(false)
+  const [showSettingsPanel, setShowSettingsPanel] = useState(false)
+  
   const router = useRouter()
   const supabase = createClientComponentClient()
   
@@ -151,7 +158,7 @@ export default function OrgApplicationsPage() {
 
       const { data: orgAccount, error: orgAccountError } = await supabase
         .from('org_accounts')
-        .select('organization_id')
+        .select('organization_id, accepting_applications, application_deadline, applications_reopen_date')
         .eq('user_id', user.id)
         .single()
 
@@ -170,6 +177,11 @@ export default function OrgApplicationsPage() {
 
       setOrganizationId(orgAccount.organization_id)
       setOrganizationName(orgData?.name || 'Organization')
+      
+      // Set application settings
+      setAcceptingApplications(orgAccount.accepting_applications ?? true)
+      setApplicationDeadline(orgAccount.application_deadline ? new Date(orgAccount.application_deadline).toISOString().slice(0, 16) : '')
+      setApplicationsReopenDate(orgAccount.applications_reopen_date ? new Date(orgAccount.applications_reopen_date).toISOString().slice(0, 16) : '')
       
       // Fetch form questions for this org
       const { data: formData } = await supabase
@@ -522,6 +534,70 @@ export default function OrgApplicationsPage() {
     }
   }
 
+  // Update application settings
+  const updateApplicationSettings = async (settings: {
+    accepting_applications?: boolean
+    application_deadline?: string | null
+    applications_reopen_date?: string | null
+  }) => {
+    if (!organizationId) return
+    
+    setSettingsLoading(true)
+    try {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      
+      const updateData: Record<string, any> = {}
+      
+      if (settings.accepting_applications !== undefined) {
+        updateData.accepting_applications = settings.accepting_applications
+      }
+      if (settings.application_deadline !== undefined) {
+        updateData.application_deadline = settings.application_deadline || null
+      }
+      if (settings.applications_reopen_date !== undefined) {
+        updateData.applications_reopen_date = settings.applications_reopen_date || null
+      }
+      
+      const { error } = await supabase
+        .from('org_accounts')
+        .update(updateData)
+        .eq('user_id', user.id)
+      
+      if (error) {
+        console.error('Error updating settings:', error)
+        setError('Failed to update settings')
+      } else {
+        setSaveSuccess('Settings updated')
+        setTimeout(() => setSaveSuccess(''), 2000)
+      }
+    } catch (err: any) {
+      setError(err.message || 'Failed to update settings')
+    }
+    setSettingsLoading(false)
+  }
+
+  // Toggle accepting applications
+  const toggleAcceptingApplications = async () => {
+    const newValue = !acceptingApplications
+    setAcceptingApplications(newValue)
+    
+    // If closing applications, clear deadline. If opening, clear reopen date.
+    if (newValue) {
+      setApplicationsReopenDate('')
+      await updateApplicationSettings({
+        accepting_applications: newValue,
+        applications_reopen_date: null
+      })
+    } else {
+      setApplicationDeadline('')
+      await updateApplicationSettings({
+        accepting_applications: newValue,
+        application_deadline: null
+      })
+    }
+  }
+
   // Realtime subscription for applicant demographics
   useEffect(() => {
     if (!selectedApplication) {
@@ -645,6 +721,23 @@ export default function OrgApplicationsPage() {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              {/* Application Status Toggle */}
+              <button
+                onClick={() => setShowSettingsPanel(!showSettingsPanel)}
+                className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-all flex items-center gap-2 ${
+                  showSettingsPanel 
+                    ? 'bg-blue-100 text-blue-700' 
+                    : acceptingApplications 
+                      ? 'bg-green-50 text-green-700 border border-green-200' 
+                      : 'bg-red-50 text-red-700 border border-red-200'
+                }`}
+              >
+                <span className={`w-2 h-2 rounded-full ${acceptingApplications ? 'bg-green-500' : 'bg-red-500'}`}></span>
+                <span className="hidden sm:inline">{acceptingApplications ? 'Open' : 'Closed'}</span>
+                <svg className={`w-3 h-3 transition-transform ${showSettingsPanel ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
               {/* Form Builder Toggle */}
               <button
                 onClick={() => setShowFormBuilder(!showFormBuilder)}
@@ -686,6 +779,130 @@ export default function OrgApplicationsPage() {
             }`}
           >
             {saveSuccess || error}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Application Settings Panel */}
+      <AnimatePresence>
+        {showSettingsPanel && (
+          <motion.div
+            initial={{ opacity: 0, height: 0 }}
+            animate={{ opacity: 1, height: 'auto' }}
+            exit={{ opacity: 0, height: 0 }}
+            className="bg-white border-b border-gray-200 flex-shrink-0"
+          >
+            <div className="max-w-4xl mx-auto p-4 sm:p-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                {/* Toggle Switch */}
+                <div className="flex items-center gap-4">
+                  <div className="flex items-center gap-3">
+                    <span className={`text-sm font-medium ${!acceptingApplications ? 'text-red-600' : 'text-gray-400'}`}>
+                      Closed
+                    </span>
+                    <button
+                      onClick={toggleAcceptingApplications}
+                      disabled={settingsLoading}
+                      className={`relative inline-flex h-7 w-14 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-tamu-maroon focus:ring-offset-2 ${
+                        acceptingApplications ? 'bg-green-500' : 'bg-red-500'
+                      } ${settingsLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                      <span
+                        className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform shadow-md ${
+                          acceptingApplications ? 'translate-x-8' : 'translate-x-1'
+                        }`}
+                      />
+                    </button>
+                    <span className={`text-sm font-medium ${acceptingApplications ? 'text-green-600' : 'text-gray-400'}`}>
+                      Open
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-500">
+                    {acceptingApplications 
+                      ? 'Applications are currently open' 
+                      : 'Applications are currently closed'}
+                  </p>
+                </div>
+
+                {/* Date Inputs */}
+                <div className="flex flex-col sm:flex-row gap-4">
+                  {acceptingApplications ? (
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm text-gray-600 whitespace-nowrap">Deadline:</label>
+                      <input
+                        type="datetime-local"
+                        value={applicationDeadline}
+                        onChange={(e) => {
+                          setApplicationDeadline(e.target.value)
+                          updateApplicationSettings({ application_deadline: e.target.value || null })
+                        }}
+                        className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none"
+                      />
+                      {applicationDeadline && (
+                        <button
+                          onClick={() => {
+                            setApplicationDeadline('')
+                            updateApplicationSettings({ application_deadline: null })
+                          }}
+                          className="p-1 text-gray-400 hover:text-red-500"
+                          title="Clear deadline"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <label className="text-sm text-gray-600 whitespace-nowrap">Reopens:</label>
+                      <input
+                        type="datetime-local"
+                        value={applicationsReopenDate}
+                        onChange={(e) => {
+                          setApplicationsReopenDate(e.target.value)
+                          updateApplicationSettings({ applications_reopen_date: e.target.value || null })
+                        }}
+                        className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none"
+                      />
+                      {applicationsReopenDate && (
+                        <button
+                          onClick={() => {
+                            setApplicationsReopenDate('')
+                            updateApplicationSettings({ applications_reopen_date: null })
+                          }}
+                          className="p-1 text-gray-400 hover:text-red-500"
+                          title="Clear reopen date"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+              
+              {/* Status Info */}
+              <div className="mt-3 p-3 bg-gray-50 rounded-lg">
+                <p className="text-xs text-gray-500">
+                  {acceptingApplications ? (
+                    applicationDeadline ? (
+                      <>📅 Applications due by <strong>{new Date(applicationDeadline).toLocaleString()}</strong></>
+                    ) : (
+                      <>✅ Applications are open with no deadline set</>
+                    )
+                  ) : (
+                    applicationsReopenDate ? (
+                      <>🔒 Applications closed. Reopening <strong>{new Date(applicationsReopenDate).toLocaleString()}</strong></>
+                    ) : (
+                      <>🔒 Applications are closed. No reopen date set.</>
+                    )
+                  )}
+                </p>
+              </div>
+            </div>
           </motion.div>
         )}
       </AnimatePresence>

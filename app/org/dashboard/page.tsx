@@ -224,6 +224,8 @@ export default function OrgDashboardPage() {
   const [linkCopied, setLinkCopied] = useState(false)
   const [showShareModal, setShowShareModal] = useState(false)
   const [orgSlug, setOrgSlug] = useState<string | null>(null)
+  const [acceptingApplications, setAcceptingApplications] = useState(true)
+  const [applicationDeadline, setApplicationDeadline] = useState<string | null>(null)
   
   // Editing states
   const [editingField, setEditingField] = useState<string | null>(null)
@@ -277,7 +279,7 @@ export default function OrgDashboardPage() {
 
       const { data: orgAccount, error: orgAccountError } = await supabase
         .from('org_accounts')
-        .select('organization_id, slug')
+        .select('organization_id, slug, accepting_applications, application_deadline')
         .eq('user_id', user.id)
         .single()
 
@@ -289,6 +291,10 @@ export default function OrgDashboardPage() {
       
       // Set the slug for sharing
       setOrgSlug(orgAccount.slug)
+      
+      // Set application settings
+      setAcceptingApplications(orgAccount.accepting_applications ?? true)
+      setApplicationDeadline(orgAccount.application_deadline)
 
       const { data: orgData, error: orgError } = await supabase
         .from('organizations')
@@ -895,15 +901,26 @@ export default function OrgDashboardPage() {
             >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-4">
-                  <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center">
-                    <svg className="w-6 h-6 text-orange-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                    </svg>
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center ${acceptingApplications ? 'bg-green-100' : 'bg-red-100'}`}>
+                    {acceptingApplications ? (
+                      <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                    ) : (
+                      <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                      </svg>
+                    )}
                   </div>
                   <div>
-                    <h3 className="text-base font-semibold text-gray-800 group-hover:text-tamu-maroon transition-colors">
-                      Applications Dashboard
-                    </h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-semibold text-gray-800 group-hover:text-tamu-maroon transition-colors">
+                        Applications Dashboard
+                      </h3>
+                      <span className={`px-2 py-0.5 text-xs font-medium rounded-full ${acceptingApplications ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                        {acceptingApplications ? 'Open' : 'Closed'}
+                      </span>
+                    </div>
                     <p className="text-sm text-gray-500">
                       {applicationsCount} total application{applicationsCount !== 1 ? 's' : ''}
                       {waitingCount > 0 && (
@@ -912,6 +929,11 @@ export default function OrgDashboardPage() {
                         </span>
                       )}
                     </p>
+                    {acceptingApplications && applicationDeadline && (
+                      <p className="text-xs text-orange-600 mt-1">
+                        📅 Deadline: {new Date(applicationDeadline).toLocaleDateString()}
+                      </p>
+                    )}
                   </div>
                 </div>
                 <div className="flex items-center gap-3">

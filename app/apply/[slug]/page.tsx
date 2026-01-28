@@ -63,6 +63,11 @@ export default function PublicApplyPage() {
   // Custom form check
   const [hasCustomForm, setHasCustomForm] = useState(false)
   const [checkingForm, setCheckingForm] = useState(false)
+  
+  // Application settings
+  const [acceptingApplications, setAcceptingApplications] = useState(true)
+  const [applicationDeadline, setApplicationDeadline] = useState<string | null>(null)
+  const [applicationsReopenDate, setApplicationsReopenDate] = useState<string | null>(null)
 
   // Fetch organization data by slug lookup in org_accounts
   useEffect(() => {
@@ -76,7 +81,7 @@ export default function PublicApplyPage() {
         // Look up org_account by slug directly
         const { data: orgAccount, error: accountError } = await supabase
           .from('org_accounts')
-          .select('organization_id, email_verified, is_active')
+          .select('organization_id, email_verified, is_active, accepting_applications, application_deadline, applications_reopen_date')
           .eq('slug', slug)
           .single()
         
@@ -87,6 +92,9 @@ export default function PublicApplyPage() {
         }
         
         setIsOnPlatform(orgAccount.email_verified && orgAccount.is_active)
+        setAcceptingApplications(orgAccount.accepting_applications ?? true)
+        setApplicationDeadline(orgAccount.application_deadline)
+        setApplicationsReopenDate(orgAccount.applications_reopen_date)
         
         // Fetch the organization details
         const { data: orgData, error: orgError } = await supabase
@@ -349,9 +357,19 @@ export default function PublicApplyPage() {
                   Not yet on platform
                 </span>
               )}
-              {isApplicationBased && isOnPlatform && (
+              {isApplicationBased && isOnPlatform && !acceptingApplications && (
+                <span className="px-3 py-1 bg-red-400/30 rounded-full text-sm font-medium">
+                  Applications Closed
+                </span>
+              )}
+              {isApplicationBased && isOnPlatform && acceptingApplications && (
+                <span className="px-3 py-1 bg-green-400/30 rounded-full text-sm font-medium">
+                  Accepting Applications
+                </span>
+              )}
+              {isApplicationBased && isOnPlatform && acceptingApplications && applicationDeadline && (
                 <span className="px-3 py-1 bg-orange-400/30 rounded-full text-sm font-medium">
-                  Application Required
+                  Due {new Date(applicationDeadline).toLocaleDateString()}
                 </span>
               )}
             </div>
@@ -415,6 +433,23 @@ export default function PublicApplyPage() {
               <p className="text-gray-600">This organization is not yet on the platform.</p>
               <p className="text-sm text-gray-500 mt-1">Check back later or contact them directly.</p>
             </div>
+          ) : isApplicationBased && !acceptingApplications ? (
+            <div className="text-center py-4">
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-red-50 border border-red-200 rounded-lg mb-3">
+                <svg className="w-5 h-5 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                </svg>
+                <span className="text-red-700 font-medium">Applications Currently Closed</span>
+              </div>
+              {applicationsReopenDate && (
+                <p className="text-gray-600">
+                  Applications will reopen on <strong>{new Date(applicationsReopenDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}</strong>
+                </p>
+              )}
+              {!applicationsReopenDate && (
+                <p className="text-sm text-gray-500">Check back later for updates.</p>
+              )}
+            </div>
           ) : isApplicationBased && !hasCustomForm ? (
             <div className="text-center py-4">
               <div className="inline-flex items-center gap-2 px-4 py-2 bg-gray-100 rounded-lg">
@@ -442,6 +477,11 @@ export default function PublicApplyPage() {
                     ? 'Fill out a short application to request membership.'
                     : 'Become a member and connect with others.'}
                 </p>
+                {isApplicationBased && applicationDeadline && (
+                  <p className="text-sm text-orange-600 mt-1 font-medium">
+                    📅 Deadline: {new Date(applicationDeadline).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })} at {new Date(applicationDeadline).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                  </p>
+                )}
               </div>
               <motion.button
                 whileHover={{ scale: 1.02 }}

@@ -56,6 +56,9 @@ export default function OrgCard({
   const [actionError, setActionError] = useState<string | null>(null)
   const [hasCustomForm, setHasCustomForm] = useState(false)
   const [checkingForm, setCheckingForm] = useState(false)
+  const [acceptingApplications, setAcceptingApplications] = useState(true)
+  const [applicationDeadline, setApplicationDeadline] = useState<string | null>(null)
+  const [applicationsReopenDate, setApplicationsReopenDate] = useState<string | null>(null)
 
   const isJoined = joinedOrgIds.has(org.id)
   const isSaved = savedOrgIds.has(org.id)
@@ -64,13 +67,27 @@ export default function OrgCard({
   const isApplicationBased = org.is_application_based === true
   const [applicationSuccess, setApplicationSuccess] = useState<string | null>(null)
 
-  // Check if org has a custom form (for application-based orgs)
+  // Check if org has a custom form and application settings (for application-based orgs)
   useEffect(() => {
     if (!isApplicationBased || !org.id) return
     
-    const checkForCustomForm = async () => {
+    const checkForCustomFormAndSettings = async () => {
       setCheckingForm(true)
       try {
+        // Get application settings from org_accounts
+        const { data: orgAccount } = await supabase
+          .from('org_accounts')
+          .select('accepting_applications, application_deadline, applications_reopen_date')
+          .eq('organization_id', org.id)
+          .single()
+        
+        if (orgAccount) {
+          setAcceptingApplications(orgAccount.accepting_applications ?? true)
+          setApplicationDeadline(orgAccount.application_deadline)
+          setApplicationsReopenDate(orgAccount.applications_reopen_date)
+        }
+        
+        // Check for custom form
         const { data: formData } = await supabase
           .from('org_forms')
           .select('id')
@@ -94,7 +111,7 @@ export default function OrgCard({
       setCheckingForm(false)
     }
     
-    checkForCustomForm()
+    checkForCustomFormAndSettings()
   }, [org.id, isApplicationBased, supabase])
 
 
@@ -282,16 +299,34 @@ export default function OrgCard({
               </span>
             ) : isOnPlatform ? (
               isApplicationBased ? (
-                hasCustomForm ? (
-                  <motion.button
-                    whileHover={{ scale: 1.02 }}
-                    whileTap={{ scale: 0.98 }}
-                    onClick={handleApplyClick}
-                    disabled={actionLoading !== null || checkingForm}
-                    className="px-3 py-1.5 text-sm font-medium text-tamu-maroon border border-tamu-maroon rounded-lg hover:bg-tamu-maroon hover:text-white transition-colors disabled:opacity-50"
-                  >
-                    {checkingForm ? '...' : 'Apply'}
-                  </motion.button>
+                !acceptingApplications ? (
+                  <div className="flex flex-col items-start">
+                    <span className="px-3 py-1.5 text-sm font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg">
+                      Apps Closed
+                    </span>
+                    {applicationsReopenDate && (
+                      <span className="text-xs text-gray-500 mt-1">
+                        Opens {new Date(applicationsReopenDate).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
+                ) : hasCustomForm ? (
+                  <div className="flex flex-col items-start">
+                    <motion.button
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      onClick={handleApplyClick}
+                      disabled={actionLoading !== null || checkingForm}
+                      className="px-3 py-1.5 text-sm font-medium text-tamu-maroon border border-tamu-maroon rounded-lg hover:bg-tamu-maroon hover:text-white transition-colors disabled:opacity-50"
+                    >
+                      {checkingForm ? '...' : 'Apply'}
+                    </motion.button>
+                    {applicationDeadline && (
+                      <span className="text-xs text-gray-500 mt-1">
+                        Due {new Date(applicationDeadline).toLocaleDateString()}
+                      </span>
+                    )}
+                  </div>
                 ) : (
                   <span className="px-3 py-1.5 text-sm font-medium text-gray-500 bg-gray-100 border border-gray-200 rounded-lg">
                     {checkingForm ? '...' : 'Apps Coming Soon'}
@@ -437,16 +472,34 @@ export default function OrgCard({
                       </span>
                     ) : isOnPlatform ? (
                       isApplicationBased ? (
-                        hasCustomForm ? (
-                          <motion.button
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.98 }}
-                            onClick={handleApplyClick}
-                            disabled={actionLoading !== null || checkingForm}
-                            className="px-4 py-2 text-sm font-medium text-tamu-maroon border border-tamu-maroon rounded-lg hover:bg-tamu-maroon hover:text-white transition-colors disabled:opacity-50"
-                          >
-                            Apply to Join
-                          </motion.button>
+                        !acceptingApplications ? (
+                          <div className="flex items-center gap-2">
+                            <span className="px-4 py-2 text-sm font-medium text-red-600 bg-red-50 border border-red-200 rounded-lg">
+                              Applications Closed
+                            </span>
+                            {applicationsReopenDate && (
+                              <span className="text-sm text-gray-500">
+                                Opens {new Date(applicationsReopenDate).toLocaleDateString()}
+                              </span>
+                            )}
+                          </div>
+                        ) : hasCustomForm ? (
+                          <div className="flex items-center gap-2">
+                            <motion.button
+                              whileHover={{ scale: 1.02 }}
+                              whileTap={{ scale: 0.98 }}
+                              onClick={handleApplyClick}
+                              disabled={actionLoading !== null || checkingForm}
+                              className="px-4 py-2 text-sm font-medium text-tamu-maroon border border-tamu-maroon rounded-lg hover:bg-tamu-maroon hover:text-white transition-colors disabled:opacity-50"
+                            >
+                              Apply to Join
+                            </motion.button>
+                            {applicationDeadline && (
+                              <span className="text-sm text-gray-500">
+                                Due {new Date(applicationDeadline).toLocaleDateString()}
+                              </span>
+                            )}
+                          </div>
                         ) : (
                           <span className="px-4 py-2 text-sm font-medium text-gray-500 bg-gray-100 border border-gray-200 rounded-lg">
                             {checkingForm ? 'Checking...' : 'Applications Coming Soon'}
