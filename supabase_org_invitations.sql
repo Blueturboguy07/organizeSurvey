@@ -4,13 +4,19 @@
 -- This table tracks member invitations sent by organizations
 -- ============================================================================
 
--- Drop existing policies first (before table operations)
-DROP POLICY IF EXISTS "Org owners can view their invitations" ON public.org_invitations;
-DROP POLICY IF EXISTS "Org owners can insert invitations" ON public.org_invitations;
-DROP POLICY IF EXISTS "Org owners can update their invitations" ON public.org_invitations;
-DROP POLICY IF EXISTS "Public can read invitations by token" ON public.org_invitations;
-DROP POLICY IF EXISTS "Service role full access on invitations" ON public.org_invitations;
-DROP POLICY IF EXISTS "Users can read invitations sent to them" ON public.org_invitations;
+-- First, drop all policies if table exists
+DO $$
+BEGIN
+  DROP POLICY IF EXISTS "Org owners can view their invitations" ON public.org_invitations;
+  DROP POLICY IF EXISTS "Org owners can insert invitations" ON public.org_invitations;
+  DROP POLICY IF EXISTS "Org owners can update their invitations" ON public.org_invitations;
+  DROP POLICY IF EXISTS "Public can read invitations by token" ON public.org_invitations;
+  DROP POLICY IF EXISTS "Service role full access on invitations" ON public.org_invitations;
+  DROP POLICY IF EXISTS "Users can read invitations sent to them" ON public.org_invitations;
+EXCEPTION
+  WHEN undefined_table THEN
+    NULL; -- Table doesn't exist yet, that's fine
+END $$;
 
 -- Create org_invitations table
 CREATE TABLE IF NOT EXISTS public.org_invitations (
@@ -51,6 +57,14 @@ CREATE INDEX IF NOT EXISTS idx_org_invitations_status ON public.org_invitations(
 
 -- Enable Row Level Security
 ALTER TABLE public.org_invitations ENABLE ROW LEVEL SECURITY;
+
+-- Drop policies again (now that table definitely exists)
+DROP POLICY IF EXISTS "Org owners can view their invitations" ON public.org_invitations;
+DROP POLICY IF EXISTS "Org owners can insert invitations" ON public.org_invitations;
+DROP POLICY IF EXISTS "Org owners can update their invitations" ON public.org_invitations;
+DROP POLICY IF EXISTS "Public can read invitations by token" ON public.org_invitations;
+DROP POLICY IF EXISTS "Service role full access on invitations" ON public.org_invitations;
+DROP POLICY IF EXISTS "Users can read invitations sent to them" ON public.org_invitations;
 
 -- Create RLS policies
 

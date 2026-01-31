@@ -14,28 +14,43 @@ export async function GET(request: Request) {
     }
 
     // Get all members of the organization
-    const { data: members, error: membersError } = await supabaseAdmin
+    const { data: memberships, error: membersError } = await supabaseAdmin
       .from('user_joined_organizations')
-      .select(`
-        id,
-        user_id,
-        joined_at,
-        user_profiles:user_id (
-          id,
-          email,
-          name
-        )
-      `)
+      .select('id, user_id, joined_at')
       .eq('organization_id', organizationId)
       .order('joined_at', { ascending: false })
 
     if (membersError) {
       console.error('Error fetching members:', membersError)
       return NextResponse.json(
-        { error: 'Failed to fetch members' },
+        { error: 'Failed to fetch members: ' + membersError.message },
         { status: 500 }
       )
     }
+
+    // Get user profiles for all members
+    const userIds = memberships?.map(m => m.user_id) || []
+    let userProfiles: Record<string, { email: string; name: string }> = {}
+    
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabaseAdmin
+        .from('user_profiles')
+        .select('id, email, name')
+        .in('id', userIds)
+      
+      if (profiles) {
+        userProfiles = profiles.reduce((acc, p) => {
+          acc[p.id] = { email: p.email, name: p.name }
+          return acc
+        }, {} as Record<string, { email: string; name: string }>)
+      }
+    }
+
+    // Combine memberships with profiles
+    const members = memberships?.map(m => ({
+      ...m,
+      user_profiles: userProfiles[m.user_id] || null
+    })) || []
 
     // Get pending invitations (table may not exist yet)
     let invitations: any[] = []
