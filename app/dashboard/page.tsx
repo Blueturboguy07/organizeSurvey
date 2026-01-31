@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
-import { motion } from 'framer-motion'
+import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/contexts/AuthContext'
 import DashboardLayout from '@/components/DashboardLayout'
 import OrgCard from '@/components/OrgCard'
@@ -30,6 +30,17 @@ interface JoinedOrg {
   joined_at: string
 }
 
+interface PendingInvitation {
+  id: string
+  organizationId: string
+  organizationName: string
+  organizationBio: string | null
+  organizationType: string | null
+  invitedAs: string | null
+  createdAt: string
+  expiresAt: string
+}
+
 export default function MyOrgsPage() {
   const { 
     user, 
@@ -45,12 +56,76 @@ export default function MyOrgsPage() {
   const [joinedOrgs, setJoinedOrgs] = useState<JoinedOrg[]>([])
   const [orgsLoading, setOrgsLoading] = useState(false)
   const [orgsError, setOrgsError] = useState<string | null>(null)
+  
+  // Pending invitations state
+  const [pendingInvitations, setPendingInvitations] = useState<PendingInvitation[]>([])
+  const [invitationsLoading, setInvitationsLoading] = useState(false)
+  const [respondingTo, setRespondingTo] = useState<string | null>(null)
 
   useEffect(() => {
     if (!authLoading && !user) {
       router.push('/login')
     }
   }, [user, authLoading, router])
+
+  // Fetch pending invitations
+  const fetchInvitations = useCallback(async () => {
+    if (!session) return
+    
+    setInvitationsLoading(true)
+    try {
+      const response = await fetch('/api/user/invitations', {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+      })
+
+      if (response.ok) {
+        const data = await response.json()
+        setPendingInvitations(data.invitations || [])
+      }
+    } catch (error) {
+      console.error('Error fetching invitations:', error)
+    } finally {
+      setInvitationsLoading(false)
+    }
+  }, [session])
+
+  useEffect(() => {
+    fetchInvitations()
+  }, [fetchInvitations])
+
+  // Handle accept/decline invitation
+  const handleInvitationResponse = async (invitationId: string, action: 'accept' | 'decline') => {
+    if (!session) return
+    
+    setRespondingTo(invitationId)
+    try {
+      const response = await fetch('/api/user/invitations', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ invitationId, action }),
+      })
+
+      if (response.ok) {
+        // Remove from list
+        setPendingInvitations(prev => prev.filter(inv => inv.id !== invitationId))
+        
+        // If accepted, refresh joined orgs
+        if (action === 'accept') {
+          // Trigger a refetch of joined orgs by updating joinedOrgIds
+          window.location.reload() // Simple refresh to update all data
+        }
+      }
+    } catch (error) {
+      console.error('Error responding to invitation:', error)
+    } finally {
+      setRespondingTo(null)
+    }
+  }
 
   // Fetch full org details when joined org IDs change
   useEffect(() => {
@@ -123,6 +198,87 @@ export default function MyOrgsPage() {
             : 'Start exploring and joining organizations that match your interests'}
         </p>
       </motion.div>
+
+      {/* Pending Invitations */}
+      <AnimatePresence>
+        {pendingInvitations.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            className="mb-8"
+          >
+            <div className="bg-gradient-to-r from-tamu-maroon/5 to-orange-50 border border-tamu-maroon/20 rounded-xl p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-tamu-maroon/10 flex items-center justify-center">
+                  <svg className="w-5 h-5 text-tamu-maroon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="text-lg font-semibold text-gray-800">
+                    You have {pendingInvitations.length} pending invitation{pendingInvitations.length !== 1 ? 's' : ''}
+                  </h3>
+                  <p className="text-sm text-gray-600">Organizations want you to join them!</p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                {pendingInvitations.map((invitation) => (
+                  <motion.div
+                    key={invitation.id}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: 10 }}
+                    className="bg-white rounded-lg p-4 shadow-sm border border-gray-100"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-semibold text-gray-800 truncate">
+                          {invitation.organizationName}
+                        </h4>
+                        {invitation.organizationType && (
+                          <span className="inline-block px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded-full mt-1">
+                            {invitation.organizationType}
+                          </span>
+                        )}
+                        {invitation.organizationBio && (
+                          <p className="text-sm text-gray-500 mt-1 line-clamp-2">
+                            {invitation.organizationBio}
+                          </p>
+                        )}
+                        <p className="text-xs text-gray-400 mt-2">
+                          Invited {new Date(invitation.createdAt).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="flex gap-2 flex-shrink-0">
+                        <motion.button
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => handleInvitationResponse(invitation.id, 'decline')}
+                          disabled={respondingTo === invitation.id}
+                          className="px-4 py-2 text-sm text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                        >
+                          Decline
+                        </motion.button>
+                        <motion.button
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          onClick={() => handleInvitationResponse(invitation.id, 'accept')}
+                          disabled={respondingTo === invitation.id}
+                          className="px-4 py-2 text-sm bg-tamu-maroon text-white rounded-lg hover:bg-tamu-maroon-light transition-colors disabled:opacity-50"
+                        >
+                          {respondingTo === invitation.id ? 'Joining...' : 'Accept'}
+                        </motion.button>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* My Organizations */}
       <motion.div
