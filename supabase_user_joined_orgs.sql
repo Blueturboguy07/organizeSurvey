@@ -47,12 +47,38 @@ CREATE POLICY "Users can delete own joined organizations"
   FOR DELETE
   USING (auth.uid() = user_id);
 
+-- Org account owners can view members of their organization
+DROP POLICY IF EXISTS "Org owners can view members" ON public.user_joined_organizations;
+CREATE POLICY "Org owners can view members"
+  ON public.user_joined_organizations
+  FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM org_accounts 
+      WHERE org_accounts.organization_id = user_joined_organizations.organization_id 
+      AND org_accounts.user_id = auth.uid()
+    )
+  );
+
 -- Org account owners can insert members when accepting applications
 DROP POLICY IF EXISTS "Org owners can add members" ON public.user_joined_organizations;
 CREATE POLICY "Org owners can add members"
   ON public.user_joined_organizations
   FOR INSERT
   WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM org_accounts 
+      WHERE org_accounts.organization_id = user_joined_organizations.organization_id 
+      AND org_accounts.user_id = auth.uid()
+    )
+  );
+
+-- Org account owners can remove members from their organization
+DROP POLICY IF EXISTS "Org owners can remove members" ON public.user_joined_organizations;
+CREATE POLICY "Org owners can remove members"
+  ON public.user_joined_organizations
+  FOR DELETE
+  USING (
     EXISTS (
       SELECT 1 FROM org_accounts 
       WHERE org_accounts.organization_id = user_joined_organizations.organization_id 

@@ -14,6 +14,7 @@ interface Member {
   joinedAt: string
   email: string
   name: string
+  profilePicture: string | null
   status: 'member'
 }
 
@@ -583,11 +584,21 @@ export default function OrgMembersPage() {
                     >
                       <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full bg-tamu-maroon/10 flex items-center justify-center">
-                            <span className="text-tamu-maroon font-semibold">
-                              {member.name.charAt(0).toUpperCase()}
-                            </span>
-                          </div>
+                          {member.profilePicture ? (
+                            <Image
+                              src={member.profilePicture}
+                              alt={member.name}
+                              width={40}
+                              height={40}
+                              className="w-10 h-10 rounded-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-full bg-tamu-maroon/10 flex items-center justify-center">
+                              <span className="text-tamu-maroon font-semibold">
+                                {member.name.charAt(0).toUpperCase()}
+                              </span>
+                            </div>
+                          )}
                           <div>
                             <p className="font-medium text-gray-800">{member.name}</p>
                             <p className="text-sm text-gray-500">{member.email}</p>

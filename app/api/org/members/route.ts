@@ -30,19 +30,27 @@ export async function GET(request: Request) {
 
     // Get user profiles for all members
     const userIds = memberships?.map(m => m.user_id) || []
-    let userProfiles: Record<string, { email: string; name: string }> = {}
+    let userProfiles: Record<string, { email: string; name: string; profile_picture_url: string | null }> = {}
+    
+    console.log('Fetching profiles for user IDs:', userIds)
     
     if (userIds.length > 0) {
-      const { data: profiles } = await supabaseAdmin
+      const { data: profiles, error: profilesError } = await supabaseAdmin
         .from('user_profiles')
-        .select('id, email, name')
+        .select('id, email, name, profile_picture_url')
         .in('id', userIds)
+      
+      if (profilesError) {
+        console.error('Error fetching profiles:', profilesError)
+      }
+      
+      console.log('Found profiles:', profiles?.length || 0)
       
       if (profiles) {
         userProfiles = profiles.reduce((acc, p) => {
-          acc[p.id] = { email: p.email, name: p.name }
+          acc[p.id] = { email: p.email, name: p.name, profile_picture_url: p.profile_picture_url }
           return acc
-        }, {} as Record<string, { email: string; name: string }>)
+        }, {} as Record<string, { email: string; name: string; profile_picture_url: string | null }>)
       }
     }
 
@@ -80,8 +88,11 @@ export async function GET(request: Request) {
       joinedAt: member.joined_at,
       email: (member.user_profiles as any)?.email || 'Unknown',
       name: (member.user_profiles as any)?.name || 'Unknown',
+      profilePicture: (member.user_profiles as any)?.profile_picture_url || null,
       status: 'member' as const,
     })) || []
+    
+    console.log('Returning members:', formattedMembers.length)
 
     const formattedInvitations = invitations.map(invite => ({
       id: invite.id,
