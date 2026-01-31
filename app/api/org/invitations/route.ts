@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
+import { Resend } from 'resend'
+
+const resend = new Resend(process.env.RESEND_API_KEY)
 
 // Get all invitations for an organization
 export async function GET(request: Request) {
@@ -91,31 +94,49 @@ export async function POST(request: Request) {
       )
     }
 
-    // Update expiration date
-    const newExpiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+    // Update expiration date to 30 more days
+    const newExpiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
     
     await supabaseAdmin
       .from('org_invitations')
       .update({ expires_at: newExpiresAt.toISOString() })
       .eq('id', invitationId)
 
-    // Build invite URL
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
-                    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
-    const inviteUrl = `${baseUrl}/register?invite=${invitation.invite_token}`
+    const registerUrl = 'https://organizecampus.com/register'
+    const orgName = (invitation.organizations as any)?.name || 'an organization'
 
-    // Resend the invite email
-    const { error: emailError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-      invitation.email,
-      {
-        data: {
-          invited_to_org: invitation.organization_id,
-          invite_token: invitation.invite_token,
-          org_name: (invitation.organizations as any)?.name,
-        },
-        redirectTo: inviteUrl,
-      }
-    )
+    // Send invitation email via Resend
+    const { error: emailError } = await resend.emails.send({
+      from: 'ORGanize Campus <noreply@organizecampus.com>',
+      to: invitation.email,
+      subject: `Reminder: You've been invited to join ${orgName} on ORGanize Campus`,
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <div style="background: linear-gradient(135deg, #500000 0%, #732222 100%); padding: 30px; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 24px;">ORGanize Campus</h1>
+          </div>
+          <div style="padding: 30px; background: #ffffff;">
+            <h2 style="color: #333; margin-top: 0;">Reminder: You've been invited!</h2>
+            <p style="color: #666; font-size: 16px; line-height: 1.6;">
+              ${invitation.name ? `Hi ${invitation.name},` : 'Hi there,'}<br><br>
+              <strong>${orgName}</strong> has invited you to join their organization on ORGanize Campus.
+            </p>
+            <div style="text-align: center; margin: 30px 0;">
+              <a href="${registerUrl}" style="background: #500000; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+                Create Your Account
+              </a>
+            </div>
+            <p style="color: #666; font-size: 14px; line-height: 1.6;">
+              Simply sign up with this email address (<strong>${invitation.email}</strong>) and you'll automatically be added to ${orgName}.
+            </p>
+            <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+            <p style="color: #999; font-size: 12px;">
+              This invitation expires in 30 days. If you didn't expect this email, you can safely ignore it.
+            </p>
+          </div>
+        </div>
+      `,
+    })
 
     if (emailError) {
       console.error('Error resending invite email:', emailError)

@@ -1,6 +1,9 @@
 import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
+import { Resend } from 'resend'
 import crypto from 'crypto'
+
+const resend = new Resend(process.env.RESEND_API_KEY)
 
 export async function POST(request: Request) {
   try {
@@ -36,25 +39,27 @@ export async function POST(request: Request) {
       )
     }
 
-    // Check if user is already a member
-    const { data: existingMember } = await supabaseAdmin
-      .from('user_joined_organizations')
+    // Check if user is already a member (by checking if their email exists in profiles and is joined)
+    const { data: existingProfile } = await supabaseAdmin
+      .from('user_profiles')
       .select('id')
-      .eq('organization_id', organizationId)
-      .eq('user_id', (
-        await supabaseAdmin
-          .from('user_profiles')
-          .select('id')
-          .eq('email', email.toLowerCase().trim())
-          .single()
-      ).data?.id || '')
+      .eq('email', email.toLowerCase().trim())
       .single()
 
-    if (existingMember) {
-      return NextResponse.json(
-        { error: 'User is already a member of this organization' },
-        { status: 400 }
-      )
+    if (existingProfile) {
+      const { data: existingMember } = await supabaseAdmin
+        .from('user_joined_organizations')
+        .select('id')
+        .eq('organization_id', organizationId)
+        .eq('user_id', existingProfile.id)
+        .single()
+
+      if (existingMember) {
+        return NextResponse.json(
+          { error: 'User is already a member of this organization' },
+          { status: 400 }
+        )
+      }
     }
 
     // Check for existing pending invitation
@@ -84,7 +89,7 @@ export async function POST(request: Request) {
 
     // Generate unique invite token
     const inviteToken = crypto.randomBytes(32).toString('hex')
-    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000) // 7 days
+    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000) // 30 days
 
     // Create invitation record
     const { data: invitation, error: inviteError } = await supabaseAdmin
@@ -108,84 +113,68 @@ export async function POST(request: Request) {
       )
     }
 
-    // Build invite URL
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
-                    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000')
-    const inviteUrl = `${baseUrl}/register?invite=${inviteToken}`
-
-    // Check if user already exists in auth
-    const { data: existingUsers } = await supabaseAdmin.auth.admin.listUsers()
-    const existingUser = existingUsers?.users?.find(u => u.email === email.toLowerCase().trim())
-
-    if (existingUser) {
-      // User already has an account - send email notification about the invite
-      // They can accept by logging in
-      const { error: emailError } = await supabaseAdmin.auth.resetPasswordForEmail(
-        email.toLowerCase().trim(),
-        {
-          redirectTo: `${baseUrl}/dashboard?acceptInvite=${inviteToken}`,
-        }
-      )
+    // Send invitation email via Resend
+    const registerUrl = 'https://organizecampus.com/register'
+    let emailSent = false
+    
+    try {
+      const { error: emailError } = await resend.emails.send({
+        from: 'ORGanize Campus <noreply@organizecampus.com>',
+        to: email.toLowerCase().trim(),
+        subject: `You've been invited to join ${organization.name} on ORGanize Campus`,
+        html: `
+          <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+            <div style="background: linear-gradient(135deg, #500000 0%, #732222 100%); padding: 30px; text-align: center;">
+              <h1 style="color: white; margin: 0; font-size: 24px;">ORGanize Campus</h1>
+            </div>
+            <div style="padding: 30px; background: #ffffff;">
+              <h2 style="color: #333; margin-top: 0;">You've been invited!</h2>
+              <p style="color: #666; font-size: 16px; line-height: 1.6;">
+                ${name ? `Hi ${name},` : 'Hi there,'}<br><br>
+                <strong>${organization.name}</strong> has invited you to join their organization on ORGanize Campus.
+              </p>
+              <div style="text-align: center; margin: 30px 0;">
+                <a href="${registerUrl}" style="background: #500000; color: white; padding: 14px 28px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+                  Create Your Account
+                </a>
+              </div>
+              <p style="color: #666; font-size: 14px; line-height: 1.6;">
+                Simply sign up with this email address (<strong>${email.toLowerCase().trim()}</strong>) and you'll automatically be added to ${organization.name}.
+              </p>
+              <hr style="border: none; border-top: 1px solid #eee; margin: 30px 0;">
+              <p style="color: #999; font-size: 12px;">
+                This invitation expires in 30 days. If you didn't expect this email, you can safely ignore it.
+              </p>
+            </div>
+          </div>
+        `,
+      })
 
       if (emailError) {
-        console.error('Error sending notification email:', emailError)
-        // Don't fail the whole request, invite is still created
+        console.error('Error sending invite email:', emailError)
+      } else {
+        emailSent = true
       }
-
-      return NextResponse.json({
-        success: true,
-        invitation: {
-          id: invitation.id,
-          email: invitation.email,
-          name: invitation.name,
-          status: invitation.status,
-          expires_at: invitation.expires_at,
-        },
-        message: 'Invitation created. User already has an account - they will see the invite when they log in.',
-        userExists: true,
-      })
-    } else {
-      // New user - send invite email
-      const { error: inviteEmailError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
-        email.toLowerCase().trim(),
-        {
-          data: {
-            invited_to_org: organizationId,
-            invite_token: inviteToken,
-            org_name: organization.name,
-            invited_name: name?.trim() || undefined,
-          },
-          redirectTo: inviteUrl,
-        }
-      )
-
-      if (inviteEmailError) {
-        console.error('Error sending invite email:', inviteEmailError)
-        // Clean up the invitation if email fails
-        await supabaseAdmin
-          .from('org_invitations')
-          .delete()
-          .eq('id', invitation.id)
-        
-        return NextResponse.json(
-          { error: 'Failed to send invitation email: ' + inviteEmailError.message },
-          { status: 500 }
-        )
-      }
-
-      return NextResponse.json({
-        success: true,
-        invitation: {
-          id: invitation.id,
-          email: invitation.email,
-          name: invitation.name,
-          status: invitation.status,
-          expires_at: invitation.expires_at,
-        },
-        message: 'Invitation email sent successfully.',
-        userExists: false,
-      })
+    } catch (emailErr) {
+      console.error('Failed to send email:', emailErr)
+      // Don't fail the whole request - invite is still created
     }
+
+    return NextResponse.json({
+      success: true,
+      invitation: {
+        id: invitation.id,
+        email: invitation.email,
+        name: invitation.name,
+        status: invitation.status,
+        expires_at: invitation.expires_at,
+      },
+      emailSent,
+      message: emailSent 
+        ? `Invitation email sent to ${invitation.email}` 
+        : `Invitation created for ${invitation.email}. Email could not be sent - they can still sign up at organizecampus.com/register`,
+      registerUrl,
+    })
 
   } catch (error: any) {
     console.error('Invite member error:', error)
