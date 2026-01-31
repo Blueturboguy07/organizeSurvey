@@ -1,0 +1,125 @@
+import { NextResponse } from 'next/server'
+import { supabaseAdmin } from '@/lib/supabase'
+
+export async function GET(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const organizationId = searchParams.get('organizationId')
+
+    if (!organizationId) {
+      return NextResponse.json(
+        { error: 'Organization ID is required' },
+        { status: 400 }
+      )
+    }
+
+    // Get all members of the organization
+    const { data: members, error: membersError } = await supabaseAdmin
+      .from('user_joined_organizations')
+      .select(`
+        id,
+        user_id,
+        joined_at,
+        user_profiles:user_id (
+          id,
+          email,
+          name
+        )
+      `)
+      .eq('organization_id', organizationId)
+      .order('joined_at', { ascending: false })
+
+    if (membersError) {
+      console.error('Error fetching members:', membersError)
+      return NextResponse.json(
+        { error: 'Failed to fetch members' },
+        { status: 500 }
+      )
+    }
+
+    // Get pending invitations
+    const { data: invitations, error: invitationsError } = await supabaseAdmin
+      .from('org_invitations')
+      .select('id, email, name, status, created_at, expires_at')
+      .eq('organization_id', organizationId)
+      .in('status', ['pending'])
+      .order('created_at', { ascending: false })
+
+    if (invitationsError) {
+      console.error('Error fetching invitations:', invitationsError)
+      // Don't fail the whole request
+    }
+
+    // Format the response
+    const formattedMembers = members?.map(member => ({
+      id: member.id,
+      userId: member.user_id,
+      joinedAt: member.joined_at,
+      email: (member.user_profiles as any)?.email || 'Unknown',
+      name: (member.user_profiles as any)?.name || 'Unknown',
+      status: 'member' as const,
+    })) || []
+
+    const formattedInvitations = invitations?.map(invite => ({
+      id: invite.id,
+      email: invite.email,
+      name: invite.name,
+      status: invite.status as 'pending',
+      createdAt: invite.created_at,
+      expiresAt: invite.expires_at,
+    })) || []
+
+    return NextResponse.json({
+      members: formattedMembers,
+      invitations: formattedInvitations,
+      totalMembers: formattedMembers.length,
+      pendingInvitations: formattedInvitations.length,
+    })
+
+  } catch (error: any) {
+    console.error('Get members error:', error)
+    return NextResponse.json(
+      { error: error.message || 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
+// Remove a member from the organization
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url)
+    const membershipId = searchParams.get('membershipId')
+    const organizationId = searchParams.get('organizationId')
+
+    if (!membershipId || !organizationId) {
+      return NextResponse.json(
+        { error: 'Membership ID and Organization ID are required' },
+        { status: 400 }
+      )
+    }
+
+    const { error } = await supabaseAdmin
+      .from('user_joined_organizations')
+      .delete()
+      .eq('id', membershipId)
+      .eq('organization_id', organizationId)
+
+    if (error) {
+      console.error('Error removing member:', error)
+      return NextResponse.json(
+        { error: 'Failed to remove member' },
+        { status: 500 }
+      )
+    }
+
+    return NextResponse.json({ success: true })
+
+  } catch (error: any) {
+    console.error('Remove member error:', error)
+    return NextResponse.json(
+      { error: error.message || 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}

@@ -31,6 +31,64 @@ export async function GET(request: NextRequest) {
           console.log('Org account verified:', data.user.email)
         }
       }
+
+      // Auto-join any organizations that invited this user by email
+      if (data.user.email) {
+        try {
+          // Find all pending invitations for this email
+          const { data: pendingInvites } = await supabaseAdmin
+            .from('org_invitations')
+            .select('id, organization_id, expires_at')
+            .eq('email', data.user.email.toLowerCase())
+            .eq('status', 'pending')
+          
+          if (pendingInvites && pendingInvites.length > 0) {
+            for (const invitation of pendingInvites) {
+              // Skip expired invitations
+              if (new Date(invitation.expires_at) < new Date()) {
+                await supabaseAdmin
+                  .from('org_invitations')
+                  .update({ status: 'expired' })
+                  .eq('id', invitation.id)
+                continue
+              }
+              
+              // Check if user is already a member
+              const { data: existingMembership } = await supabaseAdmin
+                .from('user_joined_organizations')
+                .select('id')
+                .eq('organization_id', invitation.organization_id)
+                .eq('user_id', data.user.id)
+                .single()
+              
+              if (!existingMembership) {
+                // Add user to organization
+                await supabaseAdmin
+                  .from('user_joined_organizations')
+                  .insert({
+                    user_id: data.user.id,
+                    organization_id: invitation.organization_id,
+                  })
+                
+                console.log('User auto-joined organization:', invitation.organization_id)
+              }
+              
+              // Update invitation status
+              await supabaseAdmin
+                .from('org_invitations')
+                .update({
+                  status: 'accepted',
+                  accepted_by_user_id: data.user.id,
+                  accepted_at: new Date().toISOString(),
+                })
+                .eq('id', invitation.id)
+            }
+          }
+        } catch (inviteErr) {
+          console.error('Error processing invites during auth callback:', inviteErr)
+          // Don't fail the whole callback
+        }
+      }
       
       return NextResponse.redirect(new URL(next, request.url))
     }

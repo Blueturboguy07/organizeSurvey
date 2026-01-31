@@ -8,6 +8,12 @@ import { useAuth } from '@/contexts/AuthContext'
 import Link from 'next/link'
 import Image from 'next/image'
 
+interface InviteDetails {
+  organizationName: string
+  email: string
+  name?: string
+}
+
 export default function RegisterPage() {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -20,6 +26,8 @@ export default function RegisterPage() {
   const [success, setSuccess] = useState(false)
   const [resending, setResending] = useState(false)
   const [resendMessage, setResendMessage] = useState('')
+  const [inviteDetails, setInviteDetails] = useState<InviteDetails | null>(null)
+  const [loadingInvite, setLoadingInvite] = useState(false)
   const router = useRouter()
   const supabase = createClientComponentClient()
   // Use AuthContext for real-time auth state (redirect if already logged in)
@@ -31,6 +39,50 @@ export default function RegisterPage() {
       router.push('/dashboard')
     }
   }, [user, authLoading, router])
+
+  // Check for pending invitations when email changes (debounced)
+  useEffect(() => {
+    if (!email || !validateTAMUEmail(email)) {
+      setInviteDetails(null)
+      return
+    }
+
+    const timeoutId = setTimeout(() => {
+      checkForInvitations(email)
+    }, 500) // Debounce 500ms
+
+    return () => clearTimeout(timeoutId)
+  }, [email])
+
+  // Check if user has any pending invitations by email
+  const checkForInvitations = async (userEmail: string) => {
+    setLoadingInvite(true)
+    try {
+      const response = await fetch(`/api/org/invite/check?email=${encodeURIComponent(userEmail.toLowerCase().trim())}`)
+      if (response.ok) {
+        const data = await response.json()
+        if (data.invitations && data.invitations.length > 0) {
+          // Show the first invitation (or could show all)
+          const firstInvite = data.invitations[0]
+          setInviteDetails({
+            organizationName: firstInvite.organizationName,
+            email: userEmail,
+            name: firstInvite.name,
+          })
+          // Pre-fill name if provided in invite
+          if (firstInvite.name && !name) {
+            setName(firstInvite.name)
+          }
+        } else {
+          setInviteDetails(null)
+        }
+      }
+    } catch (err) {
+      console.error('Error checking for invitations:', err)
+    } finally {
+      setLoadingInvite(false)
+    }
+  }
 
   const validateTAMUEmail = (email: string): boolean => {
     const tamuEmailRegex = /^[a-zA-Z0-9._%+-]+@(tamu\.edu|email\.tamu\.edu)$/i
@@ -103,6 +155,9 @@ export default function RegisterPage() {
         if (profileError && !profileError.message.includes('duplicate')) {
           console.error('Profile creation error:', profileError)
         }
+        
+        // Note: Auto-joining invited organizations happens in the auth callback
+        // based on email matching, no token needed
       }
     } catch (err: any) {
       setError(err.message || 'An error occurred during registration')
@@ -164,6 +219,18 @@ export default function RegisterPage() {
               We&apos;ve sent a verification link to <strong>{email}</strong>
             </p>
           </div>
+          
+          {inviteDetails && (
+            <div className="bg-tamu-maroon/5 border border-tamu-maroon/20 rounded-lg p-4 mb-4">
+              <p className="text-sm text-tamu-maroon font-medium">
+                You&apos;ve been invited to join <strong>{inviteDetails.organizationName}</strong>
+              </p>
+              <p className="text-xs text-gray-600 mt-1">
+                You&apos;ll be automatically added once you verify your email.
+              </p>
+            </div>
+          )}
+          
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
             <p className="text-sm text-blue-800">
               Please click the link in the email to verify your account before signing in.
@@ -228,6 +295,32 @@ export default function RegisterPage() {
           <h2 className="text-2xl font-semibold text-gray-800 mb-2">Create Account</h2>
           <p className="text-gray-600">Sign up with your TAMU email</p>
         </div>
+
+        {/* Invite Banner */}
+        {loadingInvite ? (
+          <div className="mb-6 bg-gray-50 border border-gray-200 rounded-lg p-4 animate-pulse">
+            <div className="h-4 bg-gray-200 rounded w-3/4 mx-auto"></div>
+          </div>
+        ) : inviteDetails && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 bg-tamu-maroon/5 border border-tamu-maroon/20 rounded-lg p-4"
+          >
+            <div className="flex items-center gap-2 justify-center mb-2">
+              <svg className="w-5 h-5 text-tamu-maroon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+              </svg>
+              <span className="text-sm font-semibold text-tamu-maroon">You&apos;ve been invited!</span>
+            </div>
+            <p className="text-sm text-gray-700 text-center">
+              <strong>{inviteDetails.organizationName}</strong> has invited you to join their organization.
+            </p>
+            <p className="text-xs text-gray-500 text-center mt-1">
+              Complete your registration to automatically join.
+            </p>
+          </motion.div>
+        )}
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
