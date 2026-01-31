@@ -444,14 +444,23 @@ export default function OrgDashboardPage() {
         .select('*', { count: 'exact', head: true })
         .eq('organization_id', organization.id)
 
-      const { count: pendingCount } = await supabase
-        .from('org_invitations')
-        .select('*', { count: 'exact', head: true })
-        .eq('organization_id', organization.id)
-        .eq('status', 'pending')
-
       setMembersCount(memberCount || 0)
-      setPendingInvitesCount(pendingCount || 0)
+
+      // Try to get pending invites count (table may not exist yet)
+      try {
+        const { count: pendingCount, error } = await supabase
+          .from('org_invitations')
+          .select('*', { count: 'exact', head: true })
+          .eq('organization_id', organization.id)
+          .eq('status', 'pending')
+
+        if (!error) {
+          setPendingInvitesCount(pendingCount || 0)
+        }
+      } catch {
+        // Table doesn't exist yet - that's okay
+        setPendingInvitesCount(0)
+      }
     }
 
     fetchMemberCounts()

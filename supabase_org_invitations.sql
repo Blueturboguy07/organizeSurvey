@@ -4,6 +4,14 @@
 -- This table tracks member invitations sent by organizations
 -- ============================================================================
 
+-- Drop existing policies first (before table operations)
+DROP POLICY IF EXISTS "Org owners can view their invitations" ON public.org_invitations;
+DROP POLICY IF EXISTS "Org owners can insert invitations" ON public.org_invitations;
+DROP POLICY IF EXISTS "Org owners can update their invitations" ON public.org_invitations;
+DROP POLICY IF EXISTS "Public can read invitations by token" ON public.org_invitations;
+DROP POLICY IF EXISTS "Service role full access on invitations" ON public.org_invitations;
+DROP POLICY IF EXISTS "Users can read invitations sent to them" ON public.org_invitations;
+
 -- Create org_invitations table
 CREATE TABLE IF NOT EXISTS public.org_invitations (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -43,12 +51,6 @@ CREATE INDEX IF NOT EXISTS idx_org_invitations_status ON public.org_invitations(
 
 -- Enable Row Level Security
 ALTER TABLE public.org_invitations ENABLE ROW LEVEL SECURITY;
-
--- Drop existing policies if they exist (for re-running script)
-DROP POLICY IF EXISTS "Org owners can view their invitations" ON public.org_invitations;
-DROP POLICY IF EXISTS "Org owners can insert invitations" ON public.org_invitations;
-DROP POLICY IF EXISTS "Org owners can update their invitations" ON public.org_invitations;
-DROP POLICY IF EXISTS "Public can read invitations by token" ON public.org_invitations;
 
 -- Create RLS policies
 
@@ -102,8 +104,14 @@ CREATE POLICY "Users can read invitations sent to them"
     email = (SELECT email FROM auth.users WHERE id = auth.uid())
   );
 
--- Enable real-time for this table
-ALTER PUBLICATION supabase_realtime ADD TABLE public.org_invitations;
+-- Enable real-time for this table (ignore error if already added)
+DO $$
+BEGIN
+  ALTER PUBLICATION supabase_realtime ADD TABLE public.org_invitations;
+EXCEPTION
+  WHEN duplicate_object THEN
+    NULL; -- Table already in publication, ignore
+END $$;
 
 -- ============================================================================
 -- Function to auto-expire old invitations

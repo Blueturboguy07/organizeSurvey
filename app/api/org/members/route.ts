@@ -37,17 +37,25 @@ export async function GET(request: Request) {
       )
     }
 
-    // Get pending invitations
-    const { data: invitations, error: invitationsError } = await supabaseAdmin
-      .from('org_invitations')
-      .select('id, email, name, status, created_at, expires_at')
-      .eq('organization_id', organizationId)
-      .in('status', ['pending'])
-      .order('created_at', { ascending: false })
+    // Get pending invitations (table may not exist yet)
+    let invitations: any[] = []
+    try {
+      const { data: invitationsData, error: invitationsError } = await supabaseAdmin
+        .from('org_invitations')
+        .select('id, email, name, status, created_at, expires_at')
+        .eq('organization_id', organizationId)
+        .in('status', ['pending'])
+        .order('created_at', { ascending: false })
 
-    if (invitationsError) {
-      console.error('Error fetching invitations:', invitationsError)
-      // Don't fail the whole request
+      if (invitationsError) {
+        // Table might not exist yet - this is okay
+        console.log('Note: org_invitations query failed (table may not exist):', invitationsError.message)
+      } else {
+        invitations = invitationsData || []
+      }
+    } catch (inviteErr) {
+      // Silently handle if table doesn't exist
+      console.log('Note: org_invitations table may not exist yet')
     }
 
     // Format the response
@@ -60,14 +68,14 @@ export async function GET(request: Request) {
       status: 'member' as const,
     })) || []
 
-    const formattedInvitations = invitations?.map(invite => ({
+    const formattedInvitations = invitations.map(invite => ({
       id: invite.id,
       email: invite.email,
       name: invite.name,
       status: invite.status as 'pending',
       createdAt: invite.created_at,
       expiresAt: invite.expires_at,
-    })) || []
+    }))
 
     return NextResponse.json({
       members: formattedMembers,
