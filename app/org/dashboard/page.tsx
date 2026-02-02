@@ -276,34 +276,69 @@ export default function OrgDashboardPage() {
         return
       }
 
-      if (!user.user_metadata?.is_org_account) {
+      // Check if user is org account owner OR has dashboard access as admin member
+      let organizationId: string | null = null
+      let orgAccountData: any = null
+
+      if (user.user_metadata?.is_org_account) {
+        // User is the org account owner
+        const { data: orgAccount, error: orgAccountError } = await supabase
+          .from('org_accounts')
+          .select('organization_id, slug, accepting_applications, application_deadline')
+          .eq('user_id', user.id)
+          .single()
+
+        if (orgAccountError || !orgAccount) {
+          setError('Organization account not found')
+          setLoading(false)
+          return
+        }
+        
+        organizationId = orgAccount.organization_id
+        orgAccountData = orgAccount
+      } else {
+        // Check if user has dashboard access as admin member
+        const { data: dashboardAccess } = await supabase
+          .from('org_dashboard_access')
+          .select('organization_id')
+          .eq('user_id', user.id)
+          .single()
+
+        if (!dashboardAccess) {
+          router.push('/dashboard')
+          return
+        }
+
+        organizationId = dashboardAccess.organization_id
+        
+        // Get org account data for this organization
+        const { data: orgAccount } = await supabase
+          .from('org_accounts')
+          .select('slug, accepting_applications, application_deadline')
+          .eq('organization_id', organizationId)
+          .single()
+        
+        orgAccountData = orgAccount
+      }
+
+      if (!organizationId) {
         router.push('/dashboard')
         return
       }
 
-      const { data: orgAccount, error: orgAccountError } = await supabase
-        .from('org_accounts')
-        .select('organization_id, slug, accepting_applications, application_deadline')
-        .eq('user_id', user.id)
-        .single()
-
-      if (orgAccountError || !orgAccount) {
-        setError('Organization account not found')
-        setLoading(false)
-        return
-      }
+      const orgAccount = orgAccountData
       
       // Set the slug for sharing
-      setOrgSlug(orgAccount.slug)
+      setOrgSlug(orgAccount?.slug || null)
       
       // Set application settings
-      setAcceptingApplications(orgAccount.accepting_applications ?? true)
-      setApplicationDeadline(orgAccount.application_deadline)
+      setAcceptingApplications(orgAccount?.accepting_applications ?? true)
+      setApplicationDeadline(orgAccount?.application_deadline || null)
 
       const { data: orgData, error: orgError } = await supabase
         .from('organizations')
         .select('*')
-        .eq('id', orgAccount.organization_id)
+        .eq('id', organizationId)
         .single()
 
       if (orgError || !orgData) {

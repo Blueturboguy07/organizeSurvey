@@ -15,6 +15,8 @@ interface Member {
   email: string
   name: string
   profilePicture: string | null
+  role: 'member' | 'officer' | 'admin'
+  title: string | null
   status: 'member'
 }
 
@@ -46,6 +48,13 @@ export default function OrgMembersPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [activeTab, setActiveTab] = useState<'members' | 'invitations'>('members')
   
+  // Edit member state
+  const [editingMember, setEditingMember] = useState<Member | null>(null)
+  const [editRole, setEditRole] = useState<'member' | 'officer' | 'admin'>('member')
+  const [editTitle, setEditTitle] = useState('')
+  const [grantDashboardAccess, setGrantDashboardAccess] = useState(false)
+  const [updatingMember, setUpdatingMember] = useState(false)
+  
   const router = useRouter()
   const supabase = createClientComponentClient()
 
@@ -59,31 +68,49 @@ export default function OrgMembersPage() {
         return
       }
 
-      if (!user.user_metadata?.is_org_account) {
+      let orgId: string | null = null
+
+      if (user.user_metadata?.is_org_account) {
+        // User is the org account owner
+        const { data: orgAccount, error: orgAccountError } = await supabase
+          .from('org_accounts')
+          .select('organization_id')
+          .eq('user_id', user.id)
+          .single()
+
+        if (orgAccountError || !orgAccount) {
+          setError('Organization account not found')
+          setLoading(false)
+          return
+        }
+        orgId = orgAccount.organization_id
+      } else {
+        // Check if user has dashboard access as admin member
+        const { data: dashboardAccess } = await supabase
+          .from('org_dashboard_access')
+          .select('organization_id')
+          .eq('user_id', user.id)
+          .single()
+
+        if (!dashboardAccess) {
+          router.push('/dashboard')
+          return
+        }
+        orgId = dashboardAccess.organization_id
+      }
+
+      if (!orgId) {
         router.push('/dashboard')
         return
       }
 
-      // Get org account
-      const { data: orgAccount, error: orgAccountError } = await supabase
-        .from('org_accounts')
-        .select('organization_id')
-        .eq('user_id', user.id)
-        .single()
-
-      if (orgAccountError || !orgAccount) {
-        setError('Organization account not found')
-        setLoading(false)
-        return
-      }
-
-      setOrganizationId(orgAccount.organization_id)
+      setOrganizationId(orgId)
 
       // Get organization name
       const { data: org } = await supabase
         .from('organizations')
         .select('name')
-        .eq('id', orgAccount.organization_id)
+        .eq('id', orgId)
         .single()
       
       if (org) {
@@ -91,7 +118,7 @@ export default function OrgMembersPage() {
       }
 
       // Fetch members and invitations
-      const response = await fetch(`/api/org/members?organizationId=${orgAccount.organization_id}`)
+      const response = await fetch(`/api/org/members?organizationId=${orgId}`)
       const data = await response.json()
       
       if (response.ok) {
@@ -196,6 +223,51 @@ export default function OrgMembersPage() {
       setError(err.message || 'Failed to send invitation')
     } finally {
       setInviting(false)
+    }
+  }
+
+  // Handle opening edit modal
+  const openEditMember = (member: Member) => {
+    setEditingMember(member)
+    setEditRole(member.role)
+    setEditTitle(member.title || '')
+    setGrantDashboardAccess(member.role === 'admin')
+  }
+
+  // Handle updating member role/title
+  const handleUpdateMember = async () => {
+    if (!editingMember || !organizationId) return
+
+    setUpdatingMember(true)
+    setError('')
+
+    try {
+      const response = await fetch('/api/org/members', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          membershipId: editingMember.id,
+          organizationId,
+          role: editRole,
+          title: editTitle.trim() || null,
+          grantDashboardAccess: editRole === 'admin' && grantDashboardAccess,
+        }),
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to update member')
+      }
+
+      setSuccess('Member updated successfully!')
+      setEditingMember(null)
+      fetchData()
+      setTimeout(() => setSuccess(''), 3000)
+    } catch (err: any) {
+      setError(err.message || 'Failed to update member')
+    } finally {
+      setUpdatingMember(false)
     }
   }
 
@@ -509,6 +581,148 @@ export default function OrgMembersPage() {
           )}
         </AnimatePresence>
 
+        {/* Edit Member Modal */}
+        <AnimatePresence>
+          {editingMember && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+              onClick={() => setEditingMember(null)}
+            >
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                className="bg-white rounded-xl shadow-2xl max-w-md w-full p-6"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-lg font-semibold text-gray-800">Edit Member</h3>
+                  <button
+                    onClick={() => setEditingMember(null)}
+                    className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                  >
+                    <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Member Info */}
+                <div className="flex items-center gap-3 mb-6 pb-4 border-b border-gray-100">
+                  {editingMember.profilePicture ? (
+                    <Image
+                      src={editingMember.profilePicture}
+                      alt={editingMember.name}
+                      width={48}
+                      height={48}
+                      className="w-12 h-12 rounded-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-12 h-12 rounded-full bg-tamu-maroon/10 flex items-center justify-center">
+                      <span className="text-tamu-maroon font-semibold text-lg">
+                        {editingMember.name.charAt(0).toUpperCase()}
+                      </span>
+                    </div>
+                  )}
+                  <div>
+                    <p className="font-semibold text-gray-800">{editingMember.name}</p>
+                    <p className="text-sm text-gray-500">{editingMember.email}</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Role Selection */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      Role
+                    </label>
+                    <div className="grid grid-cols-3 gap-2">
+                      {(['member', 'officer', 'admin'] as const).map((role) => (
+                        <button
+                          key={role}
+                          type="button"
+                          onClick={() => setEditRole(role)}
+                          className={`px-3 py-2 text-sm font-medium rounded-lg border transition-all ${
+                            editRole === role
+                              ? role === 'admin'
+                                ? 'bg-purple-100 border-purple-300 text-purple-700'
+                                : role === 'officer'
+                                ? 'bg-blue-100 border-blue-300 text-blue-700'
+                                : 'bg-green-100 border-green-300 text-green-700'
+                              : 'bg-white border-gray-200 text-gray-600 hover:border-gray-300'
+                          }`}
+                        >
+                          {role.charAt(0).toUpperCase() + role.slice(1)}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-2">
+                      {editRole === 'admin' && 'Admins can access the organization dashboard and manage members.'}
+                      {editRole === 'officer' && 'Officers are recognized leaders but cannot access the dashboard.'}
+                      {editRole === 'member' && 'Regular members of the organization.'}
+                    </p>
+                  </div>
+
+                  {/* Title */}
+                  <div>
+                    <label htmlFor="editTitle" className="block text-sm font-medium text-gray-700 mb-1">
+                      Title (optional)
+                    </label>
+                    <input
+                      id="editTitle"
+                      type="text"
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      placeholder="e.g., President, Vice President, Treasurer..."
+                      className="w-full p-3 border border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none focus:ring-2 focus:ring-tamu-maroon/20"
+                    />
+                  </div>
+
+                  {/* Dashboard Access Toggle (only for admin) */}
+                  {editRole === 'admin' && (
+                    <div className="bg-purple-50 rounded-lg p-4">
+                      <label className="flex items-center gap-3 cursor-pointer">
+                        <input
+                          type="checkbox"
+                          checked={grantDashboardAccess}
+                          onChange={(e) => setGrantDashboardAccess(e.target.checked)}
+                          className="w-5 h-5 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                        />
+                        <div>
+                          <p className="text-sm font-medium text-gray-800">Grant Dashboard Access</p>
+                          <p className="text-xs text-gray-500">Allow this member to access and manage the organization dashboard.</p>
+                        </div>
+                      </label>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex gap-3 mt-6">
+                  <button
+                    type="button"
+                    onClick={() => setEditingMember(null)}
+                    className="flex-1 px-4 py-3 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleUpdateMember}
+                    disabled={updatingMember}
+                    className={`flex-1 px-4 py-3 bg-tamu-maroon text-white rounded-lg font-medium transition-all ${
+                      updatingMember ? 'opacity-50 cursor-not-allowed' : 'hover:bg-tamu-maroon-light'
+                    }`}
+                  >
+                    {updatingMember ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         {/* Search and Tabs */}
         <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
           <div className="p-4 border-b border-gray-200">
@@ -600,17 +814,37 @@ export default function OrgMembersPage() {
                             </div>
                           )}
                           <div>
-                            <p className="font-medium text-gray-800">{member.name}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="font-medium text-gray-800">{member.name}</p>
+                              {member.title && (
+                                <span className="text-xs text-gray-500">• {member.title}</span>
+                              )}
+                            </div>
                             <p className="text-sm text-gray-500">{member.email}</p>
                           </div>
                         </div>
-                        <div className="flex items-center gap-3">
-                          <span className="text-xs text-gray-400">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-400 hidden sm:inline">
                             Joined {new Date(member.joinedAt).toLocaleDateString()}
                           </span>
-                          <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">
-                            Member
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                            member.role === 'admin' 
+                              ? 'bg-purple-100 text-purple-700' 
+                              : member.role === 'officer'
+                              ? 'bg-blue-100 text-blue-700'
+                              : 'bg-green-100 text-green-700'
+                          }`}>
+                            {member.role === 'admin' ? 'Admin' : member.role === 'officer' ? 'Officer' : 'Member'}
                           </span>
+                          <button
+                            onClick={() => openEditMember(member)}
+                            className="p-1.5 text-gray-400 hover:text-tamu-maroon hover:bg-tamu-maroon/10 rounded-lg transition-colors"
+                            title="Edit member"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                            </svg>
+                          </button>
                           <button
                             onClick={() => handleRemoveMember(member.id, member.name)}
                             className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"

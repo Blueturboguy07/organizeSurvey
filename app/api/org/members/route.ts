@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     // Get all members of the organization
     const { data: memberships, error: membersError } = await supabaseAdmin
       .from('user_joined_organizations')
-      .select('id, user_id, joined_at')
+      .select('id, user_id, joined_at, role, title')
       .eq('organization_id', organizationId)
       .order('joined_at', { ascending: false })
 
@@ -89,6 +89,8 @@ export async function GET(request: Request) {
       email: (member.user_profiles as any)?.email || 'Unknown',
       name: (member.user_profiles as any)?.name || 'Unknown',
       profilePicture: (member.user_profiles as any)?.profile_picture_url || null,
+      role: (member as any).role || 'member',
+      title: (member as any).title || null,
       status: 'member' as const,
     })) || []
     
@@ -112,6 +114,80 @@ export async function GET(request: Request) {
 
   } catch (error: any) {
     console.error('Get members error:', error)
+    return NextResponse.json(
+      { error: error.message || 'Internal server error' },
+      { status: 500 }
+    )
+  }
+}
+
+// Update a member's role or title
+export async function PATCH(request: Request) {
+  try {
+    const { membershipId, organizationId, role, title, grantDashboardAccess } = await request.json()
+
+    if (!membershipId || !organizationId) {
+      return NextResponse.json(
+        { error: 'Membership ID and Organization ID are required' },
+        { status: 400 }
+      )
+    }
+
+    // Validate role if provided
+    if (role && !['member', 'officer', 'admin'].includes(role)) {
+      return NextResponse.json(
+        { error: 'Invalid role. Must be member, officer, or admin' },
+        { status: 400 }
+      )
+    }
+
+    // Build update object
+    const updateData: { role?: string; title?: string } = {}
+    if (role !== undefined) updateData.role = role
+    if (title !== undefined) updateData.title = title
+
+    // Update the membership
+    const { data: updatedMembership, error } = await supabaseAdmin
+      .from('user_joined_organizations')
+      .update(updateData)
+      .eq('id', membershipId)
+      .eq('organization_id', organizationId)
+      .select('user_id, role')
+      .single()
+
+    if (error) {
+      console.error('Error updating member:', error)
+      return NextResponse.json(
+        { error: 'Failed to update member' },
+        { status: 500 }
+      )
+    }
+
+    // Handle dashboard access for admin role
+    if (role === 'admin' && grantDashboardAccess && updatedMembership) {
+      // Grant dashboard access
+      await supabaseAdmin
+        .from('org_dashboard_access')
+        .upsert({
+          user_id: updatedMembership.user_id,
+          organization_id: organizationId,
+        }, { onConflict: 'user_id,organization_id' })
+    } else if (role === 'member' && updatedMembership) {
+      // Remove dashboard access when demoting to regular member
+      await supabaseAdmin
+        .from('org_dashboard_access')
+        .delete()
+        .eq('user_id', updatedMembership.user_id)
+        .eq('organization_id', organizationId)
+    }
+
+    return NextResponse.json({ 
+      success: true,
+      member: updatedMembership 
+    })
+
+  } catch (error: any) {
+    console.error('Update member error:', error)
     return NextResponse.json(
       { error: error.message || 'Internal server error' },
       { status: 500 }
