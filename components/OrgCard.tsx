@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/contexts/AuthContext'
 import { createClientComponentClient } from '@/lib/supabase'
@@ -39,6 +40,7 @@ interface OrgCardProps {
   showActions?: boolean
   variant?: 'default' | 'compact'
   onOrgUpdate?: (org: Organization) => void
+  navigateOnClick?: boolean // If true, navigate to org page instead of opening modal
 }
 
 export default function OrgCard({ 
@@ -46,8 +48,10 @@ export default function OrgCard({
   showScore = false, 
   showActions = true,
   variant = 'default',
-  onOrgUpdate
+  onOrgUpdate,
+  navigateOnClick = false
 }: OrgCardProps) {
+  const router = useRouter()
   const { user, joinedOrgIds, savedOrgIds, appliedOrgIds, joinOrg, leaveOrg, saveOrg, unsaveOrg } = useAuth()
   const supabase = createClientComponentClient()
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -201,6 +205,14 @@ export default function OrgCard({
   const bioText = org.bio_snippet || org.bio || org.full_bio || ''
   const bioSnippet = bioText.length > 200 ? bioText.slice(0, 200) + '...' : bioText
 
+  const handleCardClick = () => {
+    if (navigateOnClick) {
+      router.push(`/org/${org.id}`)
+    } else {
+      setIsModalOpen(true)
+    }
+  }
+
   return (
     <>
       <motion.div
@@ -210,7 +222,7 @@ export default function OrgCard({
           bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow border border-gray-200 cursor-pointer
           ${variant === 'compact' ? 'p-4' : 'p-6'}
         `}
-        onClick={() => setIsModalOpen(true)}
+        onClick={handleCardClick}
       >
         <div className="flex items-start justify-between gap-4 mb-3">
           <div className="flex-1">
@@ -274,7 +286,7 @@ export default function OrgCard({
         )}
 
         {/* Actions */}
-        {showActions && (
+        {showActions && !navigateOnClick && (
           <div className="flex items-center gap-2 mt-3 pt-3 border-t border-gray-100">
             {actionError && (
               <span className="text-xs text-red-600 mr-2">{actionError}</span>
@@ -284,15 +296,9 @@ export default function OrgCard({
             )}
             
             {isJoined ? (
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={handleLeave}
-                disabled={actionLoading !== null}
-                className="px-3 py-1.5 text-sm font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors disabled:opacity-50"
-              >
-                {actionLoading === 'leave' ? 'Leaving...' : 'Leave'}
-              </motion.button>
+              <span className="px-3 py-1.5 text-sm font-medium text-green-600 bg-green-50 border border-green-200 rounded-lg">
+                Member
+              </span>
             ) : isApplied || applicationSuccess ? (
               <span className="px-3 py-1.5 text-sm font-medium text-orange-600 bg-orange-50 border border-orange-200 rounded-lg">
                 Applied - Waiting
@@ -381,6 +387,15 @@ export default function OrgCard({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
               </svg>
             </button>
+          </div>
+        )}
+
+        {/* Simple arrow for joined orgs view */}
+        {navigateOnClick && (
+          <div className="flex items-center justify-end mt-3 pt-3 border-t border-gray-100">
+            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
           </div>
         )}
       </motion.div>

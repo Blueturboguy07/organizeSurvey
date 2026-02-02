@@ -64,6 +64,15 @@ export default function PublicOrgPage() {
   const [applicationDeadline, setApplicationDeadline] = useState<string | null>(null)
   const [applicationsReopenDate, setApplicationsReopenDate] = useState<string | null>(null)
   const [hasCustomForm, setHasCustomForm] = useState(false)
+  
+  // User membership info
+  const [userRole, setUserRole] = useState<'member' | 'officer' | 'admin' | null>(null)
+  const [userTitle, setUserTitle] = useState<string | null>(null)
+  
+  // Member management states (for officers/admins)
+  const [members, setMembers] = useState<any[]>([])
+  const [membersLoading, setMembersLoading] = useState(false)
+  const [activeTab, setActiveTab] = useState<'info' | 'members' | 'applications'>('info')
 
   // Fetch organization data
   useEffect(() => {
@@ -131,6 +140,56 @@ export default function PublicOrgPage() {
   const isJoined = org ? joinedOrgIds.has(org.id) : false
   const isApplied = org ? appliedOrgIds.has(org.id) : false
   const isApplicationBased = org?.is_application_based === true
+  const isOfficerOrAdmin = userRole === 'officer' || userRole === 'admin'
+  const isAdmin = userRole === 'admin'
+  
+  // Fetch user's membership role
+  useEffect(() => {
+    const fetchUserRole = async () => {
+      if (!user || !orgId) return
+      
+      try {
+        const { data: membership } = await supabase
+          .from('user_joined_organizations')
+          .select('role, title')
+          .eq('user_id', user.id)
+          .eq('organization_id', orgId)
+          .single()
+        
+        if (membership) {
+          setUserRole(membership.role || 'member')
+          setUserTitle(membership.title)
+        }
+      } catch (err) {
+        // Not a member or error
+      }
+    }
+    
+    fetchUserRole()
+  }, [user, orgId, supabase])
+  
+  // Fetch members for officers/admins
+  useEffect(() => {
+    const fetchMembers = async () => {
+      if (!isOfficerOrAdmin || !orgId) return
+      
+      setMembersLoading(true)
+      try {
+        const response = await fetch(`/api/org/members?organizationId=${orgId}`)
+        const data = await response.json()
+        
+        if (response.ok) {
+          setMembers(data.members || [])
+        }
+      } catch (err) {
+        console.error('Error fetching members:', err)
+      } finally {
+        setMembersLoading(false)
+      }
+    }
+    
+    fetchMembers()
+  }, [isOfficerOrAdmin, orgId])
 
   const handleJoinClick = () => {
     if (!user) {
@@ -474,7 +533,140 @@ export default function PublicOrgPage() {
           )}
         </motion.div>
 
-        {/* Details Cards */}
+        {/* Officer/Admin Tabs */}
+        {isJoined && isOfficerOrAdmin && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.15 }}
+            className="mb-6"
+          >
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              {/* Tab Headers */}
+              <div className="flex border-b border-gray-200">
+                <button
+                  onClick={() => setActiveTab('info')}
+                  className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                    activeTab === 'info'
+                      ? 'text-tamu-maroon border-b-2 border-tamu-maroon bg-tamu-maroon/5'
+                      : 'text-gray-600 hover:text-gray-800'
+                  }`}
+                >
+                  Info
+                </button>
+                <button
+                  onClick={() => setActiveTab('members')}
+                  className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                    activeTab === 'members'
+                      ? 'text-tamu-maroon border-b-2 border-tamu-maroon bg-tamu-maroon/5'
+                      : 'text-gray-600 hover:text-gray-800'
+                  }`}
+                >
+                  Members ({members.length})
+                </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => setActiveTab('applications')}
+                    className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
+                      activeTab === 'applications'
+                        ? 'text-tamu-maroon border-b-2 border-tamu-maroon bg-tamu-maroon/5'
+                        : 'text-gray-600 hover:text-gray-800'
+                    }`}
+                  >
+                    Applications
+                  </button>
+                )}
+              </div>
+
+              {/* Tab Content */}
+              {activeTab === 'members' && (
+                <div className="p-4">
+                  {membersLoading ? (
+                    <div className="text-center py-8">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-tamu-maroon mx-auto"></div>
+                    </div>
+                  ) : members.length === 0 ? (
+                    <p className="text-center text-gray-500 py-8">No members yet</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {members.map((member) => (
+                        <div
+                          key={member.id}
+                          className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                        >
+                          <div className="flex items-center gap-3">
+                            {member.profilePicture ? (
+                              <Image
+                                src={member.profilePicture}
+                                alt={member.name}
+                                width={40}
+                                height={40}
+                                className="w-10 h-10 rounded-full object-cover"
+                              />
+                            ) : (
+                              <div className="w-10 h-10 rounded-full bg-tamu-maroon/10 flex items-center justify-center">
+                                <span className="text-tamu-maroon font-semibold">
+                                  {member.name?.charAt(0)?.toUpperCase() || '?'}
+                                </span>
+                              </div>
+                            )}
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <p className="font-medium text-gray-800">{member.name}</p>
+                                {member.title && (
+                                  <span className="text-xs text-gray-500">• {member.title}</span>
+                                )}
+                              </div>
+                              <p className="text-sm text-gray-500">{member.email}</p>
+                            </div>
+                          </div>
+                          <span className={`px-2 py-1 text-xs font-medium rounded-full ${
+                            member.role === 'admin' 
+                              ? 'bg-purple-100 text-purple-700' 
+                              : member.role === 'officer'
+                              ? 'bg-blue-100 text-blue-700'
+                              : 'bg-green-100 text-green-700'
+                          }`}>
+                            {member.role === 'admin' ? 'Admin' : member.role === 'officer' ? 'Officer' : 'Member'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {isAdmin && (
+                    <div className="mt-4 pt-4 border-t border-gray-200">
+                      <Link href="/org/members">
+                        <button className="w-full px-4 py-2 text-sm font-medium text-tamu-maroon border border-tamu-maroon rounded-lg hover:bg-tamu-maroon hover:text-white transition-colors">
+                          Manage Members
+                        </button>
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {activeTab === 'applications' && isAdmin && (
+                <div className="p-4">
+                  <div className="text-center py-8">
+                    <svg className="w-12 h-12 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <p className="text-gray-500 mb-4">View and manage applications in the dashboard</p>
+                    <Link href="/org/applications">
+                      <button className="px-4 py-2 text-sm font-medium bg-tamu-maroon text-white rounded-lg hover:bg-tamu-maroon-light transition-colors">
+                        Go to Applications Dashboard
+                      </button>
+                    </Link>
+                  </div>
+                </div>
+              )}
+            </div>
+          </motion.div>
+        )}
+
+        {/* Details Cards - Show when not officer/admin OR when info tab is active */}
+        {(!isOfficerOrAdmin || activeTab === 'info') && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Meeting Info */}
           {(org.meeting_frequency || org.meeting_times || org.meeting_locations) && (
@@ -597,6 +789,7 @@ export default function PublicOrgPage() {
             </motion.div>
           )}
         </div>
+        )}
       </main>
 
       {/* Auth Modal */}
