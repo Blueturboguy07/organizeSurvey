@@ -141,7 +141,7 @@ export default function OrgApplicationsPage() {
     .filter(a => a.rank === null)
     .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
 
-  // Verify user is an org account and get organization info
+  // Verify user is an org account or admin member and get organization info
   const verifyAndFetchOrg = useCallback(async () => {
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser()
@@ -151,20 +151,52 @@ export default function OrgApplicationsPage() {
         return
       }
 
-      if (!user.user_metadata?.is_org_account) {
-        router.push('/dashboard')
-        return
+      let orgId: string | null = null
+      let orgAccountData: any = null
+
+      if (user.user_metadata?.is_org_account) {
+        // User is the org account owner
+        const { data: orgAccount, error: orgAccountError } = await supabase
+          .from('org_accounts')
+          .select('organization_id, accepting_applications, application_deadline, applications_reopen_date')
+          .eq('user_id', user.id)
+          .single()
+
+        if (orgAccountError || !orgAccount) {
+          setError('Organization account not found')
+          setLoading(false)
+          return
+        }
+        
+        orgId = orgAccount.organization_id
+        orgAccountData = orgAccount
+      } else {
+        // Check if user has dashboard access as admin member
+        const { data: dashboardAccess } = await supabase
+          .from('org_dashboard_access')
+          .select('organization_id')
+          .eq('user_id', user.id)
+          .single()
+
+        if (!dashboardAccess) {
+          router.push('/dashboard')
+          return
+        }
+
+        orgId = dashboardAccess.organization_id
+        
+        // Get org account data for this organization
+        const { data: orgAccount } = await supabase
+          .from('org_accounts')
+          .select('accepting_applications, application_deadline, applications_reopen_date')
+          .eq('organization_id', orgId)
+          .single()
+        
+        orgAccountData = orgAccount
       }
 
-      const { data: orgAccount, error: orgAccountError } = await supabase
-        .from('org_accounts')
-        .select('organization_id, accepting_applications, application_deadline, applications_reopen_date')
-        .eq('user_id', user.id)
-        .single()
-
-      if (orgAccountError || !orgAccount) {
-        setError('Organization account not found')
-        setLoading(false)
+      if (!orgId) {
+        router.push('/dashboard')
         return
       }
 
@@ -172,22 +204,22 @@ export default function OrgApplicationsPage() {
       const { data: orgData } = await supabase
         .from('organizations')
         .select('name')
-        .eq('id', orgAccount.organization_id)
+        .eq('id', orgId)
         .single()
 
-      setOrganizationId(orgAccount.organization_id)
+      setOrganizationId(orgId)
       setOrganizationName(orgData?.name || 'Organization')
       
       // Set application settings
-      setAcceptingApplications(orgAccount.accepting_applications ?? true)
-      setApplicationDeadline(orgAccount.application_deadline ? new Date(orgAccount.application_deadline).toISOString().slice(0, 16) : '')
-      setApplicationsReopenDate(orgAccount.applications_reopen_date ? new Date(orgAccount.applications_reopen_date).toISOString().slice(0, 16) : '')
+      setAcceptingApplications(orgAccountData?.accepting_applications ?? true)
+      setApplicationDeadline(orgAccountData?.application_deadline ? new Date(orgAccountData.application_deadline).toISOString().slice(0, 16) : '')
+      setApplicationsReopenDate(orgAccountData?.applications_reopen_date ? new Date(orgAccountData.applications_reopen_date).toISOString().slice(0, 16) : '')
       
       // Fetch form questions for this org
       const { data: formData } = await supabase
         .from('org_forms')
         .select('id')
-        .eq('organization_id', orgAccount.organization_id)
+        .eq('organization_id', orgId)
         .single()
       
       if (formData) {
