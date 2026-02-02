@@ -29,7 +29,6 @@ export async function GET(request: Request) {
     }
 
     // Get user profiles for all members
-    const userIds = memberships?.map(m => m.user_id) || []
     let userProfiles: Record<string, { email: string; name: string; profile_picture_url: string | null }> = {}
     
     console.log('Fetching profiles for user IDs:', userIds)
