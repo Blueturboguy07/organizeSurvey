@@ -921,10 +921,10 @@ export default function PublicOrgPage() {
                     <svg className="w-12 h-12 text-gray-300 mx-auto mb-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
-                    <p className="text-gray-500 mb-4">View and manage applications in the dashboard</p>
-                    <Link href="/org/dashboard">
+                    <p className="text-gray-500 mb-4">Review and manage member applications</p>
+                    <Link href="/org/applications">
                       <button className="px-4 py-2 text-sm font-medium bg-tamu-maroon text-white rounded-lg hover:bg-tamu-maroon-light transition-colors">
-                        Go to Org Dashboard
+                        Review Applications
                       </button>
                     </Link>
                   </div>
