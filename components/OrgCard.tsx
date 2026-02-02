@@ -176,17 +176,36 @@ export default function OrgCard({
     setActionLoading(null)
   }
 
+  const [showNotifyConfirm, setShowNotifyConfirm] = useState(false)
+  const [interestRecorded, setInterestRecorded] = useState(false)
+
   const handleSave = async (e: React.MouseEvent) => {
     e.stopPropagation()
+    
+    // If org is not on platform, show confirmation that we'll notify them
+    if (!isOnPlatform && !showNotifyConfirm) {
+      setShowNotifyConfirm(true)
+      return
+    }
+    
     setActionLoading('save')
     setActionError(null)
     
-    const result = await saveOrg(org.id)
+    // Pass notifyOrg=true if org is not on platform
+    const result = await saveOrg(org.id, !isOnPlatform)
     
     if (!result.success) {
       setActionError(result.error || 'Failed to save')
+    } else if (!isOnPlatform) {
+      setInterestRecorded(true)
     }
+    setShowNotifyConfirm(false)
     setActionLoading(null)
+  }
+  
+  const cancelNotify = (e: React.MouseEvent) => {
+    e.stopPropagation()
+    setShowNotifyConfirm(false)
   }
 
   const handleUnsave = async (e: React.MouseEvent) => {
@@ -253,6 +272,15 @@ export default function OrgCard({
               {!isOnPlatform && (
                 <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600 border border-gray-200">
                   Not on platform
+                </span>
+              )}
+              
+              {interestRecorded && !isOnPlatform && (
+                <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold bg-green-100 text-green-700 border border-green-200">
+                  <svg className="w-3 h-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                  Interest sent
                 </span>
               )}
               
@@ -362,15 +390,40 @@ export default function OrgCard({
                 >
                   {actionLoading === 'unsave' ? 'Unsaving...' : 'Unsave'}
                 </motion.button>
+              ) : showNotifyConfirm ? (
+                <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                  <span className="text-xs text-gray-600">Notify org?</span>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={handleSave}
+                    disabled={actionLoading !== null}
+                    className="px-2 py-1 text-xs font-medium bg-tamu-maroon text-white rounded-lg hover:bg-tamu-maroon-light transition-colors disabled:opacity-50"
+                  >
+                    {actionLoading === 'save' ? '...' : 'Yes'}
+                  </motion.button>
+                  <motion.button
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    onClick={cancelNotify}
+                    className="px-2 py-1 text-xs font-medium text-gray-500 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    No
+                  </motion.button>
+                </div>
               ) : (
                 <motion.button
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   onClick={handleSave}
                   disabled={actionLoading !== null}
-                  className="px-3 py-1.5 text-sm font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                  className={`px-3 py-1.5 text-sm font-medium rounded-lg transition-colors disabled:opacity-50 ${
+                    !isOnPlatform 
+                      ? 'text-tamu-maroon border border-tamu-maroon hover:bg-tamu-maroon/5' 
+                      : 'text-gray-600 border border-gray-300 hover:bg-gray-50'
+                  }`}
                 >
-                  {actionLoading === 'save' ? 'Saving...' : 'Save for later'}
+                  {actionLoading === 'save' ? 'Saving...' : !isOnPlatform ? 'I\'m Interested' : 'Save for later'}
                 </motion.button>
               )
             )}
@@ -546,16 +599,46 @@ export default function OrgCard({
                         >
                           {actionLoading === 'unsave' ? 'Unsaving...' : 'Unsave'}
                         </motion.button>
+                      ) : showNotifyConfirm ? (
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm text-gray-600">Notify this org you&apos;re interested?</span>
+                          <motion.button
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={handleSave}
+                            disabled={actionLoading !== null}
+                            className="px-3 py-1.5 text-sm font-medium bg-tamu-maroon text-white rounded-lg hover:bg-tamu-maroon-light transition-colors disabled:opacity-50"
+                          >
+                            {actionLoading === 'save' ? '...' : 'Yes, notify them'}
+                          </motion.button>
+                          <motion.button
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={cancelNotify}
+                            className="px-3 py-1.5 text-sm font-medium text-gray-500 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                          >
+                            Cancel
+                          </motion.button>
+                        </div>
                       ) : (
-                        <motion.button
-                          whileHover={{ scale: 1.02 }}
-                          whileTap={{ scale: 0.98 }}
-                          onClick={handleSave}
-                          disabled={actionLoading !== null}
-                          className="px-4 py-2 text-sm font-medium text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
-                        >
-                          {actionLoading === 'save' ? 'Saving...' : 'Save for Later'}
-                        </motion.button>
+                        <div className="flex flex-col items-start gap-1">
+                          <motion.button
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.98 }}
+                            onClick={handleSave}
+                            disabled={actionLoading !== null}
+                            className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors disabled:opacity-50 ${
+                              !isOnPlatform 
+                                ? 'text-tamu-maroon border border-tamu-maroon hover:bg-tamu-maroon/5' 
+                                : 'text-gray-600 border border-gray-300 hover:bg-gray-50'
+                            }`}
+                          >
+                            {actionLoading === 'save' ? 'Saving...' : !isOnPlatform ? 'I\'m Interested' : 'Save for Later'}
+                          </motion.button>
+                          {!isOnPlatform && (
+                            <span className="text-xs text-gray-500">This will notify the org</span>
+                          )}
+                        </div>
                       )
                     )}
                   </div>

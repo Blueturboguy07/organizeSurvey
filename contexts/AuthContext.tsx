@@ -406,7 +406,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [user, supabase])
 
   // Action: Save an organization (for orgs not on platform yet)
-  const saveOrg = useCallback(async (organizationId: string): Promise<{ success: boolean; error?: string }> => {
+  const saveOrg = useCallback(async (organizationId: string, notifyOrg: boolean = false): Promise<{ success: boolean; error?: string; notified?: boolean }> => {
     if (!user) return { success: false, error: 'Not authenticated' }
     
     try {
@@ -428,7 +428,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Optimistically update local state
       setSavedOrgIds(prev => new Set([...prev, organizationId]))
 
-      return { success: true }
+      // If notifyOrg is true, record interest and potentially notify the org
+      let notified = false
+      if (notifyOrg) {
+        try {
+          const response = await fetch('/api/org/interest', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ organizationId, userId: user.id })
+          })
+          const data = await response.json()
+          notified = data.notified || false
+        } catch (err) {
+          console.error('Failed to record interest:', err)
+          // Don't fail the save if interest recording fails
+        }
+      }
+
+      return { success: true, notified }
     } catch (err: any) {
       console.error('Failed to save organization:', err)
       return { success: false, error: err.message || 'Unknown error' }
