@@ -55,18 +55,45 @@ export default function ExplorePage() {
   const router = useRouter()
   const supabase = createClientComponentClient()
   
-  const [allResults, setAllResults] = useState<RecommendedOrg[]>([])
+  const [allResults, setAllResults] = useState<RecommendedOrg[]>([]) // Recommendations from query
+  const [allOrgs, setAllOrgs] = useState<RecommendedOrg[]>([]) // All organizations for search
   const [filteredResults, setFilteredResults] = useState<RecommendedOrg[]>([])
   const [isLoading, setIsLoading] = useState(false)
+  const [allOrgsLoading, setAllOrgsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedFilter, setSelectedFilter] = useState<string>('')
   const [searchQuery, setSearchQuery] = useState<string>('')
+  const [allOrgsFetched, setAllOrgsFetched] = useState(false)
 
   useEffect(() => {
     if (!authLoading && !user) {
       router.push('/login')
     }
   }, [user, authLoading, router])
+
+  // Fetch all organizations for search (only once when needed)
+  const fetchAllOrgs = useCallback(async () => {
+    if (allOrgsFetched || allOrgsLoading) return
+    
+    setAllOrgsLoading(true)
+    try {
+      const { data: orgs, error: orgsError } = await supabase
+        .from('organizations')
+        .select('id, name, bio, website, typical_majors, typical_activities, club_culture_style, meeting_frequency, meeting_times, meeting_locations, dues_required, dues_cost, application_required, time_commitment, member_count, administrative_contact_info, is_on_platform')
+        .order('name', { ascending: true })
+      
+      if (orgsError) {
+        console.error('Error fetching all orgs:', orgsError)
+      } else {
+        setAllOrgs(orgs || [])
+        setAllOrgsFetched(true)
+      }
+    } catch (err) {
+      console.error('Failed to fetch all orgs:', err)
+    } finally {
+      setAllOrgsLoading(false)
+    }
+  }, [supabase, allOrgsFetched, allOrgsLoading])
 
   // Apply activity filter and search - defined before fetchRecommendations since it's used there
   const applyFilters = useCallback((results: RecommendedOrg[], filter: string, search: string = '') => {
@@ -207,6 +234,13 @@ export default function ExplorePage() {
     }
   }, [userQueryLoading, currentQuery, session, fetchRecommendations])
 
+  // Reapply filters when allOrgs loads (for search)
+  useEffect(() => {
+    if (searchQuery.trim() && allOrgs.length > 0) {
+      applyFilters(allOrgs, selectedFilter, searchQuery)
+    }
+  }, [allOrgs, searchQuery, selectedFilter, applyFilters])
+
   // Filter out joined and saved orgs from results
   const getVisibleResults = useCallback((results: RecommendedOrg[]) => {
     return results.filter(org => 
@@ -216,12 +250,25 @@ export default function ExplorePage() {
 
   const handleFilterChange = (filter: string) => {
     setSelectedFilter(filter)
-    applyFilters(allResults, filter, searchQuery)
+    // Use allOrgs when searching, otherwise use recommendations
+    const sourceData = searchQuery.trim() ? allOrgs : allResults
+    applyFilters(sourceData, filter, searchQuery)
   }
 
-  const handleSearchChange = (search: string) => {
+  const handleSearchChange = async (search: string) => {
     setSearchQuery(search)
-    applyFilters(allResults, selectedFilter, search)
+    
+    if (search.trim()) {
+      // When searching, fetch all orgs if not already fetched
+      if (!allOrgsFetched) {
+        await fetchAllOrgs()
+      }
+      // Search against all organizations
+      applyFilters(allOrgs, selectedFilter, search)
+    } else {
+      // When search is cleared, go back to recommendations
+      applyFilters(allResults, selectedFilter, '')
+    }
   }
 
   // Real-time subscription for organization updates
@@ -412,10 +459,12 @@ export default function ExplorePage() {
           </motion.div>
 
           {/* Results */}
-          {isLoading ? (
+          {(isLoading || allOrgsLoading) ? (
             <div className="bg-white rounded-lg shadow-md p-12 text-center">
               <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-tamu-maroon mx-auto"></div>
-              <p className="mt-4 text-gray-600">Finding organizations for you...</p>
+              <p className="mt-4 text-gray-600">
+                {allOrgsLoading ? 'Searching all organizations...' : 'Finding organizations for you...'}
+              </p>
             </div>
           ) : error ? (
             <div className="bg-white rounded-lg shadow-md p-6 text-center">
@@ -464,11 +513,20 @@ export default function ExplorePage() {
             >
               <div className="flex items-center justify-between mb-4">
                 <p className="text-sm text-gray-600">
-                  Showing {visibleResults.length} organization{visibleResults.length !== 1 ? 's' : ''}
-                  {allResults.length !== visibleResults.length && (
-                    <span className="text-gray-400 ml-1">
-                      ({allResults.length - visibleResults.length} already joined/saved)
-                    </span>
+                  {searchQuery.trim() ? (
+                    <>
+                      Found {visibleResults.length} organization{visibleResults.length !== 1 ? 's' : ''} matching &quot;{searchQuery}&quot;
+                      <span className="text-gray-400 ml-1">(searching all orgs)</span>
+                    </>
+                  ) : (
+                    <>
+                      Showing {visibleResults.length} recommendation{visibleResults.length !== 1 ? 's' : ''}
+                      {allResults.length !== visibleResults.length && (
+                        <span className="text-gray-400 ml-1">
+                          ({allResults.length - visibleResults.length} already joined/saved)
+                        </span>
+                      )}
+                    </>
                   )}
                 </p>
                 <div className="flex items-center gap-2 text-xs text-gray-500">
@@ -485,7 +543,7 @@ export default function ExplorePage() {
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.03 }}
                   >
-                    <OrgCard org={org} showScore={true} showActions={true} />
+                    <OrgCard org={org} showScore={!searchQuery.trim()} showActions={true} />
                   </motion.div>
                 ))}
               </div>
