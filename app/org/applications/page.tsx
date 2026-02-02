@@ -143,10 +143,15 @@ export default function OrgApplicationsPage() {
 
   // Verify user is an org account or admin member and get organization info
   const verifyAndFetchOrg = useCallback(async () => {
+    console.log('🔍 [verifyAndFetchOrg] Starting verification...')
     try {
       const { data: { user }, error: userError } = await supabase.auth.getUser()
       
+      console.log('🔍 [verifyAndFetchOrg] User:', user?.id, user?.email)
+      console.log('🔍 [verifyAndFetchOrg] User metadata:', user?.user_metadata)
+      
       if (userError || !user) {
+        console.log('❌ [verifyAndFetchOrg] No user, redirecting to login')
         router.push('/login')
         return
       }
@@ -155,6 +160,7 @@ export default function OrgApplicationsPage() {
       let orgAccountData: any = null
 
       if (user.user_metadata?.is_org_account) {
+        console.log('🔍 [verifyAndFetchOrg] User is org account owner')
         // User is the org account owner
         const { data: orgAccount, error: orgAccountError } = await supabase
           .from('org_accounts')
@@ -163,6 +169,7 @@ export default function OrgApplicationsPage() {
           .single()
 
         if (orgAccountError || !orgAccount) {
+          console.log('❌ [verifyAndFetchOrg] Org account not found:', orgAccountError)
           setError('Organization account not found')
           setLoading(false)
           return
@@ -170,20 +177,26 @@ export default function OrgApplicationsPage() {
         
         orgId = orgAccount.organization_id
         orgAccountData = orgAccount
+        console.log('✅ [verifyAndFetchOrg] Org account found, orgId:', orgId)
       } else {
+        console.log('🔍 [verifyAndFetchOrg] User is NOT org account, checking dashboard access...')
         // Check if user has dashboard access as admin member
-        const { data: dashboardAccess } = await supabase
+        const { data: dashboardAccess, error: dashboardError } = await supabase
           .from('org_dashboard_access')
           .select('organization_id')
           .eq('user_id', user.id)
           .single()
 
+        console.log('🔍 [verifyAndFetchOrg] Dashboard access query result:', dashboardAccess, 'error:', dashboardError)
+
         if (!dashboardAccess) {
+          console.log('❌ [verifyAndFetchOrg] No dashboard access, redirecting to /dashboard')
           router.push('/dashboard')
           return
         }
 
         orgId = dashboardAccess.organization_id
+        console.log('✅ [verifyAndFetchOrg] Dashboard access found, orgId:', orgId)
         
         // Get org account data for this organization
         const { data: orgAccount } = await supabase
@@ -196,9 +209,12 @@ export default function OrgApplicationsPage() {
       }
 
       if (!orgId) {
+        console.log('❌ [verifyAndFetchOrg] No orgId found, redirecting')
         router.push('/dashboard')
         return
       }
+      
+      console.log('✅ [verifyAndFetchOrg] Final orgId:', orgId)
 
       // Get org name
       const { data: orgData } = await supabase
@@ -253,16 +269,25 @@ export default function OrgApplicationsPage() {
     let applicationsChannel: RealtimeChannel | null = null
 
     const fetchApplications = async () => {
+      console.log('🔍 [fetchApplications] Starting fetch for orgId:', organizationId)
       setApplicationsLoading(true)
+      
+      const { data: { user } } = await supabase.auth.getUser()
+      console.log('🔍 [fetchApplications] Current user:', user?.id, user?.email)
+      console.log('🔍 [fetchApplications] Is org account:', user?.user_metadata?.is_org_account)
+      
       const { data, error } = await supabase
         .from('applications')
         .select('id, user_id, applicant_name, applicant_email, why_join, status, created_at, status_updated_at, internal_notes, rank, responses, reviewed')
         .eq('organization_id', organizationId)
         .order('created_at', { ascending: false })
 
+      console.log('🔍 [fetchApplications] Query result - data:', data?.length, 'error:', error)
+      
       if (error) {
-        console.error('Error fetching applications:', error)
+        console.error('❌ [fetchApplications] Error fetching applications:', error)
       } else {
+        console.log('✅ [fetchApplications] Got applications:', data?.length || 0)
         setApplications(data || [])
         // Auto-select first application if none selected
         if (data && data.length > 0 && !selectedApplication) {

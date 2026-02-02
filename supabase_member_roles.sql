@@ -108,6 +108,36 @@ CREATE POLICY "Admin members can update organizations"
   );
 
 -- ============================================================================
+-- Allow admin members to read and update applications
+-- ============================================================================
+
+-- Allow admin members to read applications
+DROP POLICY IF EXISTS "Admin members can read applications" ON public.applications;
+CREATE POLICY "Admin members can read applications"
+  ON public.applications
+  FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM org_dashboard_access oda
+      WHERE oda.organization_id = applications.organization_id 
+      AND oda.user_id = auth.uid()
+    )
+  );
+
+-- Allow admin members to update applications (status, notes, etc)
+DROP POLICY IF EXISTS "Admin members can update applications" ON public.applications;
+CREATE POLICY "Admin members can update applications"
+  ON public.applications
+  FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM org_dashboard_access oda
+      WHERE oda.organization_id = applications.organization_id 
+      AND oda.user_id = auth.uid()
+    )
+  );
+
+-- ============================================================================
 -- Note: After running this, officers with 'admin' role can be granted
 -- dashboard access through the org_dashboard_access table
 -- ============================================================================
