@@ -73,6 +73,12 @@ export default function PublicOrgPage() {
   const [members, setMembers] = useState<any[]>([])
   const [membersLoading, setMembersLoading] = useState(false)
   const [activeTab, setActiveTab] = useState<'info' | 'members' | 'applications'>('info')
+  
+  // Edit mode for admins
+  const [isEditing, setIsEditing] = useState(false)
+  const [editedOrg, setEditedOrg] = useState<Partial<Organization>>({})
+  const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
 
   // Fetch organization data
   useEffect(() => {
@@ -168,6 +174,52 @@ export default function PublicOrgPage() {
     fetchUserRole()
   }, [user, orgId, supabase])
   
+  // Initialize editedOrg when org loads
+  useEffect(() => {
+    if (org) {
+      setEditedOrg(org)
+    }
+  }, [org])
+
+  // Save org edits
+  const handleSaveOrg = async () => {
+    if (!org || !editedOrg) return
+    
+    setSaving(true)
+    setSaveError(null)
+    
+    try {
+      const { error } = await supabase
+        .from('organizations')
+        .update({
+          bio: editedOrg.bio,
+          website: editedOrg.website,
+          administrative_contact_info: editedOrg.administrative_contact_info,
+          typical_majors: editedOrg.typical_majors,
+          typical_activities: editedOrg.typical_activities,
+          club_culture_style: editedOrg.club_culture_style,
+          meeting_frequency: editedOrg.meeting_frequency,
+          meeting_times: editedOrg.meeting_times,
+          meeting_locations: editedOrg.meeting_locations,
+          dues_required: editedOrg.dues_required,
+          dues_cost: editedOrg.dues_cost,
+          time_commitment: editedOrg.time_commitment,
+          member_count: editedOrg.member_count,
+        })
+        .eq('id', org.id)
+      
+      if (error) throw error
+      
+      // Update local state
+      setOrg({ ...org, ...editedOrg } as Organization)
+      setIsEditing(false)
+    } catch (err: any) {
+      setSaveError(err.message || 'Failed to save changes')
+    } finally {
+      setSaving(false)
+    }
+  }
+
   // Fetch members for officers/admins
   useEffect(() => {
     const fetchMembers = async () => {
@@ -384,7 +436,20 @@ export default function PublicOrgPage() {
           className="bg-gradient-to-r from-tamu-maroon to-tamu-maroon-light rounded-xl shadow-lg overflow-hidden mb-6"
         >
           <div className="p-6 sm:p-8 text-white">
-            <h1 className="text-3xl sm:text-4xl font-bold mb-3">{org.name}</h1>
+            <div className="flex items-start justify-between">
+              <h1 className="text-3xl sm:text-4xl font-bold mb-3">{org.name}</h1>
+              {isAdmin && !isEditing && (
+                <button
+                  onClick={() => setIsEditing(true)}
+                  className="px-3 py-1.5 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition-colors flex items-center gap-1.5"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                  </svg>
+                  Edit
+                </button>
+              )}
+            </div>
             <div className="flex flex-wrap gap-2 mb-4">
               {org.club_type && (
                 <span className="px-3 py-1 bg-white/20 rounded-full text-sm font-medium">
@@ -417,6 +482,210 @@ export default function PublicOrgPage() {
             )}
           </div>
         </motion.div>
+
+        {/* Edit Mode Panel */}
+        <AnimatePresence>
+          {isEditing && isAdmin && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              exit={{ opacity: 0, height: 0 }}
+              className="mb-6"
+            >
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-gray-800">Edit Organization Info</h2>
+                  <button
+                    onClick={() => {
+                      setIsEditing(false)
+                      setEditedOrg(org || {})
+                      setSaveError(null)
+                    }}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                {saveError && (
+                  <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
+                    {saveError}
+                  </div>
+                )}
+
+                <div className="space-y-4">
+                  {/* Bio */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Bio/Description</label>
+                    <textarea
+                      value={editedOrg.bio || ''}
+                      onChange={(e) => setEditedOrg({ ...editedOrg, bio: e.target.value })}
+                      rows={3}
+                      className="w-full p-2 border border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none focus:ring-1 focus:ring-tamu-maroon"
+                      placeholder="Organization description..."
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Website */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Website</label>
+                      <input
+                        type="text"
+                        value={editedOrg.website || ''}
+                        onChange={(e) => setEditedOrg({ ...editedOrg, website: e.target.value })}
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none focus:ring-1 focus:ring-tamu-maroon"
+                        placeholder="https://..."
+                      />
+                    </div>
+
+                    {/* Contact */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Contact Info</label>
+                      <input
+                        type="text"
+                        value={editedOrg.administrative_contact_info || ''}
+                        onChange={(e) => setEditedOrg({ ...editedOrg, administrative_contact_info: e.target.value })}
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none focus:ring-1 focus:ring-tamu-maroon"
+                        placeholder="Email or contact info..."
+                      />
+                    </div>
+
+                    {/* Meeting Frequency */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Meeting Frequency</label>
+                      <input
+                        type="text"
+                        value={editedOrg.meeting_frequency || ''}
+                        onChange={(e) => setEditedOrg({ ...editedOrg, meeting_frequency: e.target.value })}
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none focus:ring-1 focus:ring-tamu-maroon"
+                        placeholder="Weekly, bi-weekly..."
+                      />
+                    </div>
+
+                    {/* Meeting Times */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Meeting Times</label>
+                      <input
+                        type="text"
+                        value={editedOrg.meeting_times || ''}
+                        onChange={(e) => setEditedOrg({ ...editedOrg, meeting_times: e.target.value })}
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none focus:ring-1 focus:ring-tamu-maroon"
+                        placeholder="Tuesdays at 7pm..."
+                      />
+                    </div>
+
+                    {/* Meeting Locations */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Meeting Location</label>
+                      <input
+                        type="text"
+                        value={editedOrg.meeting_locations || ''}
+                        onChange={(e) => setEditedOrg({ ...editedOrg, meeting_locations: e.target.value })}
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none focus:ring-1 focus:ring-tamu-maroon"
+                        placeholder="MSC, Zachry..."
+                      />
+                    </div>
+
+                    {/* Dues Required */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Dues Required</label>
+                      <input
+                        type="text"
+                        value={editedOrg.dues_required || ''}
+                        onChange={(e) => setEditedOrg({ ...editedOrg, dues_required: e.target.value })}
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none focus:ring-1 focus:ring-tamu-maroon"
+                        placeholder="Yes, No..."
+                      />
+                    </div>
+
+                    {/* Dues Cost */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Dues Cost</label>
+                      <input
+                        type="text"
+                        value={editedOrg.dues_cost || ''}
+                        onChange={(e) => setEditedOrg({ ...editedOrg, dues_cost: e.target.value })}
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none focus:ring-1 focus:ring-tamu-maroon"
+                        placeholder="$50/semester..."
+                      />
+                    </div>
+
+                    {/* Time Commitment */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Time Commitment</label>
+                      <input
+                        type="text"
+                        value={editedOrg.time_commitment || ''}
+                        onChange={(e) => setEditedOrg({ ...editedOrg, time_commitment: e.target.value })}
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none focus:ring-1 focus:ring-tamu-maroon"
+                        placeholder="2-3 hours/week..."
+                      />
+                    </div>
+
+                    {/* Member Count */}
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">Member Count</label>
+                      <input
+                        type="text"
+                        value={editedOrg.member_count || ''}
+                        onChange={(e) => setEditedOrg({ ...editedOrg, member_count: e.target.value })}
+                        className="w-full p-2 border border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none focus:ring-1 focus:ring-tamu-maroon"
+                        placeholder="50-100 members..."
+                      />
+                    </div>
+                  </div>
+
+                  {/* Activities */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Typical Activities</label>
+                    <input
+                      type="text"
+                      value={editedOrg.typical_activities || ''}
+                      onChange={(e) => setEditedOrg({ ...editedOrg, typical_activities: e.target.value })}
+                      className="w-full p-2 border border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none focus:ring-1 focus:ring-tamu-maroon"
+                      placeholder="Networking, workshops, social events..."
+                    />
+                  </div>
+
+                  {/* Majors */}
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Career Fields / Majors</label>
+                    <input
+                      type="text"
+                      value={editedOrg.typical_majors || ''}
+                      onChange={(e) => setEditedOrg({ ...editedOrg, typical_majors: e.target.value })}
+                      className="w-full p-2 border border-gray-300 rounded-lg focus:border-tamu-maroon focus:outline-none focus:ring-1 focus:ring-tamu-maroon"
+                      placeholder="Engineering, Business..."
+                    />
+                  </div>
+                </div>
+
+                <div className="flex gap-3 mt-6">
+                  <button
+                    onClick={() => {
+                      setIsEditing(false)
+                      setEditedOrg(org || {})
+                      setSaveError(null)
+                    }}
+                    className="flex-1 px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    onClick={handleSaveOrg}
+                    disabled={saving}
+                    className="flex-1 px-4 py-2 bg-tamu-maroon text-white rounded-lg font-medium hover:bg-tamu-maroon-light transition-colors disabled:opacity-50"
+                  >
+                    {saving ? 'Saving...' : 'Save Changes'}
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Action Card */}
         <motion.div
@@ -653,9 +922,9 @@ export default function PublicOrgPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                     </svg>
                     <p className="text-gray-500 mb-4">View and manage applications in the dashboard</p>
-                    <Link href="/org/applications">
+                    <Link href="/org/dashboard">
                       <button className="px-4 py-2 text-sm font-medium bg-tamu-maroon text-white rounded-lg hover:bg-tamu-maroon-light transition-colors">
-                        Go to Applications Dashboard
+                        Go to Org Dashboard
                       </button>
                     </Link>
                   </div>

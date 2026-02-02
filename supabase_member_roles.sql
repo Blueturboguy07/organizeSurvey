@@ -84,6 +84,30 @@ CREATE POLICY "Service role full access on dashboard_access"
   USING (auth.role() = 'service_role');
 
 -- ============================================================================
+-- Allow admin members to update organization info
+-- ============================================================================
+
+-- Allow admin members (with dashboard access) to update organizations
+DROP POLICY IF EXISTS "Admin members can update organizations" ON public.organizations;
+CREATE POLICY "Admin members can update organizations"
+  ON public.organizations
+  FOR UPDATE
+  USING (
+    EXISTS (
+      SELECT 1 FROM user_joined_organizations ujo
+      WHERE ujo.organization_id = organizations.id 
+      AND ujo.user_id = auth.uid()
+      AND ujo.role = 'admin'
+    )
+    OR
+    EXISTS (
+      SELECT 1 FROM org_accounts 
+      WHERE org_accounts.organization_id = organizations.id 
+      AND org_accounts.user_id = auth.uid()
+    )
+  );
+
+-- ============================================================================
 -- Note: After running this, officers with 'admin' role can be granted
 -- dashboard access through the org_dashboard_access table
 -- ============================================================================
