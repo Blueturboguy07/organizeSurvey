@@ -60,6 +60,7 @@ export default function ExplorePage() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [selectedFilter, setSelectedFilter] = useState<string>('')
+  const [searchQuery, setSearchQuery] = useState<string>('')
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -67,12 +68,31 @@ export default function ExplorePage() {
     }
   }, [user, authLoading, router])
 
-  // Apply activity filter - defined before fetchRecommendations since it's used there
-  const applyFilters = useCallback((results: RecommendedOrg[], filter: string) => {
+  // Apply activity filter and search - defined before fetchRecommendations since it's used there
+  const applyFilters = useCallback((results: RecommendedOrg[], filter: string, search: string = '') => {
     let filtered = results
 
+    // Apply search filter first
+    if (search.trim()) {
+      const searchLower = search.toLowerCase().trim()
+      filtered = filtered.filter(org => {
+        const name = (org.name || '').toLowerCase()
+        const bio = (org.bio_snippet || org.bio || org.full_bio || '').toLowerCase()
+        const activities = (org.typical_activities || '').toLowerCase()
+        const majors = (org.typical_majors || '').toLowerCase()
+        const culture = (org.club_culture_style || '').toLowerCase()
+        
+        return name.includes(searchLower) ||
+               bio.includes(searchLower) ||
+               activities.includes(searchLower) ||
+               majors.includes(searchLower) ||
+               culture.includes(searchLower)
+      })
+    }
+
+    // Then apply activity filter
     if (filter) {
-      filtered = results.filter(org => {
+      filtered = filtered.filter(org => {
         const activities = (org.typical_activities || '').toLowerCase()
         const bio = (org.bio_snippet || org.bio || '').toLowerCase()
         const combined = `${activities} ${bio}`.toLowerCase()
@@ -151,7 +171,7 @@ export default function ExplorePage() {
       console.log('🎯 [ExplorePage] ════════════════════════════════════════════════')
       console.log('🎯 [ExplorePage] QUERIES MATCH:', data._debug?.fullQuerySentToSearch === userQuery?.latest_cleansed_query)
       setAllResults(results)
-      applyFilters(results, selectedFilter)
+      applyFilters(results, selectedFilter, searchQuery)
     } catch (err: any) {
       console.error('🎯 [ExplorePage] ❌ Error fetching recommendations:', err)
       setError(err.message || 'Failed to load recommendations')
@@ -196,7 +216,12 @@ export default function ExplorePage() {
 
   const handleFilterChange = (filter: string) => {
     setSelectedFilter(filter)
-    applyFilters(allResults, filter)
+    applyFilters(allResults, filter, searchQuery)
+  }
+
+  const handleSearchChange = (search: string) => {
+    setSearchQuery(search)
+    applyFilters(allResults, selectedFilter, search)
   }
 
   // Real-time subscription for organization updates
@@ -314,6 +339,39 @@ export default function ExplorePage() {
         </motion.div>
       ) : (
         <>
+          {/* Search Bar */}
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.05 }}
+            className="mb-4"
+          >
+            <div className="relative">
+              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                <svg className="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+              </div>
+              <input
+                type="text"
+                placeholder="Search organizations by name, activities, majors..."
+                value={searchQuery}
+                onChange={(e) => handleSearchChange(e.target.value)}
+                className="block w-full pl-10 pr-10 py-3 border border-gray-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-tamu-maroon/20 focus:border-tamu-maroon transition-colors"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => handleSearchChange('')}
+                  className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
+            </div>
+          </motion.div>
+
           {/* Filter Buttons */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -375,21 +433,26 @@ export default function ExplorePage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
               </svg>
               <h3 className="text-xl font-semibold text-gray-700 mb-2">
-                {selectedFilter ? 'No matching organizations' : 'No recommendations available'}
+                {searchQuery || selectedFilter ? 'No matching organizations' : 'No recommendations available'}
               </h3>
               <p className="text-gray-500 mb-4">
-                {selectedFilter 
-                  ? 'Try a different filter or clear the filter to see all recommendations.'
-                  : allResults.length > 0 
-                    ? "You've already joined or saved all matching organizations!"
-                    : 'Try updating your survey preferences to get more recommendations.'}
+                {searchQuery
+                  ? `No organizations found matching "${searchQuery}". Try a different search term.`
+                  : selectedFilter 
+                    ? 'Try a different filter or clear the filter to see all recommendations.'
+                    : allResults.length > 0 
+                      ? "You've already joined or saved all matching organizations!"
+                      : 'Try updating your survey preferences to get more recommendations.'}
               </p>
-              {selectedFilter && (
+              {(selectedFilter || searchQuery) && (
                 <button
-                  onClick={() => handleFilterChange('')}
+                  onClick={() => {
+                    handleFilterChange('')
+                    handleSearchChange('')
+                  }}
                   className="text-tamu-maroon hover:underline"
                 >
-                  Clear filter
+                  Clear all filters
                 </button>
               )}
             </div>
