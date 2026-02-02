@@ -74,7 +74,7 @@ interface AuthContextType {
   // Actions
   joinOrg: (organizationId: string, applicationData?: { name: string; email: string; whyJoin: string; customResponses?: Record<string, string | string[]> }) => Promise<{ success: boolean; error?: string; applied?: boolean }>
   leaveOrg: (organizationId: string) => Promise<{ success: boolean; error?: string }>
-  saveOrg: (organizationId: string) => Promise<{ success: boolean; error?: string }>
+  saveOrg: (organizationId: string, notifyOrg?: boolean) => Promise<{ success: boolean; error?: string; notified?: boolean }>
   unsaveOrg: (organizationId: string) => Promise<{ success: boolean; error?: string }>
 }
 

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase'
 import { Resend } from 'resend'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+// Resend client is created inside functions to avoid build-time errors
 
 // Get all invitations for an organization
 export async function GET(request: Request) {
@@ -106,6 +106,7 @@ export async function POST(request: Request) {
     const orgName = (invitation.organizations as any)?.name || 'an organization'
 
     // Send invitation email via Resend
+    const resend = new Resend(process.env.RESEND_API_KEY)
     const { error: emailError } = await resend.emails.send({
       from: 'ORGanize Campus <noreply@organizecampus.com>',
       to: invitation.email,

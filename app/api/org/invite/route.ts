@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@/lib/supabase'
 import { Resend } from 'resend'
 import crypto from 'crypto'
 
-const resend = new Resend(process.env.RESEND_API_KEY)
+// Resend client is created inside functions to avoid build-time errors
 
 export async function POST(request: Request) {
   try {
@@ -118,6 +118,7 @@ export async function POST(request: Request) {
     let emailSent = false
     
     try {
+      const resend = new Resend(process.env.RESEND_API_KEY)
       const { error: emailError } = await resend.emails.send({
         from: 'ORGanize Campus <noreply@organizecampus.com>',
         to: email.toLowerCase().trim(),

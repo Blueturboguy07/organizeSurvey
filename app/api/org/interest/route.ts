@@ -1,13 +1,6 @@
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
+import { supabaseAdmin } from '@/lib/supabase'
 import { Resend } from 'resend'
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
-
-const resend = new Resend(process.env.RESEND_API_KEY)
 
 const MILESTONES = [1, 10, 20, 30, 50, 75, 100]
 
@@ -108,6 +101,7 @@ export async function POST(request: Request) {
             ? `A student at Texas A&M just expressed interest in joining your organization!`
             : `${newCount} students at Texas A&M have expressed interest in joining your organization!`
           
+          const resend = new Resend(process.env.RESEND_API_KEY)
           await resend.emails.send({
             from: 'ORGanize TAMU <noreply@organizecampus.com>',
             to: orgEmail,
