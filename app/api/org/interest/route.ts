@@ -144,7 +144,7 @@ export async function POST(request: Request) {
                   </div>
                   
                   <p style="color: #666; font-size: 14px; margin-top: 30px;">
-                    Questions? Reply to this email or visit organizecampus.com
+                    Questions? Email <a href="mailto:mannbellani1@tamu.edu" style="color: #500000;">mannbellani1@tamu.edu</a> or visit organizecampus.com
                   </p>
                 </div>
                 
