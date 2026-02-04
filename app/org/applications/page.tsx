@@ -43,7 +43,6 @@ interface Application {
   rank: number | null
   responses: Record<string, string | string[]> | null
   reviewed: boolean
-  interview_message: string | null
 }
 
 interface ApplicantDemographics {
@@ -111,11 +110,6 @@ export default function OrgApplicationsPage() {
   // Drag and drop state
   const [activeId, setActiveId] = useState<string | null>(null)
   
-  // Interview message modal state
-  const [showInterviewModal, setShowInterviewModal] = useState(false)
-  const [interviewMessage, setInterviewMessage] = useState('')
-  const [pendingStatusChange, setPendingStatusChange] = useState<{ appId: string, status: Application['status'] } | null>(null)
-  const [sendingNotification, setSendingNotification] = useState(false)
   
   // Application settings state
   const [acceptingApplications, setAcceptingApplications] = useState(true)
@@ -285,7 +279,7 @@ export default function OrgApplicationsPage() {
       
       const { data, error } = await supabase
         .from('applications')
-        .select('id, user_id, applicant_name, applicant_email, why_join, status, created_at, status_updated_at, internal_notes, rank, responses, reviewed, interview_message')
+        .select('id, user_id, applicant_name, applicant_email, why_join, status, created_at, status_updated_at, internal_notes, rank, responses, reviewed')
         .eq('organization_id', organizationId)
         .order('created_at', { ascending: false })
 
@@ -348,23 +342,16 @@ export default function OrgApplicationsPage() {
   }, [organizationId, supabase, selectedApplication])
 
   // Update application status
-  const updateApplicationStatus = async (applicationId: string, newStatus: Application['status'], interviewMsg?: string) => {
+  const updateApplicationStatus = async (applicationId: string, newStatus: Application['status']) => {
     if (!organizationId) return
     
     try {
-      const updateData: Record<string, any> = { 
-        status: newStatus,
-        status_updated_at: new Date().toISOString()
-      }
-      
-      // Add interview message if provided
-      if (newStatus === 'interview' && interviewMsg) {
-        updateData.interview_message = interviewMsg
-      }
-      
       const { error } = await supabase
         .from('applications')
-        .update(updateData)
+        .update({ 
+          status: newStatus,
+          status_updated_at: new Date().toISOString()
+        })
         .eq('id', applicationId)
       
       if (error) {
@@ -382,8 +369,7 @@ export default function OrgApplicationsPage() {
             body: JSON.stringify({
               applicationId,
               newStatus,
-              organizationName,
-              interviewMessage: interviewMsg || null
+              organizationName
             })
           })
           
@@ -394,7 +380,6 @@ export default function OrgApplicationsPage() {
           }
         } catch (emailError) {
           console.error('Error sending email notification:', emailError)
-          // Don't fail the status update if email fails
         }
       }
       
@@ -412,79 +397,6 @@ export default function OrgApplicationsPage() {
     } catch (err: any) {
       setError(err.message || 'Failed to update status')
     }
-  }
-  
-  // Handle status change - show modal for interview, otherwise update directly
-  const handleStatusChange = (applicationId: string, newStatus: Application['status']) => {
-    if (newStatus === 'interview') {
-      // Show modal to enter interview message
-      setPendingStatusChange({ appId: applicationId, status: newStatus })
-      setInterviewMessage('')
-      setShowInterviewModal(true)
-    } else {
-      // Update status directly
-      updateApplicationStatus(applicationId, newStatus)
-    }
-  }
-  
-  // Confirm interview status with message
-  const confirmInterviewStatus = async () => {
-    if (!pendingStatusChange) return
-    
-    setSendingNotification(true)
-    
-    try {
-      // Update status first
-      const updateData: Record<string, any> = { 
-        status: 'interview',
-        status_updated_at: new Date().toISOString(),
-        interview_message: interviewMessage || null
-      }
-      
-      const { error: updateError } = await supabase
-        .from('applications')
-        .update(updateData)
-        .eq('id', pendingStatusChange.appId)
-      
-      if (updateError) {
-        console.error('Error updating to interview:', updateError)
-        setError('Failed to update status')
-        setSendingNotification(false)
-        return
-      }
-      
-      // Send email notification
-      console.log('📧 Sending interview notification email...')
-      const response = await fetch('/api/applications/notify', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          applicationId: pendingStatusChange.appId,
-          newStatus: 'interview',
-          organizationName,
-          interviewMessage: interviewMessage || null
-        })
-      })
-      
-      if (response.ok) {
-        console.log('✅ Interview email sent successfully')
-        setSaveSuccess('Moved to interview! Email sent.')
-      } else {
-        const errData = await response.json()
-        console.error('❌ Failed to send interview email:', errData)
-        setSaveSuccess('Moved to interview (email failed)')
-      }
-      
-      setTimeout(() => setSaveSuccess(''), 3000)
-    } catch (err: any) {
-      console.error('Interview confirmation error:', err)
-      setError(err.message || 'Failed to process')
-    }
-    
-    setSendingNotification(false)
-    setShowInterviewModal(false)
-    setPendingStatusChange(null)
-    setInterviewMessage('')
   }
 
   // Toggle reviewed status
@@ -1404,7 +1316,7 @@ export default function OrgApplicationsPage() {
                     return (
                       <button
                         key={status.value}
-                        onClick={() => handleStatusChange(selectedApplication.id, status.value)}
+                        onClick={() => updateApplicationStatus(selectedApplication.id, status.value)}
                         className={`px-4 py-2 text-sm font-medium rounded-lg transition-all ${
                           isActive
                             ? `${status.color} ring-2 ring-offset-2 ring-gray-300`
@@ -1416,19 +1328,6 @@ export default function OrgApplicationsPage() {
                     )
                   })}
                 </div>
-                
-                {/* Show interview message if exists */}
-                {selectedApplication.interview_message && (
-                  <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                    <div className="flex items-center gap-2 mb-2">
-                      <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
-                      </svg>
-                      <span className="text-sm font-medium text-blue-700">Interview Message Sent</span>
-                    </div>
-                    <p className="text-sm text-blue-800 whitespace-pre-wrap">{selectedApplication.interview_message}</p>
-                  </div>
-                )}
               </div>
 
               {/* Application Responses */}
@@ -1584,87 +1483,6 @@ export default function OrgApplicationsPage() {
         </p>
       </div>
 
-      {/* Interview Message Modal */}
-      <AnimatePresence>
-        {showInterviewModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-            onClick={() => setShowInterviewModal(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              onClick={(e) => e.stopPropagation()}
-              className="bg-white rounded-xl shadow-2xl w-full max-w-lg"
-            >
-              <div className="p-6 border-b border-gray-200">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                    <span className="text-xl">📅</span>
-                  </div>
-                  <div>
-                    <h3 className="text-lg font-semibold text-gray-800">Send Interview Invitation</h3>
-                    <p className="text-sm text-gray-500">This message will be sent to the applicant via email</p>
-                  </div>
-                </div>
-              </div>
-              
-              <div className="p-6">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Message for the applicant
-                </label>
-                <textarea
-                  value={interviewMessage}
-                  onChange={(e) => setInterviewMessage(e.target.value)}
-                  rows={5}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 resize-none"
-                  placeholder="Hi! We were impressed with your application and would love to schedule an interview. Please let us know your availability..."
-                  autoFocus
-                />
-                <p className="text-xs text-gray-400 mt-2">
-                  This message will appear in their email and on their applications dashboard.
-                </p>
-              </div>
-              
-              <div className="p-6 border-t border-gray-200 flex gap-3 justify-end">
-                <button
-                  onClick={() => {
-                    setShowInterviewModal(false)
-                    setPendingStatusChange(null)
-                    setInterviewMessage('')
-                  }}
-                  className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={confirmInterviewStatus}
-                  disabled={sendingNotification}
-                  className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 flex items-center gap-2"
-                >
-                  {sendingNotification ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                      Sending...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
-                      </svg>
-                      Send & Move to Interview
-                    </>
-                  )}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
     </div>
   )
 }

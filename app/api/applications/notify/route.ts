@@ -5,7 +5,7 @@ import { Resend } from 'resend'
 // Send notification email when application status changes
 export async function POST(request: Request) {
   try {
-    const { applicationId, newStatus, organizationName, interviewMessage } = await request.json()
+    const { applicationId, newStatus, organizationName } = await request.json()
 
     if (!applicationId || !newStatus || !organizationName) {
       return NextResponse.json(
@@ -68,7 +68,7 @@ export async function POST(request: Request) {
       case 'interview':
         subject = `Interview Invitation from ${organizationName}`
         heading = 'You\'ve Been Selected for an Interview!'
-        message = `Exciting news! ${organizationName} was impressed with your application and would like to learn more about you.`
+        message = `Exciting news! ${organizationName} was impressed with your application and would like to learn more about you. Log in to ORGanize TAMU to check for more details.`
         backgroundColor = '#dbeafe'
         textColor = '#1e40af'
         icon = '📅'
@@ -104,13 +104,6 @@ export async function POST(request: Request) {
               ${message}
             </p>
           </div>
-          
-          ${newStatus === 'interview' && interviewMessage ? `
-            <div style="background: #f3f4f6; border-left: 4px solid #500000; padding: 16px; margin: 20px 0; border-radius: 4px;">
-              <p style="margin: 0 0 8px 0; font-weight: bold; color: #500000;">Message from ${organizationName}:</p>
-              <p style="margin: 0; color: #333; font-size: 15px; white-space: pre-wrap;">${interviewMessage}</p>
-            </div>
-          ` : ''}
           
           <div style="text-align: center; margin: 30px 0;">
             <a href="https://organizecampus.com/dashboard/applications" 
