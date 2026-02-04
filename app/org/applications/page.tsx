@@ -432,7 +432,55 @@ export default function OrgApplicationsPage() {
     if (!pendingStatusChange) return
     
     setSendingNotification(true)
-    await updateApplicationStatus(pendingStatusChange.appId, pendingStatusChange.status, interviewMessage)
+    
+    try {
+      // Update status first
+      const updateData: Record<string, any> = { 
+        status: 'interview',
+        status_updated_at: new Date().toISOString(),
+        interview_message: interviewMessage || null
+      }
+      
+      const { error: updateError } = await supabase
+        .from('applications')
+        .update(updateData)
+        .eq('id', pendingStatusChange.appId)
+      
+      if (updateError) {
+        console.error('Error updating to interview:', updateError)
+        setError('Failed to update status')
+        setSendingNotification(false)
+        return
+      }
+      
+      // Send email notification
+      console.log('📧 Sending interview notification email...')
+      const response = await fetch('/api/applications/notify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          applicationId: pendingStatusChange.appId,
+          newStatus: 'interview',
+          organizationName,
+          interviewMessage: interviewMessage || null
+        })
+      })
+      
+      if (response.ok) {
+        console.log('✅ Interview email sent successfully')
+        setSaveSuccess('Moved to interview! Email sent.')
+      } else {
+        const errData = await response.json()
+        console.error('❌ Failed to send interview email:', errData)
+        setSaveSuccess('Moved to interview (email failed)')
+      }
+      
+      setTimeout(() => setSaveSuccess(''), 3000)
+    } catch (err: any) {
+      console.error('Interview confirmation error:', err)
+      setError(err.message || 'Failed to process')
+    }
+    
     setSendingNotification(false)
     setShowInterviewModal(false)
     setPendingStatusChange(null)
