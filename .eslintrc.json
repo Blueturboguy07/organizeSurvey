@@ -1,4 +1,4 @@
 {
   "extends": "next/core-web-vitals"
-}
+} // This file is used to configure ESLint for your Next.js project. You can customize the rules and settings as needed. The "extends" property allows you to inherit rules from a predefined configuration, in this case, "next/core-web-vitals", which includes recommended rules for Next.js projects. You can add additional rules or override existing ones by adding them to this file.
 
