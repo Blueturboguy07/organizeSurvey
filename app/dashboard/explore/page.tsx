@@ -72,22 +72,42 @@ export default function ExplorePage() {
   }, [user, authLoading, router])
 
   // Fetch all organizations for search (only once when needed)
+  // Uses pagination to fetch ALL orgs (Supabase defaults to 1000 row limit)
   const fetchAllOrgs = useCallback(async () => {
     if (allOrgsFetched || allOrgsLoading) return
     
     setAllOrgsLoading(true)
     try {
-      const { data: orgs, error: orgsError } = await supabase
-        .from('organizations')
-        .select('id, name, bio, website, typical_majors, typical_activities, club_culture_style, meeting_frequency, meeting_times, meeting_locations, dues_required, dues_cost, application_required, time_commitment, member_count, administrative_contact_info, is_on_platform')
-        .order('name', { ascending: true })
-      
-      if (orgsError) {
-        console.error('Error fetching all orgs:', orgsError)
-      } else {
-        setAllOrgs(orgs || [])
-        setAllOrgsFetched(true)
+      const allOrgsData: RecommendedOrg[] = []
+      const PAGE_SIZE = 1000
+      let offset = 0
+      let hasMore = true
+
+      // Paginate through all results (same as login page)
+      while (hasMore) {
+        const { data, error } = await supabase
+          .from('organizations')
+          .select('id, name, bio, website, typical_majors, typical_activities, club_culture_style, meeting_frequency, meeting_times, meeting_locations, dues_required, dues_cost, application_required, time_commitment, member_count, administrative_contact_info, is_on_platform, is_application_based')
+          .order('name', { ascending: true })
+          .range(offset, offset + PAGE_SIZE - 1)
+        
+        if (error) {
+          console.error('Error fetching orgs page:', error)
+          break
+        }
+
+        if (data && data.length > 0) {
+          allOrgsData.push(...data)
+          offset += PAGE_SIZE
+          hasMore = data.length === PAGE_SIZE
+        } else {
+          hasMore = false
+        }
       }
+
+      console.log(`[ExplorePage] Loaded ${allOrgsData.length} organizations for search`)
+      setAllOrgs(allOrgsData)
+      setAllOrgsFetched(true)
     } catch (err) {
       console.error('Failed to fetch all orgs:', err)
     } finally {
@@ -262,9 +282,12 @@ export default function ExplorePage() {
       // When searching, fetch all orgs if not already fetched
       if (!allOrgsFetched) {
         await fetchAllOrgs()
+        // Note: allOrgs state won't be updated yet here, 
+        // the useEffect watching allOrgs will handle filtering
+      } else {
+        // If orgs already fetched, apply filters immediately
+        applyFilters(allOrgs, selectedFilter, search)
       }
-      // Search against all organizations
-      applyFilters(allOrgs, selectedFilter, search)
     } else {
       // When search is cleared, go back to recommendations
       applyFilters(allResults, selectedFilter, '')
