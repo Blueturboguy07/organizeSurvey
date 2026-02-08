@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { motion } from 'framer-motion'
 import { useAuth } from '@/contexts/AuthContext'
 import Link from 'next/link'
+import Image from 'next/image'
 
 // TAMU Skyline SVG Component - Stylized illustration of iconic Texas A&M buildings
 const TAMUSkyline = () => (
@@ -253,10 +254,14 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-tamu-maroon to-tamu-maroon-light rounded-xl flex items-center justify-center shadow-lg">
-                <span className="text-white font-bold text-lg">O</span>
-              </div>
-              <span className="text-xl font-bold text-tamu-maroon">ORGanize</span>
+              <Image 
+                src="/logo.png" 
+                alt="ORGanize Campus Logo" 
+                width={40} 
+                height={40}
+                className="rounded-xl shadow-lg"
+              />
+              <span className="text-xl font-bold text-tamu-maroon">ORGanize Campus</span>
             </div>
             <div className="flex items-center gap-4">
               <Link 
@@ -287,17 +292,6 @@ export default function Home() {
 
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-12 pb-8">
           <div className="text-center">
-            {/* Badge */}
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-tamu-maroon/10 rounded-full mb-8"
-            >
-              <span className="w-2 h-2 bg-tamu-maroon rounded-full animate-pulse" />
-              <span className="text-tamu-maroon font-medium text-sm">Now live at Texas A&M</span>
-            </motion.div>
-
             {/* Main Headline */}
             <motion.h1
               initial={{ opacity: 0, y: 30 }}
@@ -547,9 +541,13 @@ export default function Home() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
             <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-tamu-maroon to-tamu-maroon-light rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-sm">O</span>
-              </div>
+              <Image 
+                src="/logo.png" 
+                alt="ORGanize Campus Logo" 
+                width={32} 
+                height={32}
+                className="rounded-lg"
+              />
               <span className="text-gray-600">ORGanize Campus</span>
             </div>
             <p className="text-sm text-gray-500">
