@@ -7,136 +7,57 @@ import { useAuth } from '@/contexts/AuthContext'
 import Link from 'next/link'
 import Image from 'next/image'
 
-// Building group that can be repeated for seamless scrolling
-const SkylineBuildings = ({ offset = 0 }: { offset?: number }) => (
-  <g transform={`translate(${offset}, 0)`}>
-    {/* Background layer - distant buildings */}
-    <g opacity="0.4">
-      <rect x="50" y="200" width="60" height="120" fill="#500000" />
-      <rect x="130" y="180" width="45" height="140" fill="#500000" />
-      <rect x="350" y="210" width="40" height="110" fill="#500000" />
-      <rect x="550" y="195" width="50" height="125" fill="#500000" />
-      <rect x="750" y="205" width="45" height="115" fill="#500000" />
-      <rect x="950" y="190" width="55" height="130" fill="#500000" />
-      <rect x="1150" y="200" width="50" height="120" fill="#500000" />
-    </g>
-
-    {/* Kyle Field - Stadium */}
-    <g>
-      <path d="M80 320 L80 200 L120 180 L200 180 L240 200 L240 320 Z" fill="url(#buildingGradient2)" />
-      <path d="M90 280 L90 220 L230 220 L230 280" fill="none" stroke="#3a0000" strokeWidth="2" />
-      <path d="M100 260 L100 230 L220 230 L220 260" fill="none" stroke="#3a0000" strokeWidth="2" />
-      <rect x="130" y="160" width="60" height="25" fill="#500000" />
-      <rect x="135" y="165" width="12" height="10" fill="#ffcc00" opacity="0.6" />
-      <rect x="152" y="165" width="12" height="10" fill="#ffcc00" opacity="0.6" />
-      <rect x="169" y="165" width="12" height="10" fill="#ffcc00" opacity="0.6" />
-      <rect x="145" y="140" width="30" height="18" fill="#2a0000" />
-      <text x="160" y="153" fill="#ffcc00" fontSize="8" textAnchor="middle" fontWeight="bold">12TH</text>
-    </g>
-
-    {/* Reed Arena */}
-    <g>
-      <path d="M280 320 L280 220 Q340 180 400 220 L400 320 Z" fill="url(#buildingGradient2)" />
-      <path d="M285 225 Q340 190 395 225" fill="none" stroke="#3a0000" strokeWidth="3" />
-      <rect x="320" y="280" width="40" height="40" fill="#3a0000" />
-      <rect x="330" y="285" width="20" height="30" fill="#ffcc00" opacity="0.5" />
-    </g>
-
-    {/* Evans Library */}
-    <g>
-      <rect x="450" y="180" width="140" height="140" fill="url(#buildingGradient2)" />
-      <rect x="445" y="170" width="150" height="15" fill="#500000" />
-      <rect x="460" y="200" width="50" height="80" fill="#ffcc00" opacity="0.25" />
-      <rect x="530" y="200" width="50" height="80" fill="#ffcc00" opacity="0.25" />
-      <rect x="460" y="240" width="50" height="2" fill="#3a0000" />
-      <rect x="530" y="240" width="50" height="2" fill="#3a0000" />
-    </g>
-
-    {/* Academic Building (Albritton Tower) */}
-    <g>
-      <rect x="650" y="100" width="80" height="220" fill="url(#buildingGradient)" />
-      <path d="M650 100 L690 50 L730 100 Z" fill="#500000" />
-      <circle cx="690" cy="65" r="8" fill="#ffcc00" opacity="0.8" />
-      <rect x="660" y="120" width="15" height="20" fill="#ffcc00" opacity="0.5" />
-      <rect x="682" y="120" width="15" height="20" fill="#ffcc00" opacity="0.5" />
-      <rect x="705" y="120" width="15" height="20" fill="#ffcc00" opacity="0.5" />
-      <rect x="660" y="160" width="15" height="20" fill="#ffcc00" opacity="0.4" />
-      <rect x="682" y="160" width="15" height="20" fill="#ffcc00" opacity="0.4" />
-      <rect x="705" y="160" width="15" height="20" fill="#ffcc00" opacity="0.4" />
-      <rect x="660" y="200" width="15" height="20" fill="#ffcc00" opacity="0.3" />
-      <rect x="682" y="200" width="15" height="20" fill="#ffcc00" opacity="0.3" />
-      <rect x="705" y="200" width="15" height="20" fill="#ffcc00" opacity="0.3" />
-      <rect x="580" y="180" width="70" height="140" fill="url(#buildingGradient2)" />
-      <rect x="730" y="180" width="70" height="140" fill="url(#buildingGradient2)" />
-      <rect x="590" y="200" width="12" height="15" fill="#ffcc00" opacity="0.4" />
-      <rect x="610" y="200" width="12" height="15" fill="#ffcc00" opacity="0.4" />
-      <rect x="630" y="200" width="12" height="15" fill="#ffcc00" opacity="0.4" />
-      <rect x="740" y="200" width="12" height="15" fill="#ffcc00" opacity="0.4" />
-      <rect x="760" y="200" width="12" height="15" fill="#ffcc00" opacity="0.4" />
-      <rect x="780" y="200" width="12" height="15" fill="#ffcc00" opacity="0.4" />
-      <rect x="665" y="260" width="8" height="60" fill="#3a0000" />
-      <rect x="680" y="260" width="8" height="60" fill="#3a0000" />
-      <rect x="695" y="260" width="8" height="60" fill="#3a0000" />
-      <rect x="710" y="260" width="8" height="60" fill="#3a0000" />
-    </g>
-
-    {/* Memorial Student Center */}
-    <g>
-      <rect x="880" y="160" width="120" height="160" fill="url(#buildingGradient)" />
-      <rect x="875" y="155" width="130" height="8" fill="#3a0000" />
-      <rect x="935" y="120" width="3" height="40" fill="#3a0000" />
-      <rect x="938" y="122" width="25" height="15" fill="#500000" />
-      <rect x="890" y="175" width="15" height="20" fill="#ffcc00" opacity="0.3" />
-      <rect x="912" y="175" width="15" height="20" fill="#ffcc00" opacity="0.3" />
-      <rect x="934" y="175" width="15" height="20" fill="#ffcc00" opacity="0.3" />
-      <rect x="956" y="175" width="15" height="20" fill="#ffcc00" opacity="0.3" />
-      <rect x="978" y="175" width="15" height="20" fill="#ffcc00" opacity="0.3" />
-      <rect x="890" y="210" width="15" height="20" fill="#ffcc00" opacity="0.4" />
-      <rect x="912" y="210" width="15" height="20" fill="#ffcc00" opacity="0.4" />
-      <rect x="934" y="210" width="15" height="20" fill="#ffcc00" opacity="0.4" />
-      <rect x="956" y="210" width="15" height="20" fill="#ffcc00" opacity="0.4" />
-      <rect x="978" y="210" width="15" height="20" fill="#ffcc00" opacity="0.4" />
-    </g>
-
-    {/* Bright Building / ILSB */}
-    <g>
-      <rect x="1050" y="200" width="60" height="120" fill="url(#buildingGradient2)" />
-      <rect x="1045" y="195" width="70" height="8" fill="#500000" />
-      <rect x="1060" y="215" width="15" height="20" fill="#ffcc00" opacity="0.4" />
-      <rect x="1085" y="215" width="15" height="20" fill="#ffcc00" opacity="0.4" />
-      <rect x="1060" y="250" width="15" height="20" fill="#ffcc00" opacity="0.3" />
-      <rect x="1085" y="250" width="15" height="20" fill="#ffcc00" opacity="0.3" />
-    </g>
-
-    {/* Zachry Engineering Building */}
-    <g>
-      <rect x="1150" y="140" width="100" height="180" fill="url(#buildingGradient)" />
-      <path d="M1150 140 L1200 110 L1250 140 Z" fill="#500000" />
-      <rect x="1160" y="155" width="80" height="150" fill="#ffcc00" opacity="0.15" />
-      <rect x="1160" y="180" width="80" height="2" fill="#3a0000" />
-      <rect x="1160" y="210" width="80" height="2" fill="#3a0000" />
-      <rect x="1160" y="240" width="80" height="2" fill="#3a0000" />
-      <rect x="1160" y="270" width="80" height="2" fill="#3a0000" />
-    </g>
-
-    {/* Trees/landscaping silhouettes */}
-    <g opacity="0.6">
-      <ellipse cx="260" cy="315" rx="20" ry="15" fill="#2a0000" />
-      <ellipse cx="430" cy="310" rx="25" ry="20" fill="#3a0000" />
-      <ellipse cx="840" cy="315" rx="20" ry="15" fill="#2a0000" />
-      <ellipse cx="860" cy="310" rx="25" ry="20" fill="#3a0000" />
-      <ellipse cx="1030" cy="315" rx="18" ry="14" fill="#2a0000" />
-      <ellipse cx="1280" cy="312" rx="22" ry="18" fill="#3a0000" />
-    </g>
-  </g>
-)
-
-// TAMU Skyline SVG Component with continuous scrolling animation
+// TAMU Skyline SVG Component - Static with animated clouds
 const TAMUSkyline = () => (
-  <div className="overflow-hidden max-h-32">
+  <div className="relative overflow-hidden">
+    {/* Animated Clouds Layer */}
+    <div className="absolute inset-0 overflow-hidden pointer-events-none">
+      {/* Cloud 1 */}
+      <div className="absolute animate-cloud-slow" style={{ top: '10%', left: '-20%' }}>
+        <svg width="120" height="40" viewBox="0 0 120 40" fill="none">
+          <ellipse cx="60" cy="25" rx="50" ry="15" fill="#500000" fillOpacity="0.15" />
+          <ellipse cx="35" cy="20" rx="30" ry="12" fill="#500000" fillOpacity="0.12" />
+          <ellipse cx="85" cy="22" rx="25" ry="10" fill="#500000" fillOpacity="0.12" />
+        </svg>
+      </div>
+      {/* Cloud 2 */}
+      <div className="absolute animate-cloud-medium" style={{ top: '5%', left: '-15%' }}>
+        <svg width="100" height="35" viewBox="0 0 100 35" fill="none">
+          <ellipse cx="50" cy="20" rx="40" ry="12" fill="#500000" fillOpacity="0.1" />
+          <ellipse cx="30" cy="18" rx="25" ry="10" fill="#500000" fillOpacity="0.08" />
+          <ellipse cx="70" cy="17" rx="22" ry="9" fill="#500000" fillOpacity="0.08" />
+        </svg>
+      </div>
+      {/* Cloud 3 */}
+      <div className="absolute animate-cloud-fast" style={{ top: '15%', left: '-25%' }}>
+        <svg width="80" height="30" viewBox="0 0 80 30" fill="none">
+          <ellipse cx="40" cy="18" rx="35" ry="10" fill="#500000" fillOpacity="0.12" />
+          <ellipse cx="25" cy="15" rx="20" ry="8" fill="#500000" fillOpacity="0.1" />
+          <ellipse cx="55" cy="16" rx="18" ry="7" fill="#500000" fillOpacity="0.1" />
+        </svg>
+      </div>
+      {/* Cloud 4 */}
+      <div className="absolute animate-cloud-slower" style={{ top: '2%', left: '-10%' }}>
+        <svg width="150" height="50" viewBox="0 0 150 50" fill="none">
+          <ellipse cx="75" cy="30" rx="60" ry="18" fill="#500000" fillOpacity="0.08" />
+          <ellipse cx="45" cy="25" rx="35" ry="14" fill="#500000" fillOpacity="0.06" />
+          <ellipse cx="105" cy="26" rx="30" ry="12" fill="#500000" fillOpacity="0.06" />
+        </svg>
+      </div>
+      {/* Cloud 5 */}
+      <div className="absolute animate-cloud-medium-delay" style={{ top: '8%', left: '-30%' }}>
+        <svg width="90" height="32" viewBox="0 0 90 32" fill="none">
+          <ellipse cx="45" cy="18" rx="38" ry="11" fill="#500000" fillOpacity="0.11" />
+          <ellipse cx="28" cy="16" rx="22" ry="9" fill="#500000" fillOpacity="0.09" />
+          <ellipse cx="65" cy="17" rx="20" ry="8" fill="#500000" fillOpacity="0.09" />
+        </svg>
+      </div>
+    </div>
+
+    {/* Static Skyline */}
     <svg 
       viewBox="0 0 1440 320" 
-      className="w-[400%] md:w-[300%] lg:w-[250%] h-32 animate-skyline-scroll"
+      className="w-full h-auto"
       preserveAspectRatio="xMidYMax slice"
     >
       <defs>
@@ -150,14 +71,125 @@ const TAMUSkyline = () => (
         </linearGradient>
       </defs>
       
-      {/* First set of buildings */}
-      <SkylineBuildings offset={0} />
-      
-      {/* Second set (duplicate) for seamless loop */}
-      <SkylineBuildings offset={1440} />
-      
-      {/* Continuous ground */}
-      <rect x="0" y="318" width="2880" height="5" fill="#500000" />
+      {/* Background layer - distant buildings */}
+      <g opacity="0.4">
+        <rect x="50" y="200" width="60" height="120" fill="#500000" />
+        <rect x="130" y="180" width="45" height="140" fill="#500000" />
+        <rect x="1250" y="190" width="55" height="130" fill="#500000" />
+        <rect x="1320" y="210" width="70" height="110" fill="#500000" />
+      </g>
+
+      {/* Kyle Field - Left side stadium */}
+      <g>
+        <path d="M80 320 L80 200 L120 180 L200 180 L240 200 L240 320 Z" fill="url(#buildingGradient2)" />
+        <path d="M90 280 L90 220 L230 220 L230 280" fill="none" stroke="#3a0000" strokeWidth="2" />
+        <path d="M100 260 L100 230 L220 230 L220 260" fill="none" stroke="#3a0000" strokeWidth="2" />
+        <rect x="130" y="160" width="60" height="25" fill="#500000" />
+        <rect x="135" y="165" width="12" height="10" fill="#ffcc00" opacity="0.6" />
+        <rect x="152" y="165" width="12" height="10" fill="#ffcc00" opacity="0.6" />
+        <rect x="169" y="165" width="12" height="10" fill="#ffcc00" opacity="0.6" />
+        <rect x="145" y="140" width="30" height="18" fill="#2a0000" />
+        <text x="160" y="153" fill="#ffcc00" fontSize="8" textAnchor="middle" fontWeight="bold">12TH</text>
+      </g>
+
+      {/* Reed Arena - Far left */}
+      <g>
+        <path d="M280 320 L280 220 Q340 180 400 220 L400 320 Z" fill="url(#buildingGradient2)" />
+        <path d="M285 225 Q340 190 395 225" fill="none" stroke="#3a0000" strokeWidth="3" />
+        <rect x="320" y="280" width="40" height="40" fill="#3a0000" />
+        <rect x="330" y="285" width="20" height="30" fill="#ffcc00" opacity="0.5" />
+      </g>
+
+      {/* Evans Library - Left of center */}
+      <g>
+        <rect x="400" y="180" width="140" height="140" fill="url(#buildingGradient2)" />
+        <rect x="395" y="170" width="150" height="15" fill="#500000" />
+        <rect x="410" y="200" width="50" height="80" fill="#ffcc00" opacity="0.25" />
+        <rect x="480" y="200" width="50" height="80" fill="#ffcc00" opacity="0.25" />
+        <rect x="410" y="240" width="50" height="2" fill="#3a0000" />
+        <rect x="480" y="240" width="50" height="2" fill="#3a0000" />
+        <rect x="435" y="200" width="2" height="80" fill="#3a0000" />
+        <rect x="505" y="200" width="2" height="80" fill="#3a0000" />
+      </g>
+
+      {/* Academic Building (Albritton Tower) - Center */}
+      <g>
+        <rect x="650" y="100" width="80" height="220" fill="url(#buildingGradient)" />
+        <path d="M650 100 L690 50 L730 100 Z" fill="#500000" />
+        <circle cx="690" cy="65" r="8" fill="#ffcc00" opacity="0.8" />
+        <rect x="660" y="120" width="15" height="20" fill="#ffcc00" opacity="0.5" />
+        <rect x="682" y="120" width="15" height="20" fill="#ffcc00" opacity="0.5" />
+        <rect x="705" y="120" width="15" height="20" fill="#ffcc00" opacity="0.5" />
+        <rect x="660" y="160" width="15" height="20" fill="#ffcc00" opacity="0.4" />
+        <rect x="682" y="160" width="15" height="20" fill="#ffcc00" opacity="0.4" />
+        <rect x="705" y="160" width="15" height="20" fill="#ffcc00" opacity="0.4" />
+        <rect x="660" y="200" width="15" height="20" fill="#ffcc00" opacity="0.3" />
+        <rect x="682" y="200" width="15" height="20" fill="#ffcc00" opacity="0.3" />
+        <rect x="705" y="200" width="15" height="20" fill="#ffcc00" opacity="0.3" />
+        <rect x="580" y="180" width="70" height="140" fill="url(#buildingGradient2)" />
+        <rect x="730" y="180" width="70" height="140" fill="url(#buildingGradient2)" />
+        <rect x="590" y="200" width="12" height="15" fill="#ffcc00" opacity="0.4" />
+        <rect x="610" y="200" width="12" height="15" fill="#ffcc00" opacity="0.4" />
+        <rect x="630" y="200" width="12" height="15" fill="#ffcc00" opacity="0.4" />
+        <rect x="740" y="200" width="12" height="15" fill="#ffcc00" opacity="0.4" />
+        <rect x="760" y="200" width="12" height="15" fill="#ffcc00" opacity="0.4" />
+        <rect x="780" y="200" width="12" height="15" fill="#ffcc00" opacity="0.4" />
+        <rect x="665" y="260" width="8" height="60" fill="#3a0000" />
+        <rect x="680" y="260" width="8" height="60" fill="#3a0000" />
+        <rect x="695" y="260" width="8" height="60" fill="#3a0000" />
+        <rect x="710" y="260" width="8" height="60" fill="#3a0000" />
+      </g>
+
+      {/* Memorial Student Center - Right of center */}
+      <g>
+        <rect x="880" y="160" width="120" height="160" fill="url(#buildingGradient)" />
+        <rect x="875" y="155" width="130" height="8" fill="#3a0000" />
+        <rect x="935" y="120" width="3" height="40" fill="#3a0000" />
+        <rect x="938" y="122" width="25" height="15" fill="#500000" />
+        <rect x="890" y="175" width="15" height="20" fill="#ffcc00" opacity="0.3" />
+        <rect x="912" y="175" width="15" height="20" fill="#ffcc00" opacity="0.3" />
+        <rect x="934" y="175" width="15" height="20" fill="#ffcc00" opacity="0.3" />
+        <rect x="956" y="175" width="15" height="20" fill="#ffcc00" opacity="0.3" />
+        <rect x="978" y="175" width="15" height="20" fill="#ffcc00" opacity="0.3" />
+        <rect x="890" y="210" width="15" height="20" fill="#ffcc00" opacity="0.4" />
+        <rect x="912" y="210" width="15" height="20" fill="#ffcc00" opacity="0.4" />
+        <rect x="934" y="210" width="15" height="20" fill="#ffcc00" opacity="0.4" />
+        <rect x="956" y="210" width="15" height="20" fill="#ffcc00" opacity="0.4" />
+        <rect x="978" y="210" width="15" height="20" fill="#ffcc00" opacity="0.4" />
+      </g>
+
+      {/* Bright Building / ILSB - Mid right */}
+      <g>
+        <rect x="1020" y="200" width="60" height="120" fill="url(#buildingGradient2)" />
+        <rect x="1015" y="195" width="70" height="8" fill="#500000" />
+        <rect x="1030" y="215" width="15" height="20" fill="#ffcc00" opacity="0.4" />
+        <rect x="1055" y="215" width="15" height="20" fill="#ffcc00" opacity="0.4" />
+        <rect x="1030" y="250" width="15" height="20" fill="#ffcc00" opacity="0.3" />
+        <rect x="1055" y="250" width="15" height="20" fill="#ffcc00" opacity="0.3" />
+      </g>
+
+      {/* Zachry Engineering Building - Far right */}
+      <g>
+        <rect x="1100" y="140" width="100" height="180" fill="url(#buildingGradient)" />
+        <path d="M1100 140 L1150 110 L1200 140 Z" fill="#500000" />
+        <rect x="1110" y="155" width="80" height="150" fill="#ffcc00" opacity="0.15" />
+        <rect x="1110" y="180" width="80" height="2" fill="#3a0000" />
+        <rect x="1110" y="210" width="80" height="2" fill="#3a0000" />
+        <rect x="1110" y="240" width="80" height="2" fill="#3a0000" />
+        <rect x="1110" y="270" width="80" height="2" fill="#3a0000" />
+      </g>
+
+      {/* Trees/landscaping silhouettes */}
+      <g opacity="0.6">
+        <ellipse cx="560" cy="310" rx="25" ry="20" fill="#2a0000" />
+        <ellipse cx="545" cy="315" rx="20" ry="15" fill="#3a0000" />
+        <ellipse cx="840" cy="315" rx="20" ry="15" fill="#2a0000" />
+        <ellipse cx="860" cy="310" rx="25" ry="20" fill="#3a0000" />
+        <ellipse cx="1230" cy="315" rx="18" ry="14" fill="#2a0000" />
+      </g>
+
+      {/* Ground/base */}
+      <rect x="0" y="318" width="1440" height="5" fill="#500000" />
     </svg>
   </div>
 )
