@@ -133,12 +133,11 @@ const SkylineBuildings = ({ offset = 0 }: { offset?: number }) => (
 
 // TAMU Skyline SVG Component with continuous scrolling animation
 const TAMUSkyline = () => (
-  <div className="overflow-hidden">
+  <div className="overflow-hidden max-h-32">
     <svg 
       viewBox="0 0 1440 320" 
-      className="w-[200%] h-auto animate-skyline-scroll"
+      className="w-[400%] md:w-[300%] lg:w-[250%] h-32 animate-skyline-scroll"
       preserveAspectRatio="xMidYMax slice"
-      style={{ minWidth: '200%' }}
     >
       <defs>
         <linearGradient id="buildingGradient" x1="0%" y1="0%" x2="0%" y2="100%">
