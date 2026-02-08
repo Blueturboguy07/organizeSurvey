@@ -183,9 +183,26 @@ export default function LoginPage() {
     setError('')
     setLoading(true)
 
+    const normalizedEmail = email.toLowerCase().trim()
+
     try {
+      // First, check if a user profile exists with this email
+      const { data: profileData, error: profileError } = await supabase
+        .from('user_profiles')
+        .select('id')
+        .eq('email', normalizedEmail)
+        .maybeSingle()
+
+      // If no profile found, the account doesn't exist
+      if (!profileData && !profileError) {
+        setError('No account found with this email. Please sign up first.')
+        setLoading(false)
+        return
+      }
+
+      // Attempt to sign in
       const { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email: email.toLowerCase().trim(),
+        email: normalizedEmail,
         password,
       })
 
@@ -206,11 +223,12 @@ export default function LoginPage() {
       if (err.message?.includes('Failed to fetch') || err.message?.includes('NetworkError')) {
         setError('Network error. Please check your internet connection and try again.')
       } else if (err.message?.includes('Invalid login credentials')) {
-        setError('Invalid email or password')
+        // Since we already checked the email exists, this means the password is wrong
+        setError('Incorrect password. Please try again.')
       } else if (err.message?.includes('Email not confirmed')) {
         setError('Please verify your email before signing in')
       } else {
-        setError(err.message || 'Invalid email or password')
+        setError(err.message || 'Login failed. Please try again.')
       }
     } finally {
       setLoading(false)
@@ -301,6 +319,10 @@ export default function LoginPage() {
 
       if (signInError) {
         console.error('Sign in error:', signInError)
+        // Provide specific error for wrong password
+        if (signInError.message?.includes('Invalid login credentials')) {
+          throw new Error('Incorrect password. Please try again.')
+        }
         throw signInError
       }
 
@@ -311,7 +333,7 @@ export default function LoginPage() {
       }
     } catch (err: any) {
       console.error('Login error:', err)
-      setError(err.message || 'Invalid password')
+      setError(err.message || 'Login failed. Please try again.')
     } finally {
       setLoading(false)
     }
