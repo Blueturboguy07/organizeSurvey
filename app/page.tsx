@@ -133,11 +133,11 @@ const SkylineBuildings = ({ offset = 0 }: { offset?: number }) => (
 
 // TAMU Skyline SVG Component with continuous scrolling animation
 const TAMUSkyline = () => (
-  <div className="overflow-hidden">
+  <div className="overflow-hidden h-24 sm:h-32">
     <svg 
       viewBox="0 0 1440 320" 
-      className="w-[200%] h-auto animate-skyline-scroll"
-      preserveAspectRatio="xMidYMax slice"
+      className="w-[200%] h-full animate-skyline-scroll"
+      preserveAspectRatio="xMinYMax slice"
       style={{ minWidth: '200%' }}
     >
       <defs>
@@ -413,69 +413,41 @@ export default function Home() {
       </section>
 
       {/* Features Section - Below the fold */}
-      <section className="py-20 bg-gradient-to-b from-tamu-maroon to-tamu-maroon-light">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section className="py-16 bg-tamu-maroon">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <motion.div
-            initial={{ opacity: 0, y: 30 }}
+            initial={{ opacity: 0, y: 20 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true }}
-            transition={{ duration: 0.6 }}
-            className="text-center mb-16"
+            transition={{ duration: 0.5 }}
+            className="flex flex-col md:flex-row items-center justify-between text-center md:text-left"
           >
-            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4">
-              Everything you need to get involved
-            </h2>
-            <p className="text-lg text-white/70 max-w-2xl mx-auto">
-              Whether you&apos;re looking to join your first org or manage applications for hundreds of students
-            </p>
+            {/* Feature 1 */}
+            <div className="flex-1 py-4 md:py-0 md:px-6">
+              <h3 className="text-lg font-semibold text-white mb-1">Smart Discovery</h3>
+              <p className="text-white/60 text-sm">AI-powered recommendations based on your interests</p>
+            </div>
+            
+            {/* Divider */}
+            <div className="hidden md:block w-px h-12 bg-white/20" />
+            <div className="md:hidden w-32 h-px bg-white/20 my-2" />
+            
+            {/* Feature 2 */}
+            <div className="flex-1 py-4 md:py-0 md:px-6">
+              <h3 className="text-lg font-semibold text-white mb-1">One-Click Applications</h3>
+              <p className="text-white/60 text-sm">Apply to orgs without repeating yourself</p>
+            </div>
+            
+            {/* Divider */}
+            <div className="hidden md:block w-px h-12 bg-white/20" />
+            <div className="md:hidden w-32 h-px bg-white/20 my-2" />
+            
+            {/* Feature 3 */}
+            <div className="flex-1 py-4 md:py-0 md:px-6">
+              <h3 className="text-lg font-semibold text-white mb-1">Org Management</h3>
+              <p className="text-white/60 text-sm">Custom forms, member tracking, and more</p>
+            </div>
           </motion.div>
-
-          <div className="grid md:grid-cols-3 gap-8">
-            {[
-              {
-                icon: (
-                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                  </svg>
-                ),
-                title: 'Smart Discovery',
-                description: 'AI-powered recommendations based on your interests, major, and career goals. Find orgs that actually fit you.'
-              },
-              {
-                icon: (
-                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                ),
-                title: 'One-Click Applications',
-                description: 'Apply to multiple organizations without filling out the same info over and over. Your profile, ready to go.'
-              },
-              {
-                icon: (
-                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
-                  </svg>
-                ),
-                title: 'Org Management',
-                description: 'Custom application forms, member tracking, and engagement tools. Everything orgs need to thrive.'
-              }
-            ].map((feature, index) => (
-              <motion.div
-                key={feature.title}
-                initial={{ opacity: 0, y: 30 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true }}
-                transition={{ duration: 0.6, delay: index * 0.1 }}
-                className="bg-white/10 backdrop-blur-sm rounded-2xl p-8 border border-white/20 hover:bg-white/15 transition-colors"
-              >
-                <div className="w-14 h-14 bg-white/20 rounded-xl flex items-center justify-center text-white mb-6">
-                  {feature.icon}
-                </div>
-                <h3 className="text-xl font-bold text-white mb-3">{feature.title}</h3>
-                <p className="text-white/70 leading-relaxed">{feature.description}</p>
-              </motion.div>
-            ))}
-          </div>
         </div>
       </section>
 
