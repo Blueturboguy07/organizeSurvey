@@ -87,7 +87,7 @@ export default function ExplorePage() {
       while (hasMore) {
         const { data, error } = await supabase
           .from('organizations')
-          .select('id, name, bio, website, typical_majors, typical_activities, club_culture_style, meeting_frequency, meeting_times, meeting_locations, dues_required, dues_cost, application_required, time_commitment, member_count, administrative_contact_info, is_on_platform, is_application_based')
+          .select('id, name, bio, website, typical_majors, typical_activities, club_culture_style, meeting_frequency, meeting_times, meeting_locations, dues_required, dues_cost, application_required, time_commitment, member_count, administrative_contact_info, is_application_based')
           .order('name', { ascending: true })
           .range(offset, offset + PAGE_SIZE - 1)
         
@@ -105,8 +105,27 @@ export default function ExplorePage() {
         }
       }
 
-      console.log(`[ExplorePage] Loaded ${allOrgsData.length} organizations for search`)
-      setAllOrgs(allOrgsData)
+      // Fetch org_accounts to determine which orgs are "on platform"
+      // An org is on platform if it has an org_account that is email_verified AND is_active
+      const { data: orgAccounts } = await supabase
+        .from('org_accounts')
+        .select('organization_id, email_verified, is_active')
+      
+      // Create a set of organization IDs that are on platform (verified and active)
+      const onPlatformOrgIds = new Set(
+        (orgAccounts || [])
+          .filter((acc: { email_verified: boolean; is_active: boolean }) => acc.email_verified && acc.is_active)
+          .map((acc: { organization_id: string }) => acc.organization_id)
+      )
+
+      // Add is_on_platform to each org
+      const orgsWithPlatformStatus = allOrgsData.map(org => ({
+        ...org,
+        is_on_platform: onPlatformOrgIds.has(org.id)
+      }))
+
+      console.log(`[ExplorePage] Loaded ${orgsWithPlatformStatus.length} organizations for search (${onPlatformOrgIds.size} on platform)`)
+      setAllOrgs(orgsWithPlatformStatus)
       setAllOrgsFetched(true)
     } catch (err) {
       console.error('Failed to fetch all orgs:', err)
