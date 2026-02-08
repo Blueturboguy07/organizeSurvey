@@ -133,11 +133,11 @@ const SkylineBuildings = ({ offset = 0 }: { offset?: number }) => (
 
 // TAMU Skyline SVG Component with continuous scrolling animation
 const TAMUSkyline = () => (
-  <div className="overflow-hidden h-24 sm:h-32">
+  <div className="overflow-hidden">
     <svg 
       viewBox="0 0 1440 320" 
-      className="w-[200%] h-full animate-skyline-scroll"
-      preserveAspectRatio="xMinYMax slice"
+      className="w-[200%] h-auto animate-skyline-scroll"
+      preserveAspectRatio="xMidYMax slice"
       style={{ minWidth: '200%' }}
     >
       <defs>
@@ -273,14 +273,15 @@ export default function Home() {
               <span className="relative inline-block">
                 <span className="text-tamu-maroon">#1 University</span>
                 <svg 
-                  className="absolute -bottom-2 left-0 w-full h-4"
-                  viewBox="0 0 300 16"
+                  className="absolute -bottom-1 left-0 w-full h-3"
+                  viewBox="0 0 100 12"
                   fill="none"
+                  preserveAspectRatio="none"
                 >
                   <motion.path 
-                    d="M2 12 Q75 4 150 12 Q225 20 298 12" 
+                    d="M0 8 Q25 2 50 8 Q75 14 100 8" 
                     stroke="#500000" 
-                    strokeWidth="4" 
+                    strokeWidth="3" 
                     strokeLinecap="round"
                     initial={{ pathLength: 0 }}
                     animate={{ pathLength: 1 }}
