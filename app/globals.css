@@ -18,3 +18,17 @@ body {
     rgb(var(--background-start-rgb));
 }
 
+/* Skyline continuous scroll animation */
+@keyframes skyline-scroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+.animate-skyline-scroll {
+  animation: skyline-scroll 60s linear infinite;
+}
+
