@@ -231,6 +231,14 @@ export default function OrgDashboardPage() {
   const [acceptingApplications, setAcceptingApplications] = useState(true)
   const [applicationDeadline, setApplicationDeadline] = useState<string | null>(null)
   
+  // Announcement states
+  const [showAnnouncementModal, setShowAnnouncementModal] = useState(false)
+  const [announcementTitle, setAnnouncementTitle] = useState('')
+  const [announcementBody, setAnnouncementBody] = useState('')
+  const [announcementSending, setAnnouncementSending] = useState(false)
+  const [announcementSuccess, setAnnouncementSuccess] = useState('')
+  const [announcementError, setAnnouncementError] = useState('')
+  
   // Editing states
   const [editingField, setEditingField] = useState<string | null>(null)
   const [editValues, setEditValues] = useState<Record<string, string>>({})
@@ -739,6 +747,50 @@ export default function OrgDashboardPage() {
     saveField('eligible_races', newRaces.length > 0 ? arrayToString(newRaces) : null)
   }
 
+  // Send announcement
+  const sendAnnouncement = async () => {
+    if (!announcementTitle.trim() || !announcementBody.trim()) {
+      setAnnouncementError('Title and message are required')
+      return
+    }
+    
+    setAnnouncementSending(true)
+    setAnnouncementError('')
+    
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error('Not authenticated')
+      
+      const res = await fetch('/api/org/announcements', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          title: announcementTitle.trim(),
+          body: announcementBody.trim()
+        })
+      })
+      
+      const data = await res.json()
+      
+      if (!res.ok) throw new Error(data.error || 'Failed to send announcement')
+      
+      setAnnouncementSuccess(`Announcement sent! ${data.emailsSent || 0} email${data.emailsSent !== 1 ? 's' : ''} delivered.`)
+      setAnnouncementTitle('')
+      setAnnouncementBody('')
+      setTimeout(() => {
+        setShowAnnouncementModal(false)
+        setAnnouncementSuccess('')
+      }, 2000)
+    } catch (err: any) {
+      setAnnouncementError(err.message || 'Failed to send announcement')
+    } finally {
+      setAnnouncementSending(false)
+    }
+  }
+
   const handleSignOut = async () => {
     await supabase.auth.signOut()
     router.push('/login')
@@ -1106,6 +1158,36 @@ export default function OrgDashboardPage() {
             </div>
           </motion.div>
         </Link>
+
+        {/* Send Announcement Card */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.25 }}
+          onClick={() => setShowAnnouncementModal(true)}
+          className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 mb-6 cursor-pointer hover:border-tamu-maroon/30 hover:shadow-md transition-all group"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 rounded-full bg-yellow-100 flex items-center justify-center">
+                <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="text-base font-semibold text-gray-800 group-hover:text-tamu-maroon transition-colors">
+                  Send Announcement
+                </h3>
+                <p className="text-sm text-gray-500">
+                  Notify all members via email and in-app notification
+                </p>
+              </div>
+            </div>
+            <svg className="w-5 h-5 text-gray-400 group-hover:text-tamu-maroon transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+            </svg>
+          </div>
+        </motion.div>
 
         {/* Collapsible Content */}
         <AnimatePresence>
@@ -1764,6 +1846,136 @@ export default function OrgDashboardPage() {
           </p>
         </div>
       </main>
+
+      {/* Announcement Modal */}
+      <AnimatePresence>
+        {showAnnouncementModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
+            onClick={() => {
+              if (!announcementSending) {
+                setShowAnnouncementModal(false)
+                setAnnouncementError('')
+                setAnnouncementSuccess('')
+              }
+            }}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="bg-white rounded-xl shadow-2xl max-w-lg w-full"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="bg-gradient-to-r from-tamu-maroon to-tamu-maroon-light p-5 rounded-t-xl">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5.882V19.24a1.76 1.76 0 01-3.417.592l-2.147-6.15M18 13a3 3 0 100-6M5.436 13.683A4.001 4.001 0 017 6h1.832c4.1 0 7.625-1.234 9.168-3v14c-1.543-1.766-5.067-3-9.168-3H7a3.988 3.988 0 01-1.564-.317z" />
+                    </svg>
+                    <h3 className="text-lg font-bold text-white">Send Announcement</h3>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (!announcementSending) {
+                        setShowAnnouncementModal(false)
+                        setAnnouncementError('')
+                        setAnnouncementSuccess('')
+                      }
+                    }}
+                    className="p-1 hover:bg-white/20 rounded-full transition-colors"
+                  >
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+                <p className="text-white/70 text-sm mt-1">This will send an email to all {membersCount} member{membersCount !== 1 ? 's' : ''} and show as an in-app notification.</p>
+              </div>
+
+              <div className="p-5 space-y-4">
+                {announcementSuccess && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg px-4 py-3 text-sm text-green-800 flex items-center gap-2">
+                    <svg className="w-5 h-5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                    </svg>
+                    {announcementSuccess}
+                  </div>
+                )}
+
+                {announcementError && (
+                  <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-800">
+                    {announcementError}
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+                  <input
+                    type="text"
+                    value={announcementTitle}
+                    onChange={(e) => setAnnouncementTitle(e.target.value)}
+                    placeholder="e.g. Meeting Canceled This Week"
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-tamu-maroon/20 focus:border-tamu-maroon"
+                    disabled={announcementSending}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">Message</label>
+                  <textarea
+                    value={announcementBody}
+                    onChange={(e) => setAnnouncementBody(e.target.value)}
+                    placeholder="Write your announcement here..."
+                    rows={5}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-tamu-maroon/20 focus:border-tamu-maroon resize-none"
+                    disabled={announcementSending}
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-3 pt-2">
+                  <button
+                    onClick={() => {
+                      setShowAnnouncementModal(false)
+                      setAnnouncementError('')
+                      setAnnouncementSuccess('')
+                    }}
+                    disabled={announcementSending}
+                    className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                  <motion.button
+                    onClick={sendAnnouncement}
+                    disabled={announcementSending || !announcementTitle.trim() || !announcementBody.trim()}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                    className="px-5 py-2 bg-tamu-maroon text-white rounded-lg font-medium hover:bg-tamu-maroon-light transition-colors disabled:opacity-50 flex items-center gap-2"
+                  >
+                    {announcementSending ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                        Sending...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                        </svg>
+                        Send to All Members
+                      </>
+                    )}
+                  </motion.button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Share Modal */}
       <AnimatePresence>

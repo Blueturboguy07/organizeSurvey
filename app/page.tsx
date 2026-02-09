@@ -7,54 +7,9 @@ import { useAuth } from '@/contexts/AuthContext'
 import Link from 'next/link'
 import Image from 'next/image'
 
-// TAMU Skyline SVG Component - Static with animated clouds
+// TAMU Skyline SVG Component - Static
 const TAMUSkyline = () => (
   <div className="relative overflow-hidden">
-    {/* Animated Clouds Layer */}
-    <div className="absolute inset-0 overflow-hidden pointer-events-none">
-      {/* Cloud 1 */}
-      <div className="absolute animate-cloud-slow" style={{ top: '10%', left: '-20%' }}>
-        <svg width="120" height="40" viewBox="0 0 120 40" fill="none">
-          <ellipse cx="60" cy="25" rx="50" ry="15" fill="#500000" fillOpacity="0.15" />
-          <ellipse cx="35" cy="20" rx="30" ry="12" fill="#500000" fillOpacity="0.12" />
-          <ellipse cx="85" cy="22" rx="25" ry="10" fill="#500000" fillOpacity="0.12" />
-        </svg>
-      </div>
-      {/* Cloud 2 */}
-      <div className="absolute animate-cloud-medium" style={{ top: '5%', left: '-15%' }}>
-        <svg width="100" height="35" viewBox="0 0 100 35" fill="none">
-          <ellipse cx="50" cy="20" rx="40" ry="12" fill="#500000" fillOpacity="0.1" />
-          <ellipse cx="30" cy="18" rx="25" ry="10" fill="#500000" fillOpacity="0.08" />
-          <ellipse cx="70" cy="17" rx="22" ry="9" fill="#500000" fillOpacity="0.08" />
-        </svg>
-      </div>
-      {/* Cloud 3 */}
-      <div className="absolute animate-cloud-fast" style={{ top: '15%', left: '-25%' }}>
-        <svg width="80" height="30" viewBox="0 0 80 30" fill="none">
-          <ellipse cx="40" cy="18" rx="35" ry="10" fill="#500000" fillOpacity="0.12" />
-          <ellipse cx="25" cy="15" rx="20" ry="8" fill="#500000" fillOpacity="0.1" />
-          <ellipse cx="55" cy="16" rx="18" ry="7" fill="#500000" fillOpacity="0.1" />
-        </svg>
-      </div>
-      {/* Cloud 4 */}
-      <div className="absolute animate-cloud-slower" style={{ top: '2%', left: '-10%' }}>
-        <svg width="150" height="50" viewBox="0 0 150 50" fill="none">
-          <ellipse cx="75" cy="30" rx="60" ry="18" fill="#500000" fillOpacity="0.08" />
-          <ellipse cx="45" cy="25" rx="35" ry="14" fill="#500000" fillOpacity="0.06" />
-          <ellipse cx="105" cy="26" rx="30" ry="12" fill="#500000" fillOpacity="0.06" />
-        </svg>
-      </div>
-      {/* Cloud 5 */}
-      <div className="absolute animate-cloud-medium-delay" style={{ top: '8%', left: '-30%' }}>
-        <svg width="90" height="32" viewBox="0 0 90 32" fill="none">
-          <ellipse cx="45" cy="18" rx="38" ry="11" fill="#500000" fillOpacity="0.11" />
-          <ellipse cx="28" cy="16" rx="22" ry="9" fill="#500000" fillOpacity="0.09" />
-          <ellipse cx="65" cy="17" rx="20" ry="8" fill="#500000" fillOpacity="0.09" />
-        </svg>
-      </div>
-    </div>
-
-    {/* Static Skyline */}
     <svg 
       viewBox="0 0 1440 320" 
       className="w-full h-auto"

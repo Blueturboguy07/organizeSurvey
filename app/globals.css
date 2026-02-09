@@ -18,34 +18,4 @@ body {
     rgb(var(--background-start-rgb));
 }
 
-/* Cloud animations - different speeds for depth effect */
-@keyframes cloud-drift {
-  0% {
-    transform: translateX(0);
-  }
-  100% {
-    transform: translateX(calc(100vw + 200px));
-  }
-}
-
-.animate-cloud-slow {
-  animation: cloud-drift 45s linear infinite;
-}
-
-.animate-cloud-slower {
-  animation: cloud-drift 60s linear infinite;
-}
-
-.animate-cloud-medium {
-  animation: cloud-drift 35s linear infinite;
-}
-
-.animate-cloud-medium-delay {
-  animation: cloud-drift 40s linear infinite;
-  animation-delay: 10s;
-}
-
-.animate-cloud-fast {
-  animation: cloud-drift 25s linear infinite;
-}
 

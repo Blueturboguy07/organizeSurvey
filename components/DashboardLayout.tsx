@@ -6,6 +6,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/contexts/AuthContext'
 import Image from 'next/image'
 import Link from 'next/link'
+import NotificationBell from '@/components/NotificationBell'
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -97,7 +98,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               <h1 className="text-2xl font-bold text-tamu-maroon">ORGanize TAMU</h1>
             </Link>
 
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3">
+              {/* Notification Bell */}
+              <NotificationBell />
+
               {/* Profile Dropdown */}
               <div className="relative" ref={dropdownRef}>
                 <button
