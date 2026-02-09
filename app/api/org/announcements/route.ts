@@ -10,7 +10,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const { title, body } = await request.json()
+    const { title, body, recipientUserIds } = await request.json()
 
     if (!title?.trim() || !body?.trim()) {
       return NextResponse.json({ error: 'Title and body are required' }, { status: 400 })
@@ -63,40 +63,62 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Failed to create announcement' }, { status: 500 })
     }
 
-    // Get all member emails for this org
-    const { data: members, error: membersError } = await supabaseAdmin
-      .from('user_joined_organizations')
-      .select('user_id')
-      .eq('organization_id', organizationId)
+    // Determine which members to email
+    let targetUserIds: string[] = []
 
-    if (membersError) {
-      console.error('Error fetching members:', membersError)
-      // Announcement was saved, just email failed
+    if (recipientUserIds && Array.isArray(recipientUserIds) && recipientUserIds.length > 0) {
+      // Send to specific members only
+      // Verify they are actually members of this org
+      const { data: validMembers } = await supabaseAdmin
+        .from('user_joined_organizations')
+        .select('user_id')
+        .eq('organization_id', organizationId)
+        .in('user_id', recipientUserIds)
+      
+      targetUserIds = (validMembers || []).map(m => m.user_id)
+    } else {
+      // Send to all members
+      const { data: members, error: membersError } = await supabaseAdmin
+        .from('user_joined_organizations')
+        .select('user_id')
+        .eq('organization_id', organizationId)
+
+      if (membersError) {
+        console.error('Error fetching members:', membersError)
+        return NextResponse.json({ success: true, announcement, emailsSent: 0 })
+      }
+
+      targetUserIds = (members || []).map(m => m.user_id)
+    }
+
+    if (targetUserIds.length === 0) {
       return NextResponse.json({ success: true, announcement, emailsSent: 0 })
     }
 
-    if (!members || members.length === 0) {
-      return NextResponse.json({ success: true, announcement, emailsSent: 0 })
-    }
-
-    // Get member emails from user_profiles
-    const memberIds = members.map(m => m.user_id)
-    const { data: profiles } = await supabaseAdmin
+    // Get member emails from user_profiles (column is "email", not "first_name")
+    const { data: profiles, error: profilesError } = await supabaseAdmin
       .from('user_profiles')
-      .select('email, first_name')
-      .in('id', memberIds)
+      .select('id, email, name')
+      .in('id', targetUserIds)
+
+    if (profilesError) {
+      console.error('Error fetching profiles:', profilesError)
+      return NextResponse.json({ success: true, announcement, emailsSent: 0 })
+    }
 
     const emails = (profiles || []).filter(p => p.email).map(p => p.email!)
 
+    console.log(`[Announcements] Found ${profiles?.length || 0} profiles, ${emails.length} with emails, for ${targetUserIds.length} target members`)
+
     if (emails.length === 0) {
-      return NextResponse.json({ success: true, announcement, emailsSent: 0 })
+      return NextResponse.json({ success: true, announcement, emailsSent: 0, debug: 'No emails found in user_profiles for target members' })
     }
 
     // Send emails via Resend
     const resendApiKey = process.env.RESEND_API_KEY
     if (!resendApiKey) {
       console.error('RESEND_API_KEY not set')
-      return NextResponse.json({ success: true, announcement, emailsSent: 0 })
+      return NextResponse.json({ success: true, announcement, emailsSent: 0, debug: 'RESEND_API_KEY not configured' })
     }
 
     const resend = new Resend(resendApiKey)
@@ -139,34 +161,47 @@ export async function POST(request: NextRequest) {
       </div>
     `
 
-    // Send to all members (batch)
+    // Send to target members (batch)
     let emailsSent = 0
+    const emailErrors: string[] = []
     try {
-      // Resend supports batch sending up to 100 at a time
       const batchSize = 50
       for (let i = 0; i < emails.length; i += batchSize) {
         const batch = emails.slice(i, i + batchSize)
-        await Promise.all(
+        const results = await Promise.allSettled(
           batch.map(email =>
             resend.emails.send({
               from: 'ORGanize TAMU <noreply@organizecampus.com>',
               to: email,
               subject: `📢 ${orgName}: ${title.trim()}`,
               html: emailHtml,
-            }).catch(err => {
-              console.error(`Failed to send to ${email}:`, err)
             })
           )
         )
-        emailsSent += batch.length
+        
+        results.forEach((result, idx) => {
+          if (result.status === 'fulfilled') {
+            emailsSent++
+          } else {
+            const errMsg = result.reason?.message || 'Unknown error'
+            console.error(`Failed to send to ${batch[idx]}:`, errMsg)
+            emailErrors.push(`${batch[idx]}: ${errMsg}`)
+          }
+        })
       }
-    } catch (emailErr) {
+    } catch (emailErr: any) {
       console.error('Email sending error:', emailErr)
     }
 
-    console.log(`✅ Announcement sent by ${orgName}: "${title}" to ${emailsSent} members`)
+    console.log(`✅ Announcement sent by ${orgName}: "${title}" to ${emailsSent}/${emails.length} members`)
 
-    return NextResponse.json({ success: true, announcement, emailsSent })
+    return NextResponse.json({ 
+      success: true, 
+      announcement, 
+      emailsSent,
+      totalTargeted: emails.length,
+      errors: emailErrors.length > 0 ? emailErrors : undefined
+    })
 
   } catch (error: any) {
     console.error('Announcement API error:', error)

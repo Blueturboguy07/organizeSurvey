@@ -238,6 +238,11 @@ export default function OrgDashboardPage() {
   const [announcementSending, setAnnouncementSending] = useState(false)
   const [announcementSuccess, setAnnouncementSuccess] = useState('')
   const [announcementError, setAnnouncementError] = useState('')
+  const [membersList, setMembersList] = useState<{ user_id: string; name: string; email: string }[]>([])
+  const [membersListLoading, setMembersListLoading] = useState(false)
+  const [selectedRecipients, setSelectedRecipients] = useState<Set<string>>(new Set())
+  const [sendToAll, setSendToAll] = useState(true)
+  const [memberSearch, setMemberSearch] = useState('')
   
   // Editing states
   const [editingField, setEditingField] = useState<string | null>(null)
@@ -747,10 +752,61 @@ export default function OrgDashboardPage() {
     saveField('eligible_races', newRaces.length > 0 ? arrayToString(newRaces) : null)
   }
 
+  // Fetch members list for announcement recipient selection
+  const fetchMembersList = async () => {
+    if (!organization || membersList.length > 0) return
+    setMembersListLoading(true)
+    try {
+      const res = await fetch(`/api/org/members?organizationId=${organization.id}`)
+      if (res.ok) {
+        const data = await res.json()
+        const members = (data.members || []).map((m: any) => ({
+          user_id: m.user_id,
+          name: m.user_profiles?.name || 'Unknown',
+          email: m.user_profiles?.email || ''
+        }))
+        setMembersList(members)
+      }
+    } catch (err) {
+      console.error('Failed to fetch members for announcement:', err)
+    } finally {
+      setMembersListLoading(false)
+    }
+  }
+
+  // Open announcement modal and fetch members
+  const openAnnouncementModal = () => {
+    setShowAnnouncementModal(true)
+    setSendToAll(true)
+    setSelectedRecipients(new Set())
+    setMemberSearch('')
+    setAnnouncementError('')
+    setAnnouncementSuccess('')
+    fetchMembersList()
+  }
+
+  // Toggle a recipient
+  const toggleRecipient = (userId: string) => {
+    setSelectedRecipients(prev => {
+      const next = new Set(prev)
+      if (next.has(userId)) {
+        next.delete(userId)
+      } else {
+        next.add(userId)
+      }
+      return next
+    })
+  }
+
   // Send announcement
   const sendAnnouncement = async () => {
     if (!announcementTitle.trim() || !announcementBody.trim()) {
       setAnnouncementError('Title and message are required')
+      return
+    }
+
+    if (!sendToAll && selectedRecipients.size === 0) {
+      setAnnouncementError('Select at least one member or choose "All Members"')
       return
     }
     
@@ -761,29 +817,37 @@ export default function OrgDashboardPage() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) throw new Error('Not authenticated')
       
+      const payload: any = {
+        title: announcementTitle.trim(),
+        body: announcementBody.trim()
+      }
+      
+      if (!sendToAll) {
+        payload.recipientUserIds = Array.from(selectedRecipients)
+      }
+
       const res = await fetch('/api/org/announcements', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`
         },
-        body: JSON.stringify({
-          title: announcementTitle.trim(),
-          body: announcementBody.trim()
-        })
+        body: JSON.stringify(payload)
       })
       
       const data = await res.json()
       
       if (!res.ok) throw new Error(data.error || 'Failed to send announcement')
       
-      setAnnouncementSuccess(`Announcement sent! ${data.emailsSent || 0} email${data.emailsSent !== 1 ? 's' : ''} delivered.`)
+      setAnnouncementSuccess(`Announcement sent! ${data.emailsSent || 0}/${data.totalTargeted || 0} email${data.emailsSent !== 1 ? 's' : ''} delivered.`)
       setAnnouncementTitle('')
       setAnnouncementBody('')
+      setSendToAll(true)
+      setSelectedRecipients(new Set())
       setTimeout(() => {
         setShowAnnouncementModal(false)
         setAnnouncementSuccess('')
-      }, 2000)
+      }, 2500)
     } catch (err: any) {
       setAnnouncementError(err.message || 'Failed to send announcement')
     } finally {
@@ -1164,7 +1228,7 @@ export default function OrgDashboardPage() {
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.25 }}
-          onClick={() => setShowAnnouncementModal(true)}
+          onClick={openAnnouncementModal}
           className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 mb-6 cursor-pointer hover:border-tamu-maroon/30 hover:shadow-md transition-all group"
         >
           <div className="flex items-center justify-between">
@@ -1931,10 +1995,116 @@ export default function OrgDashboardPage() {
                     value={announcementBody}
                     onChange={(e) => setAnnouncementBody(e.target.value)}
                     placeholder="Write your announcement here..."
-                    rows={5}
+                    rows={4}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-tamu-maroon/20 focus:border-tamu-maroon resize-none"
                     disabled={announcementSending}
                   />
+                </div>
+
+                {/* Recipients Selection */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Send to</label>
+                  <div className="flex gap-2 mb-3">
+                    <button
+                      onClick={() => { setSendToAll(true); setSelectedRecipients(new Set()) }}
+                      className={`px-3 py-1.5 text-sm rounded-lg font-medium transition-colors ${
+                        sendToAll 
+                          ? 'bg-tamu-maroon text-white' 
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                      disabled={announcementSending}
+                    >
+                      All Members ({membersCount})
+                    </button>
+                    <button
+                      onClick={() => setSendToAll(false)}
+                      className={`px-3 py-1.5 text-sm rounded-lg font-medium transition-colors ${
+                        !sendToAll 
+                          ? 'bg-tamu-maroon text-white' 
+                          : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                      }`}
+                      disabled={announcementSending}
+                    >
+                      Select Members {!sendToAll && selectedRecipients.size > 0 && `(${selectedRecipients.size})`}
+                    </button>
+                  </div>
+
+                  {/* Member selector dropdown */}
+                  {!sendToAll && (
+                    <div className="border border-gray-200 rounded-lg overflow-hidden">
+                      {/* Search */}
+                      <div className="p-2 border-b border-gray-200">
+                        <input
+                          type="text"
+                          value={memberSearch}
+                          onChange={(e) => setMemberSearch(e.target.value)}
+                          placeholder="Search members..."
+                          className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:border-tamu-maroon"
+                          disabled={announcementSending}
+                        />
+                      </div>
+
+                      {/* Members list */}
+                      <div className="max-h-40 overflow-y-auto">
+                        {membersListLoading ? (
+                          <div className="flex items-center justify-center py-6">
+                            <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-tamu-maroon"></div>
+                          </div>
+                        ) : membersList.length === 0 ? (
+                          <p className="text-sm text-gray-400 text-center py-4">No members found</p>
+                        ) : (
+                          membersList
+                            .filter(m => {
+                              if (!memberSearch.trim()) return true
+                              const q = memberSearch.toLowerCase()
+                              return m.name.toLowerCase().includes(q) || m.email.toLowerCase().includes(q)
+                            })
+                            .map(member => (
+                              <label
+                                key={member.user_id}
+                                className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer transition-colors"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={selectedRecipients.has(member.user_id)}
+                                  onChange={() => toggleRecipient(member.user_id)}
+                                  className="w-4 h-4 text-tamu-maroon border-gray-300 rounded focus:ring-tamu-maroon"
+                                  disabled={announcementSending}
+                                />
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-sm font-medium text-gray-800 truncate">{member.name}</p>
+                                  <p className="text-xs text-gray-400 truncate">{member.email}</p>
+                                </div>
+                              </label>
+                            ))
+                        )}
+                      </div>
+
+                      {/* Quick actions */}
+                      {membersList.length > 0 && (
+                        <div className="px-3 py-2 border-t border-gray-200 bg-gray-50 flex items-center gap-2">
+                          <button
+                            onClick={() => setSelectedRecipients(new Set(membersList.map(m => m.user_id)))}
+                            className="text-xs text-tamu-maroon hover:underline"
+                            disabled={announcementSending}
+                          >
+                            Select all
+                          </button>
+                          <span className="text-gray-300">|</span>
+                          <button
+                            onClick={() => setSelectedRecipients(new Set())}
+                            className="text-xs text-gray-500 hover:underline"
+                            disabled={announcementSending}
+                          >
+                            Clear
+                          </button>
+                          <span className="ml-auto text-xs text-gray-400">
+                            {selectedRecipients.size} selected
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 <div className="flex items-center justify-end gap-3 pt-2">
@@ -1951,7 +2121,7 @@ export default function OrgDashboardPage() {
                   </button>
                   <motion.button
                     onClick={sendAnnouncement}
-                    disabled={announcementSending || !announcementTitle.trim() || !announcementBody.trim()}
+                    disabled={announcementSending || !announcementTitle.trim() || !announcementBody.trim() || (!sendToAll && selectedRecipients.size === 0)}
                     whileHover={{ scale: 1.02 }}
                     whileTap={{ scale: 0.98 }}
                     className="px-5 py-2 bg-tamu-maroon text-white rounded-lg font-medium hover:bg-tamu-maroon-light transition-colors disabled:opacity-50 flex items-center gap-2"
@@ -1966,7 +2136,7 @@ export default function OrgDashboardPage() {
                         <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
                         </svg>
-                        Send to All Members
+                        {sendToAll ? `Send to All (${membersCount})` : `Send to ${selectedRecipients.size} Member${selectedRecipients.size !== 1 ? 's' : ''}`}
                       </>
                     )}
                   </motion.button>
