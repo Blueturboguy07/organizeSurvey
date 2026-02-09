@@ -464,7 +464,7 @@ export default function Home() {
               Ready to find your place at A&M?
             </h2>
             <p className="text-lg text-gray-600 mb-8">
-              Join thousands of Aggies already using ORGanize to connect with the organizations that matter most.
+              Join hundreds of Aggies already using ORGanize to connect with the organizations that matter most.
             </p>
             <Link href="/register">
               <motion.button
