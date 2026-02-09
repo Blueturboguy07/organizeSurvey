@@ -143,17 +143,24 @@ export default function RegisterPage() {
 
       if (data.user) {
         setSuccess(true)
-        // Create user profile in user_profiles table
-        const { error: profileError } = await supabase
-          .from('user_profiles')
-          .insert({
-            id: data.user.id,
-            email: email.toLowerCase().trim(),
-            name: name.trim(),
+        // Create user profile via server-side API (bypasses RLS)
+        try {
+          const res = await fetch('/api/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              userId: data.user.id,
+              email: email.toLowerCase().trim(),
+              name: name.trim(),
+            })
           })
-
-        if (profileError && !profileError.message.includes('duplicate')) {
-          console.error('Profile creation error:', profileError)
+          
+          if (!res.ok) {
+            const errData = await res.json()
+            console.error('Profile creation error:', errData.error)
+          }
+        } catch (profileErr) {
+          console.error('Profile creation request failed:', profileErr)
         }
         
         // Note: Auto-joining invited organizations happens in the auth callback
