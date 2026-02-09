@@ -837,18 +837,37 @@ export default function OrgDashboardPage() {
       
       const data = await res.json()
       
+      // Log full response for debugging
+      console.log('📢 Announcement API response:', JSON.stringify(data, null, 2))
+      
       if (!res.ok) throw new Error(data.error || 'Failed to send announcement')
       
-      setAnnouncementSuccess(`Announcement sent! ${data.emailsSent || 0}/${data.totalTargeted || 0} email${data.emailsSent !== 1 ? 's' : ''} delivered.`)
+      if (data.emailsSent > 0) {
+        setAnnouncementSuccess(`Announcement sent! ${data.emailsSent}/${data.totalTargeted} email${data.emailsSent !== 1 ? 's' : ''} delivered.`)
+      } else {
+        // Show debug info when 0 emails sent
+        const debugSteps = data.debug?.steps || []
+        const lastStep = debugSteps[debugSteps.length - 1]
+        setAnnouncementError(`Announcement saved but 0 emails sent. Debug: ${lastStep?.step || 'unknown'} — Check browser console for full debug log.`)
+      }
+      
+      if (data.emailErrors && data.emailErrors.length > 0) {
+        console.error('📢 Email errors:', data.emailErrors)
+      }
+      
       setAnnouncementTitle('')
       setAnnouncementBody('')
       setSendToAll(true)
       setSelectedRecipients(new Set())
-      setTimeout(() => {
-        setShowAnnouncementModal(false)
-        setAnnouncementSuccess('')
-      }, 2500)
+      
+      if (data.emailsSent > 0) {
+        setTimeout(() => {
+          setShowAnnouncementModal(false)
+          setAnnouncementSuccess('')
+        }, 2500)
+      }
     } catch (err: any) {
+      console.error('📢 Announcement error:', err)
       setAnnouncementError(err.message || 'Failed to send announcement')
     } finally {
       setAnnouncementSending(false)
