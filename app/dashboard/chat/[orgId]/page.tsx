@@ -118,9 +118,9 @@ export default function OrgChatPage() {
   }, [orgId])
 
   // Fetch messages for current channel
-  const fetchMessages = useCallback(async () => {
+  const fetchMessages = useCallback(async (showLoader = true) => {
     if (!orgId) return
-    setMessagesLoading(true)
+    if (showLoader) setMessagesLoading(true)
     const { data, error } = await supabase
       .from('chat_messages')
       .select('*')
@@ -132,14 +132,35 @@ export default function OrgChatPage() {
     if (!error && data) {
       setMessages(data)
     }
-    setMessagesLoading(false)
+    if (showLoader) setMessagesLoading(false)
   }, [orgId, activeChannel, supabase])
 
   useEffect(() => {
     fetchMessages()
   }, [fetchMessages])
 
-  // Realtime subscription for messages
+  // Page Visibility API - refetch when tab becomes visible again
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchMessages(false)
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [fetchMessages])
+
+  // Background polling fallback - catch missed updates every 10s
+  useEffect(() => {
+    const interval = setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        fetchMessages(false)
+      }
+    }, 10000)
+    return () => clearInterval(interval)
+  }, [fetchMessages])
+
+  // Realtime subscription for messages with error handling & reconnection
   useEffect(() => {
     if (!orgId) return
 
@@ -157,9 +178,7 @@ export default function OrgChatPage() {
           const newMsg = payload.new as ChatMessage
           if (newMsg.channel === activeChannel) {
             setMessages(prev => {
-              // Skip if we already have it (from optimistic insert) or a temp version
               if (prev.some(m => m.id === newMsg.id)) return prev
-              // Replace any temp message from same user with same content
               const withoutTemp = prev.filter(m => 
                 !(m.id.startsWith('temp-') && m.user_id === newMsg.user_id && m.content === newMsg.content)
               )
@@ -198,12 +217,24 @@ export default function OrgChatPage() {
           }
         }
       )
-      .subscribe()
+      .subscribe((status, err) => {
+        if (status === 'SUBSCRIBED') {
+          console.log(`[Chat] Realtime subscribed: ${orgId}/${activeChannel}`)
+        }
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.error(`[Chat] Realtime error: ${status}`, err)
+          // Refetch to catch up on any missed messages
+          fetchMessages(false)
+        }
+        if (status === 'CLOSED') {
+          console.log(`[Chat] Realtime closed: ${orgId}/${activeChannel}`)
+        }
+      })
 
     return () => {
       supabase.removeChannel(channel)
     }
-  }, [orgId, activeChannel, supabase])
+  }, [orgId, activeChannel, supabase, fetchMessages])
 
   // Auto-scroll on new messages
   useEffect(() => {
