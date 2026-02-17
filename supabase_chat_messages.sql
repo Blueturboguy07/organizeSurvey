@@ -17,8 +17,9 @@ CREATE INDEX IF NOT EXISTS idx_chat_messages_created ON chat_messages(created_at
 -- Enable RLS
 ALTER TABLE chat_messages ENABLE ROW LEVEL SECURITY;
 
+-- Helper: check if user is a member OR the org account owner
 -- Members of the org can read messages
-CREATE POLICY "members_can_read_messages" ON chat_messages
+CREATE POLICY "members_and_org_can_read_messages" ON chat_messages
   FOR SELECT
   USING (
     EXISTS (
@@ -26,28 +27,45 @@ CREATE POLICY "members_can_read_messages" ON chat_messages
       WHERE user_joined_organizations.user_id = auth.uid()
       AND user_joined_organizations.organization_id = chat_messages.organization_id
     )
-  );
-
--- Members of the org can insert messages
-CREATE POLICY "members_can_insert_messages" ON chat_messages
-  FOR INSERT
-  WITH CHECK (
-    auth.uid() = user_id
-    AND EXISTS (
-      SELECT 1 FROM user_joined_organizations
-      WHERE user_joined_organizations.user_id = auth.uid()
-      AND user_joined_organizations.organization_id = chat_messages.organization_id
+    OR EXISTS (
+      SELECT 1 FROM org_accounts
+      WHERE org_accounts.user_id = auth.uid()
+      AND org_accounts.organization_id = chat_messages.organization_id
     )
   );
 
--- Users can update reactions on any message in their org (for adding/removing reactions)
-CREATE POLICY "members_can_update_reactions" ON chat_messages
+-- Members and org account can insert messages
+CREATE POLICY "members_and_org_can_insert_messages" ON chat_messages
+  FOR INSERT
+  WITH CHECK (
+    auth.uid() = user_id
+    AND (
+      EXISTS (
+        SELECT 1 FROM user_joined_organizations
+        WHERE user_joined_organizations.user_id = auth.uid()
+        AND user_joined_organizations.organization_id = chat_messages.organization_id
+      )
+      OR EXISTS (
+        SELECT 1 FROM org_accounts
+        WHERE org_accounts.user_id = auth.uid()
+        AND org_accounts.organization_id = chat_messages.organization_id
+      )
+    )
+  );
+
+-- Members and org account can update reactions
+CREATE POLICY "members_and_org_can_update_reactions" ON chat_messages
   FOR UPDATE
   USING (
     EXISTS (
       SELECT 1 FROM user_joined_organizations
       WHERE user_joined_organizations.user_id = auth.uid()
       AND user_joined_organizations.organization_id = chat_messages.organization_id
+    )
+    OR EXISTS (
+      SELECT 1 FROM org_accounts
+      WHERE org_accounts.user_id = auth.uid()
+      AND org_accounts.organization_id = chat_messages.organization_id
     )
   )
   WITH CHECK (
@@ -56,12 +74,30 @@ CREATE POLICY "members_can_update_reactions" ON chat_messages
       WHERE user_joined_organizations.user_id = auth.uid()
       AND user_joined_organizations.organization_id = chat_messages.organization_id
     )
+    OR EXISTS (
+      SELECT 1 FROM org_accounts
+      WHERE org_accounts.user_id = auth.uid()
+      AND org_accounts.organization_id = chat_messages.organization_id
+    )
   );
 
--- Users can delete their own messages
-CREATE POLICY "users_can_delete_own_messages" ON chat_messages
+-- Users can delete own messages, OR org accounts/officers can delete any message in their org
+CREATE POLICY "delete_own_or_admin_delete" ON chat_messages
   FOR DELETE
-  USING (auth.uid() = user_id);
+  USING (
+    auth.uid() = user_id
+    OR EXISTS (
+      SELECT 1 FROM org_accounts
+      WHERE org_accounts.user_id = auth.uid()
+      AND org_accounts.organization_id = chat_messages.organization_id
+    )
+    OR EXISTS (
+      SELECT 1 FROM user_joined_organizations
+      WHERE user_joined_organizations.user_id = auth.uid()
+      AND user_joined_organizations.organization_id = chat_messages.organization_id
+      AND user_joined_organizations.role IN ('admin', 'officer')
+    )
+  );
 
 -- Enable REPLICA IDENTITY FULL so DELETE events include the old row data for realtime
 ALTER TABLE chat_messages REPLICA IDENTITY FULL;

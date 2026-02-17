@@ -65,6 +65,8 @@ export default function OrgChatPage() {
   const [members, setMembers] = useState<MemberInfo[]>([])
   const [membersLoading, setMembersLoading] = useState(true)
   const [hoveredMsgId, setHoveredMsgId] = useState<string | null>(null)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [isOrgAccount, setIsOrgAccount] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const emojiPickerRef = useRef<HTMLDivElement>(null)
@@ -90,7 +92,26 @@ export default function OrgChatPage() {
     fetchOrg()
   }, [orgId, supabase, router])
 
-  // Fetch members
+  // Check if current user is the org account owner
+  useEffect(() => {
+    if (!orgId || !user) return
+    const checkOrgAccount = async () => {
+      const { data } = await supabase
+        .from('org_accounts')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('organization_id', orgId)
+        .maybeSingle()
+      
+      if (data) {
+        setIsOrgAccount(true)
+        setIsAdmin(true)
+      }
+    }
+    checkOrgAccount()
+  }, [orgId, user, supabase])
+
+  // Fetch members and determine admin status
   useEffect(() => {
     if (!orgId) return
     const fetchMembers = async () => {
@@ -107,6 +128,14 @@ export default function OrgChatPage() {
             role: m.role || 'member'
           }))
           setMembers(membersList)
+
+          // Check if current user is officer or admin in this org
+          if (user) {
+            const myMembership = membersList.find((m: MemberInfo) => m.user_id === user.id)
+            if (myMembership && (myMembership.role === 'officer' || myMembership.role === 'admin')) {
+              setIsAdmin(true)
+            }
+          }
         }
       } catch (err) {
         console.error('Failed to fetch members:', err)
@@ -115,7 +144,7 @@ export default function OrgChatPage() {
       }
     }
     fetchMembers()
-  }, [orgId])
+  }, [orgId, user])
 
   // Fetch messages for current channel
   const fetchMessages = useCallback(async (showLoader = true) => {
@@ -150,13 +179,13 @@ export default function OrgChatPage() {
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
   }, [fetchMessages])
 
-  // Background polling fallback - catch missed updates every 10s
+  // Background polling fallback - catch missed updates every 5s
   useEffect(() => {
     const interval = setInterval(() => {
       if (document.visibilityState === 'visible') {
         fetchMessages(false)
       }
-    }, 10000)
+    }, 5000)
     return () => clearInterval(interval)
   }, [fetchMessages])
 
@@ -524,6 +553,7 @@ export default function OrgChatPage() {
                   const reactions = msg.reactions || {}
                   const reactionEntries = Object.entries(reactions).filter(([, users]) => users.length > 0)
                   const isOwn = msg.user_id === user?.id
+                  const canDelete = isOwn || isAdmin
 
                   return (
                     <div key={msg.id}>
@@ -554,6 +584,24 @@ export default function OrgChatPage() {
                           {showHeader && (
                             <div className="flex items-baseline gap-2 mb-0.5">
                               <span className="text-tamu-maroon font-semibold text-sm">{msg.user_name}</span>
+                              {(() => {
+                                const member = members.find(m => m.user_id === msg.user_id)
+                                const role = member?.role
+                                if (role === 'admin' || role === 'officer') {
+                                  return (
+                                    <span className={`text-[10px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                                      role === 'admin' ? 'bg-tamu-maroon/10 text-tamu-maroon' : 'bg-blue-100 text-blue-700'
+                                    }`}>
+                                      {role}
+                                    </span>
+                                  )
+                                }
+                                // Check if this user is the org account
+                                if (!member && isOrgAccount && msg.user_id === user?.id) {
+                                  return <span className="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded bg-tamu-maroon/10 text-tamu-maroon">org</span>
+                                }
+                                return null
+                              })()}
                               <span className="text-gray-400 text-xs">{formatTime(msg.created_at)}</span>
                             </div>
                           )}
@@ -597,11 +645,11 @@ export default function OrgChatPage() {
                             >
                               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                             </button>
-                            {isOwn && (
+                            {canDelete && (
                               <button
                                 onClick={() => deleteMessage(msg.id)}
                                 className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 transition-colors"
-                                title="Delete"
+                                title={isOwn ? 'Delete' : 'Delete (Admin)'}
                               >
                                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
                               </button>
@@ -704,35 +752,68 @@ export default function OrgChatPage() {
             >
               <div className="w-[220px] h-full overflow-y-auto">
                 <div className="p-4">
-                  <p className="text-gray-400 text-[11px] font-bold uppercase tracking-wider mb-3">
-                    Members — {members.length}
-                  </p>
-                  {membersLoading ? (
-                    <div className="flex justify-center py-8">
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-tamu-maroon"></div>
-                    </div>
-                  ) : (
-                    <div className="space-y-0.5">
-                      {members.map(m => (
-                        <div key={m.user_id} className="flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-gray-50 transition-colors">
-                          <div className="relative flex-shrink-0">
-                            <div className="w-8 h-8 rounded-full bg-tamu-maroon flex items-center justify-center">
-                              <span className="text-white text-xs font-bold">{m.name[0]?.toUpperCase()}</span>
+                  {/* Admins/Officers section */}
+                  {(() => {
+                    const admins = members.filter(m => m.role === 'admin' || m.role === 'officer')
+                    const regularMembers = members.filter(m => m.role !== 'admin' && m.role !== 'officer')
+                    
+                    return membersLoading ? (
+                      <div className="flex justify-center py-8">
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-tamu-maroon"></div>
+                      </div>
+                    ) : (
+                      <>
+                        {admins.length > 0 && (
+                          <>
+                            <p className="text-gray-400 text-[11px] font-bold uppercase tracking-wider mb-2">
+                              Staff — {admins.length}
+                            </p>
+                            <div className="space-y-0.5 mb-4">
+                              {admins.map(m => (
+                                <div key={m.user_id} className="flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-gray-50 transition-colors">
+                                  <div className="relative flex-shrink-0">
+                                    <div className="w-8 h-8 rounded-full bg-tamu-maroon flex items-center justify-center">
+                                      <span className="text-white text-xs font-bold">{m.name[0]?.toUpperCase()}</span>
+                                    </div>
+                                    {m.user_id === user?.id && (
+                                      <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
+                                    )}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-gray-700 text-sm truncate">{m.name}</p>
+                                    <span className={`text-[10px] font-bold uppercase ${
+                                      m.role === 'admin' ? 'text-tamu-maroon' : 'text-blue-600'
+                                    }`}>{m.role}</span>
+                                  </div>
+                                </div>
+                              ))}
                             </div>
-                            {m.user_id === user?.id && (
-                              <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
-                            )}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="text-gray-700 text-sm truncate">{m.name}</p>
-                            {m.role && m.role !== 'member' && (
-                              <span className="text-[10px] text-tamu-maroon font-medium uppercase">{m.role}</span>
-                            )}
-                          </div>
+                          </>
+                        )}
+
+                        <p className="text-gray-400 text-[11px] font-bold uppercase tracking-wider mb-2">
+                          Members — {regularMembers.length}
+                        </p>
+                        <div className="space-y-0.5">
+                          {regularMembers.map(m => (
+                            <div key={m.user_id} className="flex items-center gap-2.5 px-2 py-2 rounded-lg hover:bg-gray-50 transition-colors">
+                              <div className="relative flex-shrink-0">
+                                <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center">
+                                  <span className="text-gray-600 text-xs font-bold">{m.name[0]?.toUpperCase()}</span>
+                                </div>
+                                {m.user_id === user?.id && (
+                                  <div className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 rounded-full border-2 border-white" />
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1">
+                                <p className="text-gray-700 text-sm truncate">{m.name}</p>
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                      ))}
-                    </div>
-                  )}
+                      </>
+                    )
+                  })()}
                 </div>
               </div>
             </motion.aside>
