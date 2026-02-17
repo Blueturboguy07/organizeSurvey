@@ -226,7 +226,7 @@ export default function OrgCard({
 
   const handleCardClick = () => {
     if (navigateOnClick) {
-      router.push(`/org/${org.id}`)
+      router.push(`/dashboard/chat/${org.id}`)
     } else {
       setIsModalOpen(true)
     }
