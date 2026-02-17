@@ -157,8 +157,13 @@ export default function OrgChatPage() {
           const newMsg = payload.new as ChatMessage
           if (newMsg.channel === activeChannel) {
             setMessages(prev => {
+              // Skip if we already have it (from optimistic insert) or a temp version
               if (prev.some(m => m.id === newMsg.id)) return prev
-              return [...prev, newMsg]
+              // Replace any temp message from same user with same content
+              const withoutTemp = prev.filter(m => 
+                !(m.id.startsWith('temp-') && m.user_id === newMsg.user_id && m.content === newMsg.content)
+              )
+              return [...withoutTemp, newMsg]
             })
           }
         }
@@ -187,8 +192,10 @@ export default function OrgChatPage() {
           filter: `organization_id=eq.${orgId}`
         },
         (payload) => {
-          const deleted = payload.old as { id: string }
-          setMessages(prev => prev.filter(m => m.id !== deleted.id))
+          const deleted = payload.old as { id?: string }
+          if (deleted?.id) {
+            setMessages(prev => prev.filter(m => m.id !== deleted.id))
+          }
         }
       )
       .subscribe()
@@ -215,15 +222,30 @@ export default function OrgChatPage() {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
-  // Send message
+  // Send message (optimistic)
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!newMessage.trim() || !user || !org) return
 
     const content = newMessage.trim()
+    const tempId = `temp-${Date.now()}`
+    const now = new Date().toISOString()
     setNewMessage('')
 
-    const { error } = await supabase
+    // Optimistic insert
+    const optimisticMsg: ChatMessage = {
+      id: tempId,
+      organization_id: orgId,
+      channel: activeChannel,
+      user_id: user.id,
+      user_name: userProfile?.name || 'Unknown',
+      content,
+      reactions: {},
+      created_at: now,
+    }
+    setMessages(prev => [...prev, optimisticMsg])
+
+    const { data, error } = await supabase
       .from('chat_messages')
       .insert({
         organization_id: orgId,
@@ -233,33 +255,53 @@ export default function OrgChatPage() {
         content,
         reactions: {}
       })
+      .select()
+      .single()
 
     if (error) {
       console.error('Send message error:', error)
+      // Remove optimistic message on failure
+      setMessages(prev => prev.filter(m => m.id !== tempId))
       setNewMessage(content)
+    } else if (data) {
+      // Replace temp message with real one
+      setMessages(prev => prev.map(m => m.id === tempId ? data : m))
     }
 
     inputRef.current?.focus()
   }
 
-  // Delete message
+  // Delete message (optimistic)
   const deleteMessage = async (msgId: string) => {
+    // Optimistic remove
+    const removedMsg = messages.find(m => m.id === msgId)
+    setMessages(prev => prev.filter(m => m.id !== msgId))
+    setHoveredMsgId(null)
+
     const { error } = await supabase
       .from('chat_messages')
       .delete()
       .eq('id', msgId)
 
-    if (error) console.error('Delete error:', error)
+    if (error) {
+      console.error('Delete error:', error)
+      // Restore on failure
+      if (removedMsg) {
+        setMessages(prev => [...prev, removedMsg].sort((a, b) => 
+          new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        ))
+      }
+    }
   }
 
-  // Toggle reaction
+  // Toggle reaction (optimistic)
   const toggleReaction = async (msgId: string, emoji: string) => {
     if (!user) return
     const msg = messages.find(m => m.id === msgId)
     if (!msg) return
 
     const reactions = { ...(msg.reactions || {}) }
-    const users = reactions[emoji] || []
+    const users = [...(reactions[emoji] || [])]
 
     if (users.includes(user.id)) {
       reactions[emoji] = users.filter(id => id !== user.id)
@@ -268,13 +310,20 @@ export default function OrgChatPage() {
       reactions[emoji] = [...users, user.id]
     }
 
+    // Optimistic update
+    setMessages(prev => prev.map(m => m.id === msgId ? { ...m, reactions } : m))
+    setReactionPickerMsgId(null)
+
     const { error } = await supabase
       .from('chat_messages')
       .update({ reactions })
       .eq('id', msgId)
 
-    if (error) console.error('Reaction error:', error)
-    setReactionPickerMsgId(null)
+    if (error) {
+      console.error('Reaction error:', error)
+      // Revert on failure
+      setMessages(prev => prev.map(m => m.id === msgId ? msg : m))
+    }
   }
 
   // Insert emoji into message input

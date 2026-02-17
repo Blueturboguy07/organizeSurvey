@@ -63,5 +63,8 @@ CREATE POLICY "users_can_delete_own_messages" ON chat_messages
   FOR DELETE
   USING (auth.uid() = user_id);
 
+-- Enable REPLICA IDENTITY FULL so DELETE events include the old row data for realtime
+ALTER TABLE chat_messages REPLICA IDENTITY FULL;
+
 -- Enable realtime
 ALTER PUBLICATION supabase_realtime ADD TABLE chat_messages;
