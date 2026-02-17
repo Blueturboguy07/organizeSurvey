@@ -92,26 +92,40 @@ export default function OrgChatPage() {
     fetchOrg()
   }, [orgId, supabase, router])
 
-  // Check if current user is the org account owner
+  // Check admin status: org account owner, or admin/officer role
   useEffect(() => {
     if (!orgId || !user) return
-    const checkOrgAccount = async () => {
-      const { data } = await supabase
+    const checkAdmin = async () => {
+      // Check if org account owner
+      const { data: orgAcct } = await supabase
         .from('org_accounts')
         .select('id')
         .eq('user_id', user.id)
         .eq('organization_id', orgId)
         .maybeSingle()
       
-      if (data) {
+      if (orgAcct) {
         setIsOrgAccount(true)
+        setIsAdmin(true)
+        return
+      }
+
+      // Check member role directly via DB (not dependent on members API)
+      const { data: membership } = await supabase
+        .from('user_joined_organizations')
+        .select('role')
+        .eq('user_id', user.id)
+        .eq('organization_id', orgId)
+        .maybeSingle()
+
+      if (membership && (membership.role === 'officer' || membership.role === 'admin')) {
         setIsAdmin(true)
       }
     }
-    checkOrgAccount()
+    checkAdmin()
   }, [orgId, user, supabase])
 
-  // Fetch members and determine admin status
+  // Fetch members for sidebar display
   useEffect(() => {
     if (!orgId) return
     const fetchMembers = async () => {
@@ -128,14 +142,6 @@ export default function OrgChatPage() {
             role: m.role || 'member'
           }))
           setMembers(membersList)
-
-          // Check if current user is officer or admin in this org
-          if (user) {
-            const myMembership = membersList.find((m: MemberInfo) => m.user_id === user.id)
-            if (myMembership && (myMembership.role === 'officer' || myMembership.role === 'admin')) {
-              setIsAdmin(true)
-            }
-          }
         }
       } catch (err) {
         console.error('Failed to fetch members:', err)
@@ -144,7 +150,7 @@ export default function OrgChatPage() {
       }
     }
     fetchMembers()
-  }, [orgId, user])
+  }, [orgId])
 
   // Fetch messages for current channel
   const fetchMessages = useCallback(async (showLoader = true) => {

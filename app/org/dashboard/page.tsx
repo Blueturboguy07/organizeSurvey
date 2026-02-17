@@ -311,18 +311,32 @@ export default function OrgDashboardPage() {
         orgAccountData = orgAccount
       } else {
         // Check if user has dashboard access as admin member
+        // First check org_dashboard_access table
         const { data: dashboardAccess } = await supabase
           .from('org_dashboard_access')
           .select('organization_id')
           .eq('user_id', user.id)
           .single()
 
-        if (!dashboardAccess) {
-          router.push('/dashboard')
-          return
-        }
+        if (dashboardAccess) {
+          organizationId = dashboardAccess.organization_id
+        } else {
+          // Fallback: check if user has admin or officer role in any org
+          const { data: adminMembership } = await supabase
+            .from('user_joined_organizations')
+            .select('organization_id')
+            .eq('user_id', user.id)
+            .in('role', ['admin', 'officer'])
+            .limit(1)
+            .single()
 
-        organizationId = dashboardAccess.organization_id
+          if (!adminMembership) {
+            router.push('/dashboard')
+            return
+          }
+
+          organizationId = adminMembership.organization_id
+        }
         
         // Get org account data for this organization
         const { data: orgAccount } = await supabase
