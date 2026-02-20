@@ -145,30 +145,18 @@ export default function OrgChatPage() {
     const fetchMembers = async () => {
       setMembersLoading(true)
       try {
-        const res = await fetch(`/api/org/members?organizationId=${orgId}`)
+        const res = await fetch(`/api/org/members?organizationId=${orgId}&_t=${Date.now()}`)
         if (res.ok) {
           const data = await res.json()
-          console.log('[Chat] Raw members API response:', JSON.stringify(data.members?.map((m: any) => ({
-            user_id: m.user_id,
-            role: m.role,
-            has_profile: m.user_profiles !== null && m.user_profiles !== undefined,
-            profile_name: m.user_profiles?.name || null,
-            profile_email: m.user_profiles?.email || null,
-            full_member_keys: Object.keys(m),
-          })), null, 2))
+          console.log('[Chat] Raw members API response:', JSON.stringify(data.members?.slice(0, 5), null, 2))
 
           const membersList = (data.members || []).map((m: any) => ({
-            user_id: m.user_id,
-            name: m.user_profiles?.name || 'Unknown',
-            email: m.user_profiles?.email || '',
-            profile_picture_url: m.user_profiles?.profile_picture_url || null,
+            user_id: m.userId || m.user_id,
+            name: m.name || m.user_profiles?.name || 'Unknown',
+            email: m.email || m.user_profiles?.email || '',
+            profile_picture_url: m.profilePicture || m.user_profiles?.profile_picture_url || null,
             role: m.role || 'member'
           }))
-          
-          const unknowns = membersList.filter((m: MemberInfo) => m.name === 'Unknown')
-          if (unknowns.length > 0) {
-            console.warn('[Chat] Members showing as Unknown:', unknowns.map((m: MemberInfo) => m.user_id))
-          }
 
           setMembers(membersList)
         } else {

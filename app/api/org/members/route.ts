@@ -56,6 +56,27 @@ export async function GET(request: Request) {
       }
     }
 
+    // For any members missing profiles, try to get info from auth.users
+    const missingProfileIds = userIds.filter(id => !userProfiles[id])
+    if (missingProfileIds.length > 0) {
+      console.log('[Members API] Fetching auth.users fallback for:', missingProfileIds)
+      for (const userId of missingProfileIds) {
+        try {
+          const { data: { user: authUser } } = await supabaseAdmin.auth.admin.getUserById(userId)
+          if (authUser) {
+            userProfiles[userId] = {
+              email: authUser.email || '',
+              name: authUser.user_metadata?.name || authUser.user_metadata?.full_name || authUser.email?.split('@')[0] || 'Member',
+              profile_picture_url: null
+            }
+            console.log('[Members API] Fallback found for', userId, ':', userProfiles[userId].name)
+          }
+        } catch (err) {
+          console.error('[Members API] Fallback failed for', userId, err)
+        }
+      }
+    }
+
     console.log('[Members API] Final member data:', memberships?.map(m => ({
       user_id: m.user_id,
       role: m.role,
