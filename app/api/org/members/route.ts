@@ -32,7 +32,7 @@ export async function GET(request: Request) {
     const userIds = memberships?.map(m => m.user_id) || []
     let userProfiles: Record<string, { email: string; name: string; profile_picture_url: string | null }> = {}
     
-    console.log('Fetching profiles for user IDs:', userIds)
+    console.log('[Members API] Member user_ids:', userIds)
     
     if (userIds.length > 0) {
       const { data: profiles, error: profilesError } = await supabaseAdmin
@@ -41,10 +41,12 @@ export async function GET(request: Request) {
         .in('id', userIds)
       
       if (profilesError) {
-        console.error('Error fetching profiles:', profilesError)
+        console.error('[Members API] Error fetching profiles:', profilesError)
       }
       
-      console.log('Found profiles:', profiles?.length || 0)
+      console.log('[Members API] Profiles found:', profiles?.length || 0, 'for', userIds.length, 'members')
+      console.log('[Members API] Profile IDs returned:', profiles?.map(p => p.id))
+      console.log('[Members API] Missing profiles for:', userIds.filter(id => !profiles?.some(p => p.id === id)))
       
       if (profiles) {
         userProfiles = profiles.reduce((acc, p) => {
@@ -53,6 +55,13 @@ export async function GET(request: Request) {
         }, {} as Record<string, { email: string; name: string; profile_picture_url: string | null }>)
       }
     }
+
+    console.log('[Members API] Final member data:', memberships?.map(m => ({
+      user_id: m.user_id,
+      role: m.role,
+      has_profile: !!userProfiles[m.user_id],
+      profile_name: userProfiles[m.user_id]?.name
+    })))
 
     // Combine memberships with profiles
     const members = memberships?.map(m => ({
