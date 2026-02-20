@@ -8,6 +8,7 @@ import { createClientComponentClient } from '@/lib/supabase'
 import { RealtimeChannel } from '@supabase/supabase-js'
 import Image from 'next/image'
 import Link from 'next/link'
+import EventsCalendar from '@/components/EventsCalendar'
 
 interface ChatMessage {
   id: string
@@ -606,6 +607,10 @@ export default function OrgChatPage() {
 
         {/* Main Chat Area */}
         <main className="flex-1 flex flex-col min-w-0 bg-white">
+          {activeChannel === 'events' ? (
+            <EventsCalendar orgId={orgId} orgName={org.name} isAdmin={isAdmin || isOrgAccount} />
+          ) : (
+          <>
           {/* Messages */}
           <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
             {messagesLoading ? (
@@ -887,6 +892,8 @@ export default function OrgChatPage() {
               </div>
             </form>
           </div>
+          </>
+          )}
         </main>
 
         {/* Members Sidebar - Desktop */}
