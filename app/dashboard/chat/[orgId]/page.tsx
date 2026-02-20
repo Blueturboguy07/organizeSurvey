@@ -17,6 +17,9 @@ interface ChatMessage {
   user_name: string
   content: string
   reactions: Record<string, string[]>
+  attachment_url?: string | null
+  attachment_name?: string | null
+  attachment_type?: string | null
   created_at: string
 }
 
@@ -67,8 +70,11 @@ export default function OrgChatPage() {
   const [hoveredMsgId, setHoveredMsgId] = useState<string | null>(null)
   const [isAdmin, setIsAdmin] = useState(false)
   const [isOrgAccount, setIsOrgAccount] = useState(false)
+  const [pendingFile, setPendingFile] = useState<File | null>(null)
+  const [uploading, setUploading] = useState(false)
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const emojiPickerRef = useRef<HTMLDivElement>(null)
 
   // Redirect if not logged in
@@ -134,6 +140,14 @@ export default function OrgChatPage() {
         const res = await fetch(`/api/org/members?organizationId=${orgId}`)
         if (res.ok) {
           const data = await res.json()
+          console.log('[Chat] Raw members API response:', JSON.stringify(data.members?.map((m: any) => ({
+            user_id: m.user_id,
+            role: m.role,
+            has_profile: !!m.user_profiles,
+            profile_name: m.user_profiles?.name,
+            profile_email: m.user_profiles?.email,
+          })), null, 2))
+
           const membersList = (data.members || []).map((m: any) => ({
             user_id: m.user_id,
             name: m.user_profiles?.name || 'Unknown',
@@ -141,7 +155,16 @@ export default function OrgChatPage() {
             profile_picture_url: m.user_profiles?.profile_picture_url || null,
             role: m.role || 'member'
           }))
+          
+          const unknowns = membersList.filter((m: MemberInfo) => m.name === 'Unknown')
+          if (unknowns.length > 0) {
+            console.warn('[Chat] Members showing as Unknown:', unknowns.map((m: MemberInfo) => m.user_id))
+          }
+
           setMembers(membersList)
+        } else {
+          const errText = await res.text()
+          console.error('[Chat] Members API error:', res.status, errText)
         }
       } catch (err) {
         console.error('Failed to fetch members:', err)
@@ -288,15 +311,55 @@ export default function OrgChatPage() {
     return () => document.removeEventListener('mousedown', handler)
   }, [])
 
+  // Upload file to Supabase storage
+  const uploadFile = async (file: File): Promise<{ url: string; name: string; type: string } | null> => {
+    const fileExt = file.name.split('.').pop()
+    const filePath = `${orgId}/${activeChannel}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`
+
+    const { error } = await supabase.storage
+      .from('chat-attachments')
+      .upload(filePath, file)
+
+    if (error) {
+      console.error('File upload error:', error)
+      return null
+    }
+
+    const { data: urlData } = supabase.storage
+      .from('chat-attachments')
+      .getPublicUrl(filePath)
+
+    return {
+      url: urlData.publicUrl,
+      name: file.name,
+      type: file.type,
+    }
+  }
+
+  // Handle file selection
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    if (file.size > 10 * 1024 * 1024) {
+      alert('File must be under 10MB')
+      return
+    }
+    setPendingFile(file)
+    inputRef.current?.focus()
+  }
+
   // Send message (optimistic)
   const handleSend = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newMessage.trim() || !user || !org) return
+    if ((!newMessage.trim() && !pendingFile) || !user || !org) return
 
-    const content = newMessage.trim()
+    const content = newMessage.trim() || (pendingFile ? `📎 ${pendingFile.name}` : '')
     const tempId = `temp-${Date.now()}`
     const now = new Date().toISOString()
+    const fileToUpload = pendingFile
     setNewMessage('')
+    setPendingFile(null)
+    if (fileInputRef.current) fileInputRef.current.value = ''
 
     // Optimistic insert
     const optimisticMsg: ChatMessage = {
@@ -307,30 +370,46 @@ export default function OrgChatPage() {
       user_name: userProfile?.name || 'Unknown',
       content,
       reactions: {},
+      attachment_name: fileToUpload?.name || null,
+      attachment_type: fileToUpload?.type || null,
       created_at: now,
     }
     setMessages(prev => [...prev, optimisticMsg])
 
+    // Upload file if present
+    let attachment: { url: string; name: string; type: string } | null = null
+    if (fileToUpload) {
+      setUploading(true)
+      attachment = await uploadFile(fileToUpload)
+      setUploading(false)
+    }
+
+    const insertData: any = {
+      organization_id: orgId,
+      channel: activeChannel,
+      user_id: user.id,
+      user_name: userProfile?.name || 'Unknown',
+      content: newMessage.trim() || (attachment ? `📎 ${attachment.name}` : content),
+      reactions: {},
+    }
+
+    if (attachment) {
+      insertData.attachment_url = attachment.url
+      insertData.attachment_name = attachment.name
+      insertData.attachment_type = attachment.type
+    }
+
     const { data, error } = await supabase
       .from('chat_messages')
-      .insert({
-        organization_id: orgId,
-        channel: activeChannel,
-        user_id: user.id,
-        user_name: userProfile?.name || 'Unknown',
-        content,
-        reactions: {}
-      })
+      .insert(insertData)
       .select()
       .single()
 
     if (error) {
       console.error('Send message error:', error)
-      // Remove optimistic message on failure
       setMessages(prev => prev.filter(m => m.id !== tempId))
       setNewMessage(content)
     } else if (data) {
-      // Replace temp message with real one
       setMessages(prev => prev.map(m => m.id === tempId ? data : m))
     }
 
@@ -611,7 +690,34 @@ export default function OrgChatPage() {
                               <span className="text-gray-400 text-xs">{formatTime(msg.created_at)}</span>
                             </div>
                           )}
-                          <p className="text-gray-700 text-sm leading-relaxed break-words whitespace-pre-wrap">{msg.content}</p>
+                          {msg.content && <p className="text-gray-700 text-sm leading-relaxed break-words whitespace-pre-wrap">{msg.content}</p>}
+
+                          {/* Attachment */}
+                          {msg.attachment_url && (
+                            <div className="mt-1.5">
+                              {msg.attachment_type?.startsWith('image/') ? (
+                                <a href={msg.attachment_url} target="_blank" rel="noopener noreferrer" className="block">
+                                  <img 
+                                    src={msg.attachment_url} 
+                                    alt={msg.attachment_name || 'Image'} 
+                                    className="max-w-xs max-h-64 rounded-lg border border-gray-200 hover:border-tamu-maroon/40 transition-colors cursor-pointer"
+                                  />
+                                </a>
+                              ) : (
+                                <a
+                                  href={msg.attachment_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg hover:border-tamu-maroon/40 hover:bg-gray-100 transition-colors text-sm"
+                                >
+                                  <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                                  </svg>
+                                  <span className="text-tamu-maroon font-medium truncate max-w-[200px]">{msg.attachment_name || 'Download'}</span>
+                                </a>
+                              )}
+                            </div>
+                          )}
 
                           {/* Reactions */}
                           {reactionEntries.length > 0 && (
@@ -714,18 +820,54 @@ export default function OrgChatPage() {
               )}
             </AnimatePresence>
 
+            {/* Pending file preview */}
+            {pendingFile && (
+              <div className="mb-2 flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg">
+                <svg className="w-4 h-4 text-gray-500 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                </svg>
+                {pendingFile.type.startsWith('image/') ? (
+                  <img src={URL.createObjectURL(pendingFile)} alt="" className="h-16 rounded border border-gray-200" />
+                ) : (
+                  <span className="text-sm text-gray-700 truncate">{pendingFile.name}</span>
+                )}
+                <span className="text-xs text-gray-400">({(pendingFile.size / 1024).toFixed(0)}KB)</span>
+                <button
+                  onClick={() => { setPendingFile(null); if (fileInputRef.current) fileInputRef.current.value = '' }}
+                  className="ml-auto p-1 text-gray-400 hover:text-red-500 transition-colors"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                </button>
+              </div>
+            )}
+
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              onChange={handleFileSelect}
+              className="hidden"
+              accept="image/*,.pdf,.doc,.docx,.txt,.csv,.xlsx,.pptx,.zip"
+            />
+
             <form onSubmit={handleSend}>
               <div className="flex items-center bg-gray-50 border border-gray-200 rounded-xl focus-within:border-tamu-maroon/40 focus-within:ring-2 focus-within:ring-tamu-maroon/10 transition-all">
-                <button type="button" className="p-3 text-gray-400 hover:text-tamu-maroon transition-colors flex-shrink-0">
-                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="p-3 text-gray-400 hover:text-tamu-maroon transition-colors flex-shrink-0"
+                  title="Attach file"
+                >
+                  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
                 </button>
                 <input
                   ref={inputRef}
                   type="text"
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
-                  placeholder={`Message #${activeChannel}`}
+                  placeholder={uploading ? 'Uploading file...' : `Message #${activeChannel}`}
                   className="flex-1 bg-transparent text-gray-800 text-sm py-3 outline-none placeholder-gray-400"
+                  disabled={uploading}
                 />
                 <div className="flex items-center gap-1 pr-2 flex-shrink-0">
                   <button
@@ -735,9 +877,13 @@ export default function OrgChatPage() {
                   >
                     <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
                   </button>
-                  {newMessage.trim() && (
-                    <motion.button initial={{ scale: 0 }} animate={{ scale: 1 }} type="submit" className="p-1.5 bg-tamu-maroon text-white rounded-lg hover:bg-tamu-maroon-light transition-colors">
-                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+                  {(newMessage.trim() || pendingFile) && (
+                    <motion.button initial={{ scale: 0 }} animate={{ scale: 1 }} type="submit" disabled={uploading} className="p-1.5 bg-tamu-maroon text-white rounded-lg hover:bg-tamu-maroon-light transition-colors disabled:opacity-50">
+                      {uploading ? (
+                        <div className="w-4 h-4 animate-spin rounded-full border-2 border-white border-t-transparent"></div>
+                      ) : (
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" /></svg>
+                      )}
                     </motion.button>
                   )}
                 </div>

@@ -79,7 +79,8 @@ export async function middleware(request: NextRequest) {
   }
 
   // Redirect org users trying to access student routes to org dashboard
-  if (isStudentProtectedRoute && isOrgAccount) {
+  // Exception: allow org accounts to access /dashboard/chat/ for org chat
+  if (isStudentProtectedRoute && isOrgAccount && !pathname.startsWith('/dashboard/chat/')) {
     return NextResponse.redirect(new URL('/org/dashboard', request.url))
   }
 

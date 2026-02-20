@@ -7,8 +7,16 @@ CREATE TABLE IF NOT EXISTS chat_messages (
   user_name TEXT NOT NULL,
   content TEXT NOT NULL,
   reactions JSONB DEFAULT '{}'::jsonb,
+  attachment_url TEXT,
+  attachment_name TEXT,
+  attachment_type TEXT,
   created_at TIMESTAMPTZ DEFAULT now()
 );
+
+-- If table already exists, add attachment columns
+ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS attachment_url TEXT;
+ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS attachment_name TEXT;
+ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS attachment_type TEXT;
 
 -- Indexes for fast queries
 CREATE INDEX IF NOT EXISTS idx_chat_messages_org_channel ON chat_messages(organization_id, channel, created_at DESC);
