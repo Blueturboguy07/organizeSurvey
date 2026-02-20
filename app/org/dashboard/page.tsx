@@ -243,6 +243,8 @@ export default function OrgDashboardPage() {
   const [selectedRecipients, setSelectedRecipients] = useState<Set<string>>(new Set())
   const [sendToAll, setSendToAll] = useState(true)
   const [memberSearch, setMemberSearch] = useState('')
+  const [announcementHistory, setAnnouncementHistory] = useState<{ id: string; title: string; body: string; created_at: string }[]>([])
+  const [historyExpanded, setHistoryExpanded] = useState(false)
   
   // Editing states
   const [editingField, setEditingField] = useState<string | null>(null)
@@ -789,6 +791,22 @@ export default function OrgDashboardPage() {
   }
 
   // Open announcement modal and fetch members
+  // Fetch announcement history
+  const fetchAnnouncementHistory = useCallback(async () => {
+    if (!organization) return
+    const { data } = await supabase
+      .from('org_announcements')
+      .select('id, title, body, created_at')
+      .eq('organization_id', organization.id)
+      .order('created_at', { ascending: false })
+      .limit(20)
+    if (data) setAnnouncementHistory(data)
+  }, [organization, supabase])
+
+  useEffect(() => {
+    fetchAnnouncementHistory()
+  }, [fetchAnnouncementHistory])
+
   const openAnnouncementModal = () => {
     setShowAnnouncementModal(true)
     setSendToAll(true)
@@ -873,6 +891,7 @@ export default function OrgDashboardPage() {
       setAnnouncementBody('')
       setSendToAll(true)
       setSelectedRecipients(new Set())
+      fetchAnnouncementHistory()
       
       if (data.emailsSent > 0) {
         setTimeout(() => {
@@ -1320,6 +1339,60 @@ export default function OrgDashboardPage() {
             </svg>
           </div>
         </motion.div>
+
+        {/* Announcement History */}
+        {announcementHistory.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="bg-white rounded-xl shadow-sm border border-gray-200 mb-6 overflow-hidden"
+          >
+            <button
+              onClick={() => setHistoryExpanded(!historyExpanded)}
+              className="w-full flex items-center justify-between p-4 hover:bg-gray-50 transition-colors"
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-sm font-semibold text-gray-700">Past Announcements</span>
+                <span className="px-2 py-0.5 text-xs bg-gray-100 text-gray-600 rounded-full">{announcementHistory.length}</span>
+              </div>
+              <motion.svg
+                animate={{ rotate: historyExpanded ? 180 : 0 }}
+                transition={{ duration: 0.2 }}
+                className="w-4 h-4 text-gray-400"
+                fill="none" stroke="currentColor" viewBox="0 0 24 24"
+              >
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </motion.svg>
+            </button>
+
+            <AnimatePresence>
+              {historyExpanded && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  transition={{ duration: 0.2 }}
+                  className="overflow-hidden"
+                >
+                  <div className="border-t border-gray-100 divide-y divide-gray-100 max-h-80 overflow-y-auto">
+                    {announcementHistory.map(ann => (
+                      <div key={ann.id} className="px-4 py-3">
+                        <div className="flex items-baseline justify-between gap-2 mb-1">
+                          <h4 className="text-sm font-semibold text-gray-800 truncate">{ann.title}</h4>
+                          <span className="text-xs text-gray-400 whitespace-nowrap flex-shrink-0">
+                            {new Date(ann.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-500 line-clamp-2">{ann.body}</p>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        )}
 
         {/* Collapsible Content */}
         <AnimatePresence>
