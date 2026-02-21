@@ -750,7 +750,7 @@ export default function OrgChatPage() {
         {/* Main Chat Area */}
         <main className="flex-1 flex flex-col min-w-0 bg-white">
           {activeChannel === 'events' ? (
-            <EventsCalendar orgId={orgId} orgName={org.name} isAdmin={isAdmin || isOrgAccount} sessionToken={session?.access_token} />
+            <EventsCalendar orgId={orgId} orgName={org.name} isAdmin={isAdmin || isOrgAccount} />
           ) : (
           <>
           {/* Messages */}
