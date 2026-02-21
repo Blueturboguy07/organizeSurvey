@@ -22,6 +22,7 @@ interface EventsCalendarProps {
   orgId: string
   orgName: string
   isAdmin: boolean
+  sessionToken?: string
 }
 
 const COLORS = ['#500000', '#1d4ed8', '#059669', '#d97706', '#dc2626', '#7c3aed', '#db2777']
@@ -29,7 +30,7 @@ const COLORS = ['#500000', '#1d4ed8', '#059669', '#d97706', '#dc2626', '#7c3aed'
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
-export default function EventsCalendar({ orgId, orgName, isAdmin }: EventsCalendarProps) {
+export default function EventsCalendar({ orgId, orgName, isAdmin, sessionToken }: EventsCalendarProps) {
   const supabase = createClientComponentClient()
   const [events, setEvents] = useState<OrgEvent[]>([])
   const [loading, setLoading] = useState(true)
@@ -70,6 +71,20 @@ export default function EventsCalendar({ orgId, orgName, isAdmin }: EventsCalend
     if (!error && data) setEvents(data)
     setLoading(false)
   }, [orgId, currentDate, supabase])
+
+  // Trigger Google Calendar sync for connected users
+  const triggerGoogleSync = async (eventId: string, action: 'create' | 'update' | 'delete') => {
+    if (!sessionToken) return
+    try {
+      await fetch('/api/google/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${sessionToken}` },
+        body: JSON.stringify({ eventId, organizationId: orgId, action })
+      })
+    } catch (err) {
+      console.error('[GCal Sync] Trigger failed:', err)
+    }
+  }
 
   useEffect(() => { fetchEvents() }, [fetchEvents])
 
@@ -139,7 +154,7 @@ export default function EventsCalendar({ orgId, orgName, isAdmin }: EventsCalend
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) { setFormError('Not authenticated'); setFormSaving(false); return }
 
-    const { error } = await supabase
+    const { data: inserted, error } = await supabase
       .from('org_events')
       .insert({
         organization_id: orgId,
@@ -152,17 +167,21 @@ export default function EventsCalendar({ orgId, orgName, isAdmin }: EventsCalend
         color: formColor,
         created_by: user.id
       })
+      .select()
+      .single()
 
     if (error) {
       setFormError(error.message)
     } else {
       setShowCreateModal(false)
       fetchEvents()
+      if (inserted) triggerGoogleSync(inserted.id, 'create')
     }
     setFormSaving(false)
   }
 
   const handleDelete = async (eventId: string) => {
+    triggerGoogleSync(eventId, 'delete')
     const { error } = await supabase.from('org_events').delete().eq('id', eventId)
     if (!error) {
       setShowEventModal(null)
