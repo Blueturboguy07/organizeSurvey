@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { motion, AnimatePresence } from 'framer-motion'
 import { useAuth } from '@/contexts/AuthContext'
@@ -23,7 +23,21 @@ interface OrgEvent {
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']
 
-export default function AllEventsPage() {
+export default function AllEventsPageWrapper() {
+  return (
+    <Suspense fallback={
+      <DashboardLayout>
+        <div className="flex items-center justify-center py-20">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-tamu-maroon"></div>
+        </div>
+      </DashboardLayout>
+    }>
+      <AllEventsPage />
+    </Suspense>
+  )
+}
+
+function AllEventsPage() {
   const { user, session, loading: authLoading, joinedOrgIds } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
